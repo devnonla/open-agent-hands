@@ -1,0 +1,39 @@
+import { Hono } from "hono";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { requireRole } from "../../common/middleware/auth.middleware.js";
+import { createSecret, deleteSecret, getSecretMeta, getSecretValue, listSecrets, updateSecret } from "./secrets.service.js";
+
+const app = new Hono();
+
+app.use("*", requireRole("admin"));
+
+app.get("/", async (c) => c.json(await listSecrets(c.req.query())));
+
+app.get("/:id/value", async (c) => {
+  const value = await getSecretValue(c.req.param("id"));
+  if (value === null) throw new BadRequestException("Secret not found");
+  return c.json({ value });
+});
+
+app.get("/:id", async (c) => {
+  const entry = await getSecretMeta(c.req.param("id"));
+  if (!entry) throw new BadRequestException("Secret not found");
+  return c.json(entry);
+});
+
+app.post("/", async (c) => {
+  const body = await c.req.json();
+  return c.json(await createSecret(body), 201);
+});
+
+app.put("/:id", async (c) => {
+  const body = await c.req.json();
+  return c.json(await updateSecret(c.req.param("id"), body));
+});
+
+app.delete("/:id", async (c) => {
+  await deleteSecret(c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+export default app;

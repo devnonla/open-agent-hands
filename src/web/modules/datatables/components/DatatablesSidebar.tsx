@@ -1,0 +1,144 @@
+import { Logo } from "devnonla-ui";
+import { ArrowLeft, Plus, Settings, Waypoints } from "lucide-react";
+import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "src/common/lib/cn";
+import type { DatatableTable } from "src/common/types";
+import type { DatatableProjectListItem } from "../common/datatableProjectsSlice";
+import { NewTablePopover } from "./NewTablePopover";
+
+const TREE_STROKE = "text-muted-foreground/40";
+const TREE_LINE_FILL = "bg-muted-foreground/40";
+
+function TreeGuide({ isLast }: { isLast: boolean }) {
+  return (
+    <div className={cn("pointer-events-none relative w-5 shrink-0 self-stretch", TREE_STROKE)} aria-hidden>
+      {isLast ? (
+        <>
+          <div className={cn("absolute top-0 left-1/2 w-px -translate-x-1/2", TREE_LINE_FILL, "h-[calc(50%-6px)]")} />
+          <svg className="absolute top-[calc(50%-6px)] left-[calc(50%-0.5px)] overflow-visible" width="13" height="7" viewBox="0 0 13 7" fill="none">
+            <path d="M0.5 0 V1 Q0.5 6.5 6.5 6.5 H13" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+          </svg>
+        </>
+      ) : (
+        <>
+          <div className={cn("absolute top-0 -bottom-0.5 left-1/2 w-px -translate-x-1/2", TREE_LINE_FILL)} />
+          <div className={cn("absolute top-1/2 left-1/2 h-px w-2.5 -translate-y-1/2", TREE_LINE_FILL)} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function TreeLeaf({ isLast, children }: { isLast: boolean; children: ReactNode }) {
+  return (
+    <div className="relative flex items-stretch">
+      <TreeGuide isLast={isLast} />
+      {children}
+    </div>
+  );
+}
+
+function TableRow({ name, active, onOpen }: { name: string; active: boolean; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className={cn("min-w-0 flex-1 cursor-pointer truncate rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-sm leading-snug", active ? "bg-ink-active font-medium text-foreground" : "text-foreground/85 hover:bg-ink-hover")}>
+      {name}
+    </button>
+  );
+}
+
+function AddTableRow({ projectId, onSaved }: { projectId: string; onSaved: (table: DatatableTable) => void }) {
+  return (
+    <NewTablePopover projectId={projectId} onSaved={onSaved}>
+      <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-sm leading-snug text-muted-foreground hover:bg-ink-hover hover:text-foreground">
+        <Plus size={14} className="shrink-0" />
+        <span className="truncate">Add table</span>
+      </button>
+    </NewTablePopover>
+  );
+}
+
+export function DatatablesSidebar({
+  project,
+  projectsLoading,
+  selectedTableId,
+  onSelectTable,
+  settingsActive,
+  schemaActive,
+  onTableCreated,
+}: {
+  project: DatatableProjectListItem | null;
+  projectsLoading: boolean;
+  selectedTableId: string | null;
+  onSelectTable: (tableId: string) => void;
+  settingsActive: boolean;
+  schemaActive: boolean;
+  onTableCreated: (table: DatatableTable) => void;
+}) {
+  const navigate = useNavigate();
+  const tables = project?.tables ?? [];
+
+  return (
+    <aside className="flex h-full min-h-0 flex-col bg-sidebar">
+      <div className="flex min-w-0 items-center bg-foreground/3 px-4 pt-3.5 pb-3">
+        <Logo variant="full" size={28} className="min-w-0" />
+      </div>
+      <div className="flex min-w-0 items-center gap-1 px-2 pt-3 pb-1">
+        <button type="button" aria-label="Back to projects" onClick={() => navigate("/datatables")} className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-ink-hover hover:text-foreground">
+          <ArrowLeft size={16} />
+        </button>
+        <span className="truncate text-base font-semibold text-foreground">{project?.name ?? (projectsLoading ? "Loading…" : "Project")}</span>
+      </div>
+
+      <nav aria-label="Tables" className="min-h-0 flex-1 overflow-y-auto px-1.5 pt-2 pb-3">
+        {projectsLoading && !project ? (
+          <p className="m-0 px-2 py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : !project ? (
+          <p className="m-0 px-2 py-2 text-sm text-muted-foreground">Project not found</p>
+        ) : (
+          <div className="relative mt-1 pl-2">
+            <div className={cn("pointer-events-none absolute -top-1.5 left-2 h-4 w-5", TREE_STROKE)} aria-hidden>
+              <div className={cn("absolute inset-y-0 left-1/2 w-px -translate-x-1/2", TREE_LINE_FILL)} />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {tables.map((table) => (
+                <TreeLeaf key={table.id} isLast={false}>
+                  <TableRow name={table.name} active={!settingsActive && !schemaActive && table.id === selectedTableId} onOpen={() => onSelectTable(table.id)} />
+                </TreeLeaf>
+              ))}
+              <TreeLeaf isLast>
+                <AddTableRow projectId={project.id} onSaved={onTableCreated} />
+              </TreeLeaf>
+            </div>
+          </div>
+        )}
+      </nav>
+      <nav aria-label="Project views" className="shrink-0 border-t border-border px-1.5 py-1.5">
+        <button
+          type="button"
+          aria-pressed={schemaActive}
+          disabled={!project}
+          onClick={() => {
+            if (project) navigate(`/datatables/${project.id}/schema`);
+          }}
+          className={cn("flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-sm leading-snug disabled:cursor-default disabled:opacity-50", schemaActive ? "bg-ink-active font-medium text-foreground" : "text-foreground/85 hover:bg-ink-hover")}
+        >
+          <Waypoints size={15} className="shrink-0 text-muted-foreground" />
+          <span className="truncate">Schema</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={settingsActive}
+          disabled={!project}
+          onClick={() => {
+            if (project) navigate(`/datatables/${project.id}/settings`);
+          }}
+          className={cn("flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-sm leading-snug disabled:cursor-default disabled:opacity-50", settingsActive ? "bg-ink-active font-medium text-foreground" : "text-foreground/85 hover:bg-ink-hover")}
+        >
+          <Settings size={15} className="shrink-0 text-muted-foreground" />
+          <span className="truncate">Settings</span>
+        </button>
+      </nav>
+    </aside>
+  );
+}
