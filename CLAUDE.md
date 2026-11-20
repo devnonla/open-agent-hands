@@ -35,7 +35,15 @@ bun run typecheck              # web (cd src/web && bun check)
 bun run typecheck:server       # server (cd src/server && bun check)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, both typechecks and tests. Use Conventional Commits (`feat(scope): …`) and branches named `feat/`, `fix/`, `docs/`, `refactor/` or `chore/`. Pushing a `v*` tag runs `release.yml`, which uploads the binaries and `scripts/install.sh` to a GitHub release.
+CI (`.github/workflows/ci.yml`) runs lint, both typechecks and tests. Use Conventional Commits (`feat(scope): …`) and branches named `feat/`, `fix/`, `docs/`, `refactor/` or `chore/`.
+
+**Releasing:** always follow the `release` skill (`.claude/skills/release/SKILL.md`), every gate, in order. Pushing a `v*` tag runs `release.yml`:
+- an ubuntu job builds the 4 binaries and `install.sh`, and creates the release with notes taken from the matching `CHANGELOG.md` section;
+- a `macos-latest` job reuses the darwin binaries from that job and adds `OpenAgentHands-darwin-{arm64,x64}.app.tar.gz`.
+
+Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a published release; fix forward with a patch.
+
+**This machine runs the official install:** `/Applications/Open Agent Hands.app` on 8429 with real data in `~/.open-agent-hands`, plus `~/.local/bin/agenthands` symlinked into the app. Never smoke-test against those; use a spare port and `--data-dir` in the scratchpad. `bun run build` briefly rewrites `embedded-assets.ts`, which can kill a running `bun run dev`, so restart dev afterwards. Dev builds show a purple DEV badge and a `[DEV]` title (`IS_DEV_BUILD` in `components/AppLogo.tsx`).
 
 ## Architecture
 
