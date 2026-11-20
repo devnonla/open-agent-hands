@@ -1,14 +1,13 @@
-import { Button, Icon, Splitter, message } from "devnonla-ui";
-import { Plus } from "lucide-react";
+import { Icon, Splitter, message } from "devnonla-ui";
 import { useCallback, useEffect, useState } from "react";
 import { useMatch, useNavigate, useParams } from "react-router-dom";
 import type { DatatableColumn, DatatableProject, DatatableTable } from "src/common/types";
+import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { type DatatableProjectListItem, fetchDatatableProjects, setDatatableProjectTables } from "../common/datatableProjectsSlice";
 import { datatablesApi } from "../common/datatablesApi";
 import { DatatableProjectHeader } from "../components/DatatableProjectHeader";
 import { DatatablesSidebar } from "../components/DatatablesSidebar";
-import { NewTablePopover } from "../components/NewTablePopover";
 import { ProjectSettingsPage } from "../components/ProjectSettingsPage";
 import { SchemaFlow } from "../components/SchemaFlow";
 import { TableRowsPanel } from "../components/TableRowsPanel";
@@ -115,19 +114,6 @@ export default function DatatableProjectPage() {
     };
   }, [projectId, applySchema]);
 
-  const rememberTables = (ownerId: string, next: { id: string; name: string }[]) => {
-    dispatch(setDatatableProjectTables({ projectId: ownerId, tables: next }));
-  };
-
-  const handleTableCreated = (table: DatatableTable) => {
-    if (!projectId) return;
-    const owner = items.find((item) => item.id === projectId);
-    rememberTables(projectId, [...(owner?.tables ?? []), { id: table.id, name: table.name }]);
-    setSelectedTableId(table.id);
-    setTables((prev) => sortTablesByName([...prev, table]));
-    setColumnsMap((prev) => ({ ...prev, [table.id]: [] }));
-  };
-
   return (
     <>
       <Splitter
@@ -153,7 +139,6 @@ export default function DatatableProjectPage() {
             }}
             settingsActive={!!settingsProjectId}
             schemaActive={!!schemaProjectId}
-            onTableCreated={handleTableCreated}
           />
         </Splitter.Panel>
         <Splitter.Panel min="40%" className="min-h-0 overflow-hidden">
@@ -176,12 +161,7 @@ export default function DatatableProjectPage() {
                             <Icon name="document" size={24} />
                           </span>
                           <p className="m-0 text-sm font-medium text-foreground">No tables yet</p>
-                          <p className="mt-1 mb-4 text-sm text-muted-foreground">Create a table to start adding rows</p>
-                          <NewTablePopover projectId={projectId} onSaved={handleTableCreated}>
-                            <Button type="primary" icon={<Plus size={16} />}>
-                              Add table
-                            </Button>
-                          </NewTablePopover>
+                          <AskClaudeHint what="table" tool="datatable_create_table" />
                         </div>
                       ) : schemaProjectId ? (
                         <SchemaFlow

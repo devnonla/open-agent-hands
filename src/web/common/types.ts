@@ -159,6 +159,8 @@ export interface Job {
   draftCode?: string | null;
   cron: string;
   enabled: boolean;
+  status?: "scheduled" | "paused" | "manual";
+  nextRuns?: string[];
   timeoutMs: number;
   nextRunAt: Date | null;
   lastRunAt: Date | null;

@@ -27,7 +27,7 @@ function JobsSkeleton() {
 function hasUpcomingNextRun(items: Job[]): boolean {
   const now = Date.now();
   return items.some((j) => {
-    if (!j.nextRunAt || !jobIsScheduled(j.cron)) return false;
+    if (!j.nextRunAt || !j.enabled || !jobIsScheduled(j.cron)) return false;
     const at = j.nextRunAt instanceof Date ? j.nextRunAt.getTime() : new Date(j.nextRunAt).getTime();
     const diff = at - now;
     return diff > 0;
@@ -76,7 +76,7 @@ export default function JobsPage() {
 
   return (
     <PageShell>
-      <PageHeader title="Jobs" icon="jobs" description="Scheduled jobs run on their own. Off jobs stay idle until a schedule is added." />
+      <PageHeader title="Jobs" icon="jobs" description="Agents create and schedule jobs. Watch runs here, pause a schedule or start a run by hand." />
 
       <RenderIf
         condition={items.length > 0 || loading}

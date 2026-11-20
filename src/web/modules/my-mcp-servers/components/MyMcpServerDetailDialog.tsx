@@ -1,5 +1,5 @@
 import { Alert, Button, Empty, Icon, Input, Modal, Popconfirm, Switch, message } from "devnonla-ui";
-import { ChevronDown, ChevronRight, Pencil, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { MyMcpServer } from "src/common/types";
@@ -13,13 +13,11 @@ export function MyMcpServerDetailDialog({
   serverId,
   listItem,
   onClose,
-  onEdit,
   onRotated,
 }: {
   serverId: string | null;
   listItem: MyMcpServer | null;
   onClose: () => void;
-  onEdit: (server: MyMcpServer) => void;
   onRotated: (server: MyMcpServer) => void;
 }) {
   const dispatch = useAppDispatch();
@@ -96,9 +94,6 @@ export function MyMcpServerDetailDialog({
               <div className="flex items-center gap-2">
                 <h3 className="m-0 text-[13px] font-semibold text-foreground">Exposed tools</h3>
                 <span className="text-[11px] tabular-nums text-muted-foreground">{tools.length}</span>
-                <Button className="ml-auto" size="small" icon={<Pencil size={13} />} onClick={() => onEdit(s)}>
-                  Edit tools
-                </Button>
               </div>
 
               <RenderIf
@@ -109,10 +104,9 @@ export function MyMcpServerDetailDialog({
                       <Icon name="stars" size={18} />
                     </div>
                     <p className="m-0 text-sm font-medium text-foreground">No tools exposed yet</p>
-                    <p className="mt-1 mb-3 text-xs text-muted-foreground">Clients can connect, but they will see an empty tool list.</p>
-                    <Button type="primary" size="small" icon={<Pencil size={13} />} onClick={() => onEdit(s)}>
-                      Pick tools
-                    </Button>
+                    <p className="m-0 mt-1 text-xs text-muted-foreground">
+                      Ask your agent to assign tools with <code className="font-mono text-[11px]">add_tools_to_mcp_server</code>.
+                    </p>
                   </div>
                 }
               >

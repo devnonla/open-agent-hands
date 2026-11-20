@@ -1,11 +1,9 @@
-import { ArrowLeft, Plus, Settings, Waypoints } from "lucide-react";
+import { ArrowLeft, Settings, Waypoints } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "src/common/lib/cn";
-import type { DatatableTable } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import type { DatatableProjectListItem } from "../common/datatableProjectsSlice";
-import { NewTablePopover } from "./NewTablePopover";
 
 const TREE_STROKE = "text-muted-foreground/40";
 const TREE_LINE_FILL = "bg-muted-foreground/40";
@@ -47,17 +45,6 @@ function TableRow({ name, active, onOpen }: { name: string; active: boolean; onO
   );
 }
 
-function AddTableRow({ projectId, onSaved }: { projectId: string; onSaved: (table: DatatableTable) => void }) {
-  return (
-    <NewTablePopover projectId={projectId} onSaved={onSaved}>
-      <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-sm leading-snug text-muted-foreground hover:bg-ink-hover hover:text-foreground">
-        <Plus size={14} className="shrink-0" />
-        <span className="truncate">Add table</span>
-      </button>
-    </NewTablePopover>
-  );
-}
-
 export function DatatablesSidebar({
   project,
   projectsLoading,
@@ -65,7 +52,6 @@ export function DatatablesSidebar({
   onSelectTable,
   settingsActive,
   schemaActive,
-  onTableCreated,
 }: {
   project: DatatableProjectListItem | null;
   projectsLoading: boolean;
@@ -73,7 +59,6 @@ export function DatatablesSidebar({
   onSelectTable: (tableId: string) => void;
   settingsActive: boolean;
   schemaActive: boolean;
-  onTableCreated: (table: DatatableTable) => void;
 }) {
   const navigate = useNavigate();
   const tables = project?.tables ?? [];
@@ -101,14 +86,12 @@ export function DatatablesSidebar({
               <div className={cn("absolute inset-y-0 left-1/2 w-px -translate-x-1/2", TREE_LINE_FILL)} />
             </div>
             <div className="flex flex-col gap-0.5">
-              {tables.map((table) => (
-                <TreeLeaf key={table.id} isLast={false}>
+              {tables.length === 0 ? <p className="m-0 px-2 py-1.5 text-sm text-muted-foreground">No tables</p> : null}
+              {tables.map((table, index) => (
+                <TreeLeaf key={table.id} isLast={index === tables.length - 1}>
                   <TableRow name={table.name} active={!settingsActive && !schemaActive && table.id === selectedTableId} onOpen={() => onSelectTable(table.id)} />
                 </TreeLeaf>
               ))}
-              <TreeLeaf isLast>
-                <AddTableRow projectId={project.id} onSaved={onTableCreated} />
-              </TreeLeaf>
             </div>
           </div>
         )}

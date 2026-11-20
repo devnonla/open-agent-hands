@@ -24,14 +24,6 @@ export const fetchDatatableProjects = createAsyncThunk("datatableProjects/list",
   }
 });
 
-export const createDatatableProject = createAsyncThunk("datatableProjects/create", async (name: string, { rejectWithValue }) => {
-  try {
-    return await datatablesApi.createProject(name);
-  } catch (err: unknown) {
-    return rejectWithValue(err instanceof Error ? err.message : "Failed to create project");
-  }
-});
-
 export const updateDatatableProject = createAsyncThunk("datatableProjects/update", async ({ id, name }: { id: string; name: string }, { rejectWithValue }) => {
   try {
     return await datatablesApi.updateProject(id, name);
@@ -80,13 +72,6 @@ const datatableProjectsSlice = createSlice({
       .addCase(fetchDatatableProjects.fulfilled, (state, action) => {
         state.items = action.payload;
         state.total = action.payload.length;
-      })
-      .addCase(createDatatableProject.fulfilled, (state, action) => {
-        const entry: DatatableProjectListItem = { ...action.payload, tableCount: 0, tableNames: [], tables: [] };
-        if (!state.items.some((item) => item.id === entry.id)) {
-          state.items.push(entry);
-          state.total = state.items.length;
-        }
       })
       .addCase(updateDatatableProject.fulfilled, (state, action) => {
         const index = state.items.findIndex((item) => item.id === action.payload.id);

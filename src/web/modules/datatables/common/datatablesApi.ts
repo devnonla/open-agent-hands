@@ -5,20 +5,17 @@ const BASE = "/api/datatables";
 
 export const datatablesApi = {
   listProjects: () => apiClient.get<Array<DatatableProject & { tableCount: number; tableNames: string[]; tables: { id: string; name: string }[] }>>(`${BASE}/projects`),
-  createProject: (name: string) => apiClient.post<DatatableProject>(`${BASE}/projects`, { name }),
   updateProject: (id: string, name: string) => apiClient.put<DatatableProject>(`${BASE}/projects/${id}`, { name }),
   deleteProject: (id: string) => apiClient.delete(`${BASE}/projects/${id}`),
   getProject: (id: string) => apiClient.get<DatatableProject>(`${BASE}/projects/${id}`),
 
   listTables: (projectId: string) => apiClient.get<DatatableTable[]>(`${BASE}/projects/${projectId}/tables`),
   getProjectSchema: (projectId: string) => apiClient.get<{ project: DatatableProject; tables: Array<DatatableTable & { columns: DatatableColumn[] }> }>(`${BASE}/projects/${projectId}/schema`),
-  createTable: (projectId: string, name: string) => apiClient.post<DatatableTable>(`${BASE}/projects/${projectId}/tables`, { name }),
   updateTable: (id: string, name: string) => apiClient.put<DatatableTable>(`${BASE}/tables/${id}`, { name }),
   deleteTable: (id: string) => apiClient.delete(`${BASE}/tables/${id}`),
   getTable: (id: string) => apiClient.get<DatatableTable>(`${BASE}/tables/${id}`),
 
   listColumns: (tableId: string) => apiClient.get<DatatableColumn[]>(`${BASE}/tables/${tableId}/columns`),
-  createColumn: (tableId: string, body: { name: string; type: DatatableColumnType; options?: string[]; required?: boolean }) => apiClient.post<DatatableColumn>(`${BASE}/tables/${tableId}/columns`, body),
   updateColumn: (id: string, body: Partial<{ name: string; type: DatatableColumnType; options: string[] | null; required: boolean }>) => apiClient.put<DatatableColumn>(`${BASE}/columns/${id}`, body),
   deleteColumn: (id: string) => apiClient.delete(`${BASE}/columns/${id}`),
 

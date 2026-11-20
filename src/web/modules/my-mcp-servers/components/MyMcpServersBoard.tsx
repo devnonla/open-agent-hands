@@ -9,7 +9,6 @@ import { fetchMyMcpServers, toMyMcpServerListItem, updateMyMcpServer, upsertMyMc
 import { MyMcpConnectDialog } from "./MyMcpConnectDialog";
 import { MyMcpServerCard } from "./MyMcpServerCard";
 import { MyMcpServerDetailDialog } from "./MyMcpServerDetailDialog";
-import { MyMcpServerDialog } from "./MyMcpServerDialog";
 import { MyMcpTokenDialog } from "./MyMcpTokenDialog";
 
 export function MyMcpServersBoard() {
@@ -21,7 +20,6 @@ export function MyMcpServersBoard() {
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
   const [connectId, setConnectId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<MyMcpServer | null>(null);
   const [tokenServer, setTokenServer] = useState<MyMcpServer | null>(null);
 
   useEffect(() => {
@@ -61,17 +59,7 @@ export function MyMcpServersBoard() {
         </div>
       </RenderIf>
 
-      <MyMcpServerDetailDialog serverId={detailId} listItem={detailListItem} onClose={() => setDetailId(null)} onEdit={(server) => setEdit(server)} onRotated={setTokenServer} />
-
-      <RenderIf condition={edit !== null}>
-        <MyMcpServerDialog
-          edit={edit}
-          onClose={() => setEdit(null)}
-          onCreated={(created) => {
-            setTokenServer(created);
-          }}
-        />
-      </RenderIf>
+      <MyMcpServerDetailDialog serverId={detailId} listItem={detailListItem} onClose={() => setDetailId(null)} onRotated={setTokenServer} />
 
       <MyMcpConnectDialog
         server={servers.find((s) => s.id === connectId) ?? null}
@@ -90,9 +78,9 @@ export function MyMcpServersBoard() {
 }
 
 const STEPS = [
-  { title: "Pick your tools", body: "Choose which custom tools this server exposes. Create tools on the Tools page first." },
-  { title: "Copy the token", body: "A private token is generated once. Save it somewhere safe." },
-  { title: "Paste into your client", body: "Add the ready-made config to Cursor or Claude Code and the tools show up." },
+  { title: "Agent builds tools", body: "Your agent writes and tests tools through the Core MCP." },
+  { title: "Agent publishes a server", body: "It creates a hosted MCP server and assigns the tools it needs." },
+  { title: "You connect a client", body: "Click Connect on the server card and paste the config into Cursor or Claude Code." },
 ];
 
 function EmptyGuide({ loading }: { loading: boolean }) {

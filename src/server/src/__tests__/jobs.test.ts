@@ -115,6 +115,36 @@ await agenthands.step("hello", async () => {
     expect(enabled.nextRunAt).toBeTruthy();
   });
 
+  test("PUT /api/jobs/:id — pause keeps cron, survives cron change, resumes", async () => {
+    type J = { enabled: boolean; cron: string; status: string; nextRuns: string[]; nextRunAt: string | null };
+    const paused = (await (await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { enabled: false })).json()) as J;
+    expect(paused.enabled).toBe(false);
+    expect(paused.cron).toBe("0 9 * * *");
+    expect(paused.status).toBe("paused");
+    expect(paused.nextRuns).toEqual([]);
+
+    const changed = (await (await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { cron: "30 8 * * 1-5" })).json()) as J;
+    expect(changed.cron).toBe("30 8 * * 1-5");
+    expect(changed.enabled).toBe(false);
+
+    const resumed = (await (await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { enabled: true })).json()) as J;
+    expect(resumed.enabled).toBe(true);
+    expect(resumed.status).toBe("scheduled");
+    expect(resumed.nextRuns).toHaveLength(3);
+    expect(new Date(resumed.nextRuns[0]).getTime()).toBeLessThan(new Date(resumed.nextRuns[1]).getTime());
+
+    const restore = await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { cron: "0 9 * * *" });
+    expect(restore.status).toBe(200);
+  });
+
+  test("PUT /api/jobs/:id — enabling a job without cron fails", async () => {
+    const created = (await (await authRequest(app, token, "POST", "/api/jobs", { name: "Manual only", cron: "" })).json()) as { id: string; status: string };
+    expect(created.status).toBe("manual");
+    const res = await authRequest(app, token, "PUT", `/api/jobs/${created.id}`, { enabled: true });
+    expect(res.status).toBe(400);
+    await authRequest(app, token, "DELETE", `/api/jobs/${created.id}`);
+  });
+
   test("POST /api/jobs/:id/run — manual run executes code", async () => {
     const res = await authRequest(app, token, "POST", `/api/jobs/${jobId}/run`, {});
     expect(res.status).toBe(202);

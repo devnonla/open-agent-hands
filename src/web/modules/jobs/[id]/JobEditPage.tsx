@@ -1,5 +1,5 @@
-import { Button, Icon, Segmented, message } from "devnonla-ui";
-import { X } from "lucide-react";
+import { Button, Icon, Segmented, Tag, message } from "devnonla-ui";
+import { Play, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
@@ -11,21 +11,21 @@ import { FeatureIcon } from "src/components/FeatureIcon";
 import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
 import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
 import { jobsApi } from "../common/jobsApi";
-import { type JobSchedule, buildJobCrons, formatJobSchedulesLabel, jobIsScheduled, parseJobSchedules, validateJobSchedules } from "../common/schedule";
-import { type JobSettingsSection, JobSettingsView } from "./components/JobSettingsView";
+import { JobRunsPanel } from "../components/JobRunsPanel";
+import { formatJobSchedulesLabel, jobIsScheduled } from "../common/schedule";
+import { JobOverview } from "./components/JobOverview";
 
 const JOB_TABS = [
-  { value: "code", label: "Code", icon: "code" },
-  { value: "schedules", label: "Schedules", icon: "clock" },
+  { value: "overview", label: "Overview", icon: "book" },
   { value: "activities", label: "Activities", icon: "clock" },
-  { value: "settings", label: "Settings", icon: "pen" },
+  { value: "code", label: "Code", icon: "code" },
 ] as const;
 
 type JobTab = (typeof JOB_TABS)[number]["value"];
 
 function jobTabFromParam(section: string | undefined): JobTab {
-  if (section === "schedules" || section === "activities" || section === "settings") return section;
-  return "code";
+  if (section === "activities" || section === "code") return section;
+  return "overview";
 }
 
 function JobSectionTabs({ value, live, onChange }: { value: JobTab; live: boolean; onChange: (next: JobTab) => void }) {
@@ -55,25 +55,22 @@ export default function JobEditPage() {
 
   useEffect(() => {
     if (!id || !section) return;
-    if (section === "schedules" || section === "activities" || section === "settings") return;
+    if (section === "activities" || section === "code") return;
     navigate(`/jobs/${id}`, { replace: true });
   }, [id, section, navigate]);
 
   const openTab = (next: JobTab) => {
     if (!id || next === tab) return;
-    navigate(next === "code" ? `/jobs/${id}` : `/jobs/${id}/${next}`);
+    navigate(next === "overview" ? `/jobs/${id}` : `/jobs/${id}/${next}`);
   };
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingSchedules, setSavingSchedules] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const [running, setRunning] = useState(false);
 
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [schedules, setSchedules] = useState<JobSchedule[]>([]);
-  const [timeoutMs, setTimeoutMs] = useState(300_000);
 
   const [localCode, setLocalCode] = useState("");
   const [savedCode, setSavedCode] = useState("");
@@ -89,8 +86,7 @@ export default function JobEditPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   const isDirty = localCode !== savedCode;
-  const schedulesDirty = buildJobCrons(schedules) !== (job?.cron ?? "");
-  const isOn = jobIsScheduled(job?.cron);
+  const isOn = jobIsScheduled(job?.cron) && !!job?.enabled;
   const scheduleLabel = formatJobSchedulesLabel(job?.cron);
 
   const loadRuns = useCallback(async (jobId: string) => {
@@ -109,9 +105,6 @@ export default function JobEditPage() {
         const data = await jobsApi.get(id);
         setJob(data);
         setName(data.name);
-        setDescription(data.description ?? "");
-        setSchedules(parseJobSchedules(data.cron));
-        setTimeoutMs(data.timeoutMs);
         if (loadedIdRef.current !== data.id) {
           setLocalCode(data.code);
           setSavedCode(data.code);
@@ -146,10 +139,6 @@ export default function JobEditPage() {
         setCodeDraft(draft !== code ? draft : null);
       }
       if ("name" in payload && payload.name) setName(payload.name);
-      if ("cron" in payload && typeof payload.cron === "string") {
-        setSchedules((prev) => (buildJobCrons(prev) === payload.cron ? parseJobSchedules(payload.cron) : prev));
-      }
-      if ("timeoutMs" in payload && typeof payload.timeoutMs === "number") setTimeoutMs(payload.timeoutMs);
       setJob((prev) => (prev ? { ...prev, ...payload } : prev));
     });
 
@@ -199,51 +188,24 @@ export default function JobEditPage() {
     }
   };
 
-  const handleSaveSettings = async (values: { name: string; description: string; timeoutMs: number }) => {
+  const handleToggle = async (enabled: boolean) => {
     if (!id) return;
-    setSaving(true);
+    setToggling(true);
     try {
-      const updated = await jobsApi.update(id, {
-        name: values.name.trim(),
-        description: values.description.trim() || null,
-        timeoutMs: Number(values.timeoutMs) || 300_000,
-      });
+      const updated = await jobsApi.update(id, { enabled });
       setJob(updated);
-      setName(updated.name);
-      setDescription(updated.description ?? "");
-      setTimeoutMs(updated.timeoutMs);
-      message.success("Saved");
+      message.success(enabled ? "Schedule resumed" : "Schedule paused");
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : String(err));
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveSchedules = async () => {
-    if (!id) return;
-    const scheduleError = validateJobSchedules(schedules);
-    if (scheduleError) {
-      message.error(scheduleError);
-      return;
-    }
-    setSavingSchedules(true);
-    try {
-      const updated = await jobsApi.update(id, { cron: buildJobCrons(schedules) });
-      setJob(updated);
-      setSchedules(parseJobSchedules(updated.cron));
-      message.success(jobIsScheduled(updated.cron) ? "Schedules saved" : "Schedules cleared — job is off");
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingSchedules(false);
+      setToggling(false);
     }
   };
 
   const handleRun = async () => {
     if (!id) return;
     if (isDirty) {
-      message.warning("Save before running scheduled job code");
+      message.warning("Save the code before running");
       return;
     }
     setRunning(true);
@@ -325,7 +287,6 @@ export default function JobEditPage() {
   ) : null;
 
   const jobTitle = name || job.name;
-  const panelSection: JobSettingsSection = tab === "settings" ? "general" : tab === "code" ? "schedules" : tab;
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background">
@@ -337,7 +298,7 @@ export default function JobEditPage() {
               <ContentBreadcrumb items={[{ label: "Jobs", to: "/jobs", icon: <FeatureIcon name="jobs" size={16} variant="sticker" /> }, { label: jobTitle }]} />
               <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none ${isOn ? "bg-success/15 text-success" : "bg-muted text-tertiary-foreground"}`}>
                 <span className={`size-1.5 rounded-full ${isOn ? "bg-success" : "bg-quaternary-foreground"}`} />
-                {isOn ? "On" : "Off"}
+                {isOn ? "Scheduled" : jobIsScheduled(job.cron) ? "Paused" : "Manual"}
               </span>
               <span className="hidden min-w-0 truncate text-[11px] leading-none text-tertiary-foreground lg:inline">{scheduleLabel}</span>
             </div>
@@ -347,7 +308,11 @@ export default function JobEditPage() {
               <Button size="small" danger icon={<X size={14} />} onClick={() => void handleCancelRun()}>
                 Stop
               </Button>
-            ) : null
+            ) : (
+              <Button size="small" icon={<Play size={14} />} loading={running} onClick={() => void handleRun()}>
+                Run now
+              </Button>
+            )
           }
         />
         <div className="flex h-10 shrink-0 items-center border-b border-border px-4">
@@ -386,28 +351,20 @@ export default function JobEditPage() {
               )}
               {reviewBar ? <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2">{reviewBar}</div> : null}
             </div>
-            {tab !== "code" ? (
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <JobSettingsView
-                  section={panelSection}
-                  name={name}
-                  description={description}
-                  timeoutMs={timeoutMs}
-                  savingGeneral={saving}
-                  onSaveGeneral={handleSaveSettings}
-                  onDelete={() => void handleDelete()}
-                  schedules={schedules}
-                  onSchedulesChange={setSchedules}
-                  onDiscardSchedules={() => setSchedules(parseJobSchedules(job.cron))}
-                  schedulesDirty={schedulesDirty}
-                  savingSchedules={savingSchedules}
-                  onSaveSchedules={() => void handleSaveSchedules()}
-                  runs={runs}
-                  activeRunId={activeRunId}
-                  running={running}
-                  onRun={() => void handleRun()}
-                  onCancelRun={(runId) => void handleCancelRun(runId)}
-                />
+            {tab === "overview" ? <JobOverview job={job} toggling={toggling} onToggle={(enabled) => void handleToggle(enabled)} onDelete={() => void handleDelete()} /> : null}
+            {tab === "activities" ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2">
+                  <span className="text-xs text-muted-foreground">{runs.length} runs</span>
+                  {activeRunId ? (
+                    <Tag color="processing" className="m-0 text-[10px]">
+                      live
+                    </Tag>
+                  ) : null}
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <JobRunsPanel runs={runs} activeRunId={activeRunId} onCancelRun={(runId) => void handleCancelRun(runId)} />
+                </div>
               </div>
             ) : null}
           </div>

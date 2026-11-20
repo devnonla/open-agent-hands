@@ -1,22 +1,19 @@
-import { Button, Empty, message } from "devnonla-ui";
-import { Plus } from "lucide-react";
+import { Empty, message } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { DatatableProject } from "src/common/types";
+import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { type DatatableProjectListItem, fetchDatatableProjects } from "./common/datatableProjectsSlice";
 import { ProjectCard } from "./components/ProjectCard";
-import { ProjectDialog } from "./components/ProjectDialog";
 
 export default function DatatablesPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const items = useAppSelector((s) => s.datatableProjects.items) as DatatableProjectListItem[];
   const [loading, setLoading] = useState(items.length === 0);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,15 +33,7 @@ export default function DatatablesPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        title="Datatables"
-        icon="datatables"
-        actions={
-          <Button type="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
-            New project
-          </Button>
-        }
-      />
+      <PageHeader title="Datatables" icon="datatables" description="Agents design projects, tables and columns. You can browse and edit rows here." />
 
       <RenderIf condition={loading && items.length === 0}>
         <div className="@container">
@@ -58,9 +47,7 @@ export default function DatatablesPage() {
 
       <RenderIf condition={!loading && items.length === 0}>
         <Empty className="rounded-2xl border border-dashed border-border px-5 py-16" description="No projects yet">
-          <Button type="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>
-            New project
-          </Button>
+          <AskClaudeHint what="datatable project" tool="datatable_create_project" />
         </Empty>
       </RenderIf>
 
@@ -73,15 +60,6 @@ export default function DatatablesPage() {
           </div>
         </div>
       </RenderIf>
-
-      {creating ? (
-        <ProjectDialog
-          onClose={() => setCreating(false)}
-          onSaved={(saved: DatatableProject) => {
-            navigate(`/datatables/${saved.id}`);
-          }}
-        />
-      ) : null}
     </PageShell>
   );
 }

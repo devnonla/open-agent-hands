@@ -6,9 +6,7 @@ export const jobsApi = {
 
   get: (id: string) => apiClient.get<Job>(`/api/jobs/${id}`),
 
-  create: (body: { name: string; cron: string; description?: string; code?: string; timeoutMs?: number }) => apiClient.post<Job>("/api/jobs", body),
-
-  update: (id: string, body: Partial<{ name: string; description: string | null; code: string; cron: string; timeoutMs: number }>) => apiClient.put<Job>(`/api/jobs/${id}`, body),
+  update: (id: string, body: Partial<{ code: string; enabled: boolean }>) => apiClient.put<Job>(`/api/jobs/${id}`, body),
 
   remove: (id: string) => apiClient.delete<{ ok: boolean }>(`/api/jobs/${id}`),
 

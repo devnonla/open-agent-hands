@@ -5,14 +5,14 @@ import type { Job } from "src/common/types";
 import { formatDateTime, relativeTime } from "src/common/utils/date";
 
 import RenderIf from "src/components/RenderIf";
-import { formatJobScheduleLabel, jobIsScheduled, parseJobCronExpressions } from "../common/schedule";
+import { describeCron, jobIsScheduled, parseJobCronExpressions } from "../common/schedule";
 
-export type JobListStatus = "running" | "scheduled" | "idle";
+export type JobListStatus = "running" | "scheduled" | "paused" | "idle";
 
 export function jobListStatus(job: Job, now: number): JobListStatus {
   if (job.leaseUntil != null && new Date(job.leaseUntil).getTime() > now) return "running";
-  if (jobIsScheduled(job.cron)) return "scheduled";
-  return "idle";
+  if (!jobIsScheduled(job.cron)) return "idle";
+  return job.enabled ? "scheduled" : "paused";
 }
 
 export const JOB_STATUS_META: Record<JobListStatus, { label: string; description: string; icon: IconName }> = {
@@ -26,10 +26,15 @@ export const JOB_STATUS_META: Record<JobListStatus, { label: string; description
     description: "Runs automatically on its schedule.",
     icon: "clock",
   },
-  idle: {
-    label: "Off",
-    description: "No schedule set. This job stays idle until a schedule is added.",
+  paused: {
+    label: "Paused",
+    description: "Has a schedule but was paused. It only runs when started by hand.",
     icon: "close",
+  },
+  idle: {
+    label: "Manual",
+    description: "No schedule. Runs only when an agent or a person starts it.",
+    icon: "chevrons-right",
   },
 };
 
@@ -61,7 +66,8 @@ function nextRunMeta(nextRunAt: Date | string, now: number): { countdown: string
 function nextRunLabel(job: Job, now: number): string {
   const status = jobListStatus(job, now);
   if (status === "running") return "Running";
-  if (!jobIsScheduled(job.cron)) return "No schedule";
+  if (status === "paused") return "Paused";
+  if (status === "idle") return "Manual";
   const next = job.nextRunAt ? nextRunMeta(job.nextRunAt, now) : null;
   if (!next) return "Waiting";
   return `in ${next.countdown}`;
@@ -71,12 +77,12 @@ const META_TEXT = "text-[12px] tabular-nums leading-none";
 
 function NextRunValue({ job, now }: { job: Job; now: number }) {
   const status = jobListStatus(job, now);
-  const scheduled = jobIsScheduled(job.cron);
-  const scheduleLabels = parseJobCronExpressions(job.cron).map((expr) => formatJobScheduleLabel(expr));
+  const scheduled = status === "scheduled" || (status === "running" && job.enabled && jobIsScheduled(job.cron));
+  const scheduleLabels = parseJobCronExpressions(job.cron).map(describeCron);
   const next = job.nextRunAt && scheduled ? nextRunMeta(job.nextRunAt, now) : null;
   const label = nextRunLabel(job, now);
   const tag = (
-    <Tag color={status === "running" ? "success" : undefined} className={cn("m-0! max-w-full shrink-0 rounded-md font-normal! ring-1 ring-inset ring-foreground/10", status !== "running" && "bg-white/80!", META_TEXT, status === "idle" && "text-muted-foreground")}>
+    <Tag color={status === "running" ? "success" : undefined} className={cn("m-0! max-w-full shrink-0 rounded-md font-normal! ring-1 ring-inset ring-foreground/10", status !== "running" && "bg-card!", META_TEXT, (status === "idle" || status === "paused") && "text-muted-foreground")}>
       {label}
     </Tag>
   );
@@ -161,7 +167,7 @@ function JobRow({ job, now, isLast, muted, onOpen }: { job: Job; now: number; is
             onOpen();
           }
         }}
-        className="group/job flex min-w-0 flex-1 cursor-pointer items-center rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-white/60"
+        className="group/job flex min-w-0 flex-1 cursor-pointer items-center rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-ink-hover"
       >
         <span className={cn("flex min-w-0 flex-1 items-center gap-2", muted ? "text-muted-foreground" : "text-foreground")}>
           <RenderIf condition={status === "running"}>
@@ -190,14 +196,14 @@ function sortByNextRun(jobs: Job[], now: number): Job[] {
   });
 }
 
-function JobGroup({ status, jobs, now, onOpen }: { status: "scheduled" | "idle"; jobs: Job[]; now: number; onOpen: (job: Job) => void }) {
+function JobGroup({ status, jobs, now, onOpen }: { status: "scheduled" | "paused" | "idle"; jobs: Job[]; now: number; onOpen: (job: Job) => void }) {
   const meta = JOB_STATUS_META[status];
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center py-1.5">
         <div className="flex w-8 shrink-0 items-center justify-center">
-          <div className={cn("flex h-7 w-7 items-center justify-center rounded-md bg-white/70 ring-1 ring-inset ring-foreground/10", status === "idle" ? "text-muted-foreground" : "text-foreground/80")}>
+          <div className={cn("flex h-7 w-7 items-center justify-center rounded-md bg-card ring-1 ring-inset ring-foreground/10", status === "scheduled" ? "text-foreground/80" : "text-muted-foreground")}>
             <Icon name={meta.icon} size={15} />
           </div>
         </div>
@@ -214,7 +220,7 @@ function JobGroup({ status, jobs, now, onOpen }: { status: "scheduled" | "idle";
         <div className={cn("absolute left-4 top-0 h-2.5 w-px -translate-x-1/2", TREE_LINE_FILL)} aria-hidden />
         <div className="flex flex-col pt-1">
           {jobs.map((job, index) => (
-            <JobRow key={job.id} job={job} now={now} isLast={index === jobs.length - 1} muted={status === "idle"} onOpen={() => onOpen(job)} />
+            <JobRow key={job.id} job={job} now={now} isLast={index === jobs.length - 1} muted={status !== "scheduled"} onOpen={() => onOpen(job)} />
           ))}
         </div>
       </div>
@@ -225,14 +231,19 @@ function JobGroup({ status, jobs, now, onOpen }: { status: "scheduled" | "idle";
 export function JobsTree({ jobs, now, onOpen }: { jobs: Job[]; now: number; onOpen: (job: Job) => void }) {
   const groups = useMemo(() => {
     const scheduled: Job[] = [];
+    const paused: Job[] = [];
     const idle: Job[] = [];
     for (const job of jobs) {
-      if (jobListStatus(job, now) === "idle") idle.push(job);
+      const status = jobListStatus(job, now);
+      if (status === "idle") idle.push(job);
+      else if (status === "paused") paused.push(job);
       else scheduled.push(job);
     }
+    const byName = (list: Job[]) => [...list].sort((a, b) => a.name.localeCompare(b.name));
     return [
       { status: "scheduled" as const, jobs: sortByNextRun(scheduled, now) },
-      { status: "idle" as const, jobs: [...idle].sort((a, b) => a.name.localeCompare(b.name)) },
+      { status: "paused" as const, jobs: byName(paused) },
+      { status: "idle" as const, jobs: byName(idle) },
     ].filter((group) => group.jobs.length > 0);
   }, [jobs, now]);
 

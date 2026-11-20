@@ -376,7 +376,7 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
                 <Icon name="document" size={24} />
               </span>
               <p className="m-0 text-sm font-medium text-foreground">No properties yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Add a column to get started</p>
+              <p className="mt-1 text-sm text-muted-foreground">Ask your agent to add columns with <code className="font-mono text-[12px]">datatable_add_column</code>.</p>
             </div>
           </RenderIf>
         </div>

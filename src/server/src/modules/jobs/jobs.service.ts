@@ -29,17 +29,28 @@ function asDate(value: Date | string | number | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** For API/WS: always surface a future nextRunAt when the job has a schedule. */
-export function toPublicJob(job: Job): Job {
-  if (!job.enabled || parseJobCrons(job.cron).length === 0) return job;
-  const current = asDate(job.nextRunAt);
-  const now = Date.now();
-  if (current && current.getTime() > now) {
-    return current === job.nextRunAt ? job : { ...job, nextRunAt: current };
+export type JobStatus = "scheduled" | "paused" | "manual";
+export type PublicJob = Job & { status: JobStatus; nextRuns: Date[] };
+
+function upcomingRuns(cron: string, count: number): Date[] {
+  const runs: Date[] = [];
+  let from = new Date();
+  while (runs.length < count) {
+    const next = cronNextDateMulti(cron, from);
+    if (!next || next.getTime() <= from.getTime()) break;
+    runs.push(next);
+    from = next;
   }
-  const next = cronNextDateMulti(job.cron, new Date(now));
-  if (!next || next.getTime() <= now) return job;
-  return { ...job, nextRunAt: next };
+  return runs;
+}
+
+export function toPublicJob(job: Job): PublicJob {
+  if (parseJobCrons(job.cron).length === 0) return { ...job, status: "manual", nextRuns: [] };
+  if (!job.enabled) return { ...job, status: "paused", nextRuns: [] };
+  const nextRuns = upcomingRuns(job.cron, 3);
+  const current = asDate(job.nextRunAt);
+  const nextRunAt = current && current.getTime() > Date.now() ? current : (nextRuns[0] ?? job.nextRunAt);
+  return { ...job, nextRunAt, status: "scheduled", nextRuns };
 }
 
 const DEFAULT_TIMEOUT_MS = 300_000;
@@ -55,13 +66,15 @@ function normalizeCronField(cron: string): string {
 }
 
 /** Empty cron = off. Non-empty must be valid; returns next run or null when off. */
-function resolveSchedule(cron: string): { enabled: boolean; nextRunAt: Date | null } {
+function resolveSchedule(cron: string, requestedEnabled?: boolean): { enabled: boolean; nextRunAt: Date | null } {
   const expressions = parseJobCrons(cron);
   if (expressions.length === 0) {
+    if (requestedEnabled === true) throw new BadRequestException("Job has no cron schedule. Set cron before enabling it.");
     return { enabled: false, nextRunAt: null };
   }
   const next = cronNextDateMulti(expressions.join("\n"), new Date());
   if (!next) throw new BadRequestException("Invalid cron expression (5-field: min hour dom month dow)");
+  if (requestedEnabled === false) return { enabled: false, nextRunAt: null };
   return { enabled: true, nextRunAt: next };
 }
 
@@ -84,12 +97,13 @@ export async function createJob(body: {
   description?: string | null;
   code?: string;
   cron?: string;
+  enabled?: boolean;
   timeoutMs?: number;
 }) {
   const name = String(body.name ?? "").trim();
   if (!name) throw new BadRequestException("Name is required");
   const cron = normalizeCronField(String(body.cron ?? ""));
-  const { enabled, nextRunAt } = resolveSchedule(cron);
+  const { enabled, nextRunAt } = resolveSchedule(cron, body.enabled);
 
   const timeoutMs = typeof body.timeoutMs === "number" && body.timeoutMs > 0 ? Math.floor(body.timeoutMs) : DEFAULT_TIMEOUT_MS;
   const now = new Date();
@@ -126,6 +140,7 @@ export async function updateJob(
     description?: string | null;
     code?: string;
     cron?: string;
+    enabled?: boolean;
     timeoutMs?: number;
   },
 ) {
@@ -160,8 +175,10 @@ export async function updateJob(
     patch.cron = cron;
   }
 
-  const schedule = resolveSchedule(cron);
   const cronChanged = body.cron !== undefined && cron !== existing.cron;
+  const wasPaused = !existing.enabled && parseJobCrons(existing.cron).length > 0;
+  const requestedEnabled = typeof body.enabled === "boolean" ? body.enabled : wasPaused ? false : undefined;
+  const schedule = resolveSchedule(cron, requestedEnabled);
   if (cronChanged || schedule.enabled !== existing.enabled || (schedule.enabled && !existing.nextRunAt)) {
     patch.enabled = schedule.enabled;
     patch.nextRunAt = schedule.nextRunAt;

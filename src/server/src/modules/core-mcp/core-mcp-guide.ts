@@ -62,6 +62,8 @@ await agenthands.step("Fetch", async () => {
 - agenthands.step(name, fn) groups logs. agenthands.log.info / warn / error write run logs. console.log works too.
 - run_job starts a run. With wait=true it returns the logs when the run finishes (up to 120s).
 - timeout_ms caps a run (default 300000).
+- The schedule is set only by agents through cron. People can pause a job in the UI. A paused job keeps its cron and stays paused when you change the cron; pass enabled=true to resume it, and only when the user asked.
+- create_job, update_job, list_jobs and get_job return status (scheduled, paused or manual) and nextRuns (the next 3 run times, ISO) so you can confirm the cron does what you meant.
 
 ${RUNTIME}`;
 

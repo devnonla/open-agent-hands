@@ -483,7 +483,7 @@ const CORE_TOOLS: CoreTool[] = [
 
   {
     name: "list_jobs",
-    description: "List jobs in a workspace.",
+    description: "List jobs in a workspace with status (scheduled, paused or manual) and nextRuns.",
     inputSchema: input({}),
     run: async () => ((await jobs.listJobs({})).items as Record<string, unknown>[]).map(({ code, draftCode, ...rest }) => rest),
   },
@@ -495,8 +495,8 @@ const CORE_TOOLS: CoreTool[] = [
   },
   {
     name: "create_job",
-    description: "Create a cron job. cron: 5-field expressions, one per line; empty = manual only. See get_guide topic=jobs.",
-    inputSchema: input({ name: s("Job name"), code: s("Bun/TypeScript script"), cron: s("Cron expression(s)"), description: s("Optional description"), timeout_ms: { type: "number" } }, ["name", "code"]),
+    description: "Create a cron job. cron: 5-field expressions, one per line, in the app timezone; empty = manual only. Returns status and nextRuns so you can check the schedule. See get_guide topic=jobs.",
+    inputSchema: input({ name: s("Job name"), code: s("Bun/TypeScript script"), cron: s("Cron expression(s)"), description: s("Optional description"), timeout_ms: { type: "number" }, enabled: { type: "boolean", description: "Start paused with false. Default true when cron is set." } }, ["name", "code"]),
     run: async (args) =>
       jobs.createJob({
         name: str(args, "name"),
@@ -504,12 +504,13 @@ const CORE_TOOLS: CoreTool[] = [
         cron: optStr(args, "cron") ?? "",
         description: optStr(args, "description") ?? null,
         ...(typeof args.timeout_ms === "number" ? { timeoutMs: args.timeout_ms } : {}),
+        ...(typeof args.enabled === "boolean" ? { enabled: args.enabled } : {}),
       }),
   },
   {
     name: "update_job",
-    description: "Update a job's name, code, cron, description or timeout.",
-    inputSchema: input({ job: s("Job id or name"), name: s("New name"), code: s("New script"), cron: s("New cron"), description: s("New description"), timeout_ms: { type: "number" } }, ["job"]),
+    description: "Update a job's name, code, cron, description, timeout or enabled. A job paused by a person stays paused unless you pass enabled=true; resume only when the user asked.",
+    inputSchema: input({ job: s("Job id or name"), name: s("New name"), code: s("New script"), cron: s("New cron (empty string = manual only)"), description: s("New description"), timeout_ms: { type: "number" }, enabled: { type: "boolean", description: "false pauses the schedule, true resumes it" } }, ["job"]),
     run: async (args) => {
       const job = await findJob(str(args, "job"));
       return jobs.updateJob(job.id, {
@@ -518,6 +519,7 @@ const CORE_TOOLS: CoreTool[] = [
         ...(typeof args.cron === "string" ? { cron: args.cron } : {}),
         ...(typeof args.description === "string" ? { description: args.description } : {}),
         ...(typeof args.timeout_ms === "number" ? { timeoutMs: args.timeout_ms } : {}),
+        ...(typeof args.enabled === "boolean" ? { enabled: args.enabled } : {}),
       });
     },
   },
