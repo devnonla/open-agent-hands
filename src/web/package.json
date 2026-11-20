@@ -19,6 +19,8 @@
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
     "devnonla-ui": "^0.19.2",
+    "framer-motion": "^12.36.0",
+    "html-to-image": "^1.11.13",
     "lodash": "^4.18.1",
     "lucide-react": "^1.45.0",
     "monaco-editor": "^0.55.1",
