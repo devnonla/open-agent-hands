@@ -107,7 +107,7 @@ gh workflow run Release --ref main
 gh run watch "$(gh run list --workflow Release --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 ```
 
-Both jobs must pass. In this mode the `desktop` job checks the signatures and architectures of both bundles and keeps the archives as a `macos-app` artifact instead of uploading them. Do not tag until the dry run is green.
+Both jobs must pass. In this mode the `desktop` job checks the signatures and architectures of both bundles and keeps the archives, their `.sig` files and `latest.json` as a `macos-app` artifact instead of uploading them. The log must show `Updater on:` for both builds. Do not tag until the dry run is green.
 
 ## 6. Tag and watch the release
 
@@ -126,7 +126,10 @@ The release must have exactly these assets:
 - `agenthands-linux-x64`
 - `install.sh`
 - `OpenAgentHands-darwin-arm64.app.tar.gz`
+- `OpenAgentHands-darwin-arm64.app.tar.gz.sig`
 - `OpenAgentHands-darwin-x64.app.tar.gz`
+- `OpenAgentHands-darwin-x64.app.tar.gz.sig`
+- `latest.json`
 
 If the `desktop` job failed after `release` succeeded, the release exists without the app. `install.sh` falls back to the CLI, so users are not broken. Fix the job and publish X.Y.Z+1. Don't retag.
 
@@ -144,6 +147,8 @@ Then download `OpenAgentHands-darwin-<arch>.app.tar.gz` into scratch, extract it
 
 - `codesign --verify --deep --strict` passes.
 - The bundled `agenthands --version` prints the new version.
+
+Check the updater manifest: `curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download/latest.json` must show the new `version`, and both `platforms` URLs must point at this release's archives.
 
 Finally confirm `gh release list --limit 3` marks it as Latest. The README's release badge follows that.
 

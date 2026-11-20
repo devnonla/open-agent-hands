@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The Mac app updates itself.** It checks for a new release when it starts and every 6 hours, and **Check for Updates…** in the menu bar checks right away. When a new version is out, it shows what changed and asks before installing, then restarts with the new version. Updates are signed and checked before they are installed. Apps from 0.3.0 and earlier need one last update with the install command.
+- **Forks never update from this repo.** The update address and key are added when the release is built, from the fork's own repo and keys. A fork without keys builds an app with no updater. CONTRIBUTING.md explains how to set it up.
+
 ## [0.3.0] - 2026-11-20
 
 ### Added

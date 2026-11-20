@@ -140,7 +140,8 @@ const leads = await agenthands.datatable.query("crm", "leads", { where: { score:
 
 The app is a thin shell around the same server:
 
-- The menu bar icon has **Open**, **Open in Browser**, **Start at Login** and **Quit**.
+- The menu bar icon has **Open**, **Open in Browser**, **Start at Login**, **Check for Updates…** and **Quit**.
+- The app checks for a new version when it starts and every few hours. When one is out, it asks before installing, then restarts itself. Your data stays where it is.
 - Closing the window keeps the server running, so your agents can still connect. **Quit** stops it.
 - If the server is already running (for example, started from a terminal), the app uses that one.
 
@@ -198,7 +199,7 @@ logs/server.log       server log when started by the Mac app
 
 ## Update and uninstall
 
-**Update:** run the install command again. On macOS it quits the app, replaces it and opens the new version. Your data stays.
+**Update:** on macOS, the app offers new versions itself, or use **Check for Updates…** in the menu bar. Versions before 0.4.0 can't update themselves, so run the install command once more. On Linux, run the install command again. Either way, your data stays.
 
 **Uninstall:**
 

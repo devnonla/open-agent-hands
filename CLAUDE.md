@@ -78,7 +78,8 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 ### Desktop app (`desktop/`)
 - Tauri v2 shell in Rust (`desktop/src-tauri/src/main.rs`). It is not a Bun workspace. It bundles `dist/agenthands` as a sidecar (`externalBin`, copied to `src-tauri/binaries/agenthands-<rust-triple>` by `scripts/build-desktop.ts`).
 - On launch it checks `GET /api/health` on 8429. It reuses a running agenthands, refuses if another app holds the port, and otherwise spawns the sidecar with stdout/stderr going to `~/.open-agent-hands/logs/server.log`. The window shows `desktop/ui/index.html` until the server is healthy, then navigates to `http://127.0.0.1:8429`.
-- There is a menu bar tray with Open, Open in Browser, Start at Login (`tauri-plugin-autostart`) and Quit, plus single-instance. Closing the window hides it. Quit sends SIGTERM to the sidecar only if the app started it.
+- There is a menu bar tray with Open, Open in Browser, Start at Login (`tauri-plugin-autostart`), Check for Updates… and Quit, plus single-instance.
+- In-app updates use `tauri-plugin-updater`. Nothing about them is committed: `scripts/build-desktop.ts` turns them on only when `AGENTHANDS_UPDATER_PUBKEY`, `TAURI_SIGNING_PRIVATE_KEY` and `GITHUB_REPOSITORY` (or `AGENTHANDS_UPDATER_ENDPOINT`) are set. It passes the pubkey and endpoint via `--config` and as compile-time env (`option_env!`), so a fork without keys gets no updater and never pulls this repo's releases. The release workflow reads them from the `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` secrets and the `TAURI_UPDATER_PUBKEY` variable, and `scripts/updater-manifest.ts` writes `latest.json`. The private key and password are also in `~/.tauri/agenthands-updater.*` on the maintainer's Mac. Closing the window hides it. Quit sends SIGTERM to the sidecar only if the app started it.
 - Keep it thin: features belong in the server and web UI, not in the shell.
 
 ### Database

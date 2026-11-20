@@ -100,7 +100,7 @@ bun run build:desktop      # binary + Mac app → desktop/src-tauri/target/relea
 1. Set the version in `package.json`, `desktop/package.json`, `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json`, and add a `CHANGELOG.md` entry.
 2. Push a tag such as `v0.2.0`. `.github/workflows/release.yml` builds:
    - the four binaries and `install.sh` on Linux;
-   - the Mac app for arm64 and x64 on a macOS runner.
+   - the Mac app for arm64 and x64 on a macOS runner, plus update signatures and `latest.json` when the updater keys are set (see below).
 
    It then attaches everything to a GitHub release.
 3. Your users install from your fork. Either change the default `REPO` in `scripts/install.sh`, or have them run:
@@ -110,6 +110,30 @@ bun run build:desktop      # binary + Mac app → desktop/src-tauri/target/relea
    ```
 
 The Mac app is not notarized. `install.sh` clears the quarantine flag after downloading. Signing and notarizing need an Apple Developer account and are not set up.
+
+### In-app updates for your fork
+
+The Mac app can find and install new releases itself. It only does this when the release workflow has signing keys. Without them, the app is built with no updater: users of your fork update by running the install command again, and the app never checks someone else's releases.
+
+To turn it on for your fork:
+
+1. Create a key pair. Keep the private key and password backed up. If you lose them, installed apps can no longer update and users have to reinstall by hand.
+
+   ```bash
+   cd desktop
+   bun run tauri signer generate -w ~/.tauri/agenthands-updater.key
+   ```
+
+2. Add them to your fork on GitHub:
+   - secret `TAURI_SIGNING_PRIVATE_KEY`: the contents of `~/.tauri/agenthands-updater.key`;
+   - secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: its password;
+   - variable `TAURI_UPDATER_PUBKEY`: the contents of `~/.tauri/agenthands-updater.key.pub`.
+
+3. Release as usual. The app job signs both app archives, writes `latest.json` and attaches them to the release. Apps built this way check `https://github.com/<you>/open-agent-hands/releases/latest/download/latest.json` 15 seconds after launch and every 6 hours. **Check for Updates…** in the menu bar checks right away.
+
+Users who installed a build without the updater need to reinstall once. After that, updates come through the app.
+
+To build a signed app locally, set the same three values as `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and `AGENTHANDS_UPDATER_PUBKEY`, plus `GITHUB_REPOSITORY=<you>/open-agent-hands`, before `bun scripts/build-desktop.ts --archive`.
 
 ## Pull requests
 
