@@ -155,7 +155,7 @@ export async function updateTool(id: string, body: Partial<NewAgentTool>) {
   );
   if (!updated) throw new BadRequestException("Not found");
 
-  // Spec / icon / active updates must not broadcast codeContent — that resets an unsaved editor.
+  // Spec / icon updates must not broadcast codeContent — that resets an unsaved editor.
   if (body.codeContent !== undefined) {
     wsHub.emit("tools:updated", updated);
   } else {

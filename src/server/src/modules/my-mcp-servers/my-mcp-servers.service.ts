@@ -299,7 +299,7 @@ export async function listLiveMcpTools(serverId: string): Promise<LiveMcpTool[]>
       })
       .from(myMcpServerTools)
       .innerJoin(agentTools, eq(myMcpServerTools.toolId, agentTools.id))
-      .where(and(eq(myMcpServerTools.serverId, serverId), undefined)),
+      .where(eq(myMcpServerTools.serverId, serverId)),
   );
 
   return rows.map((row) => ({
