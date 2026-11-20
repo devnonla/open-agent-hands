@@ -6,6 +6,7 @@ import meadowWallpaper from "src/assets/bg.jpg";
 import { apiClient, clearAuthToken, getAuthToken, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppMark } from "src/components/AppLogo";
+import { DevBadge } from "src/components/AppLogo";
 type LoginValues = {
   username: string;
   password: string;
@@ -96,6 +97,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-2 h-8 px-3 bg-background border-b border-border/35">
             <AppMark size={16} />
             <span className="text-[13px] font-semibold text-foreground">Sign in</span>
+            <DevBadge className="ml-auto" />
           </div>
           <div className="p-6">
             <div className="flex flex-col gap-1.5 pb-6">

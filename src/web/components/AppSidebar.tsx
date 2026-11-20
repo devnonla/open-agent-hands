@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiClient, clearAuthToken, getRefreshToken } from "src/common/api";
 import type { User } from "src/common/types";
-import { AppLogo } from "src/components/AppLogo";
+import { AppLogo, IS_DEV_BUILD } from "src/components/AppLogo";
 import { FeatureIcon, type FeatureIconName } from "src/components/FeatureIcon";
 import { UserAvatar } from "src/components/UserAvatar";
 import { WorkspaceSwitcher } from "src/modules/workspaces/components/WorkspaceSwitcher";
@@ -95,7 +95,10 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
         <UserAvatar avatar={user.avatar} name={displayName} size={32} className="shrink-0 self-center rounded-full" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-base font-medium leading-tight text-foreground">{displayName}</span>
-          <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground tabular-nums">v{__APP_VERSION__}</span>
+          <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground tabular-nums">
+            v{__APP_VERSION__}
+            {IS_DEV_BUILD ? " · dev" : ""}
+          </span>
         </span>
         <span className="inline-flex size-8 shrink-0 items-center justify-center self-center text-tertiary-foreground">
           <Ellipsis size={16} />

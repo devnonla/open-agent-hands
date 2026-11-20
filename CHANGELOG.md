@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A DEV marker for `bun run dev`.** It appears next to the logo, in the sign-in and setup cards and as `· dev` after the version, and the tab title starts with `[DEV]`. Release builds never show it.
+
 ## [0.2.1] - 2026-11-20
 
 ### Fixed

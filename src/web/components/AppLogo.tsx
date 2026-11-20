@@ -37,11 +37,23 @@ export function AppMark({ size = 28, className }: { size?: number; className?: s
   );
 }
 
+export const IS_DEV_BUILD = import.meta.env.DEV;
+
+export function DevBadge({ className }: { className?: string }) {
+  if (!IS_DEV_BUILD) return null;
+  return (
+    <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-wider text-white bg-violet-600", className)} title="Development build: bun run dev, data in ~/.open-agent-hands-dev">
+      DEV
+    </span>
+  );
+}
+
 export function AppLogo({ size = 28, className }: { size?: number; className?: string }) {
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-3 text-foreground", className)} role="img" aria-label="Open Agent Hands">
+    <span className={cn("inline-flex min-w-0 items-center gap-3 text-foreground", className)} role="img" aria-label={IS_DEV_BUILD ? "Open Agent Hands (development)" : "Open Agent Hands"}>
       <AppMark size={size} />
       <span className="truncate text-[15px] font-semibold tracking-tight">Open Agent Hands</span>
+      <DevBadge className="-ml-1" />
     </span>
   );
 }

@@ -13,6 +13,7 @@ import meadowWallpaper from "src/assets/bg.jpg";
 import { apiClient, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppMark } from "src/components/AppLogo";
+import { DevBadge } from "src/components/AppLogo";
 interface TimezoneItem {
   tz: string;
   offset: string;
@@ -159,6 +160,7 @@ export default function SetupPage() {
           <div className="flex items-center gap-2 h-8 px-3 bg-background border-b border-border/35">
             <AppMark size={16} />
             <span className="text-[13px] font-semibold text-foreground">Initial Setup</span>
+            <DevBadge className="ml-auto" />
           </div>
           <div className="px-6 pb-6 pt-6">
             <p className="text-sm text-muted-foreground text-center mb-4">Create your admin account and configure the system</p>

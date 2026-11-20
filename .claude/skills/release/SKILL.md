@@ -145,7 +145,7 @@ Then download `OpenAgentHands-darwin-<arch>.app.tar.gz` into scratch, extract it
 - `codesign --verify --deep --strict` passes.
 - The bundled `agenthands --version` prints the new version.
 
-Finally confirm `gh release view --json isLatest` shows it as latest, and that the README's release badge will pick it up.
+Finally confirm `gh release list --limit 3` marks it as Latest. The README's release badge follows that.
 
 ## 8. Report
 
