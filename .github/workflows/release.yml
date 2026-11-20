@@ -59,6 +59,10 @@ jobs:
     needs: release
     runs-on: macos-latest
     timeout-minutes: 40
+    env:
+      AGENTHANDS_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -101,18 +105,28 @@ jobs:
             codesign --verify --deep --strict "$app"
             file "$app/Contents/MacOS/agenthands" "$app/Contents/MacOS/agenthands-desktop"
           done
-          ls -la dist/OpenAgentHands-darwin-*.app.tar.gz
+          ls -la dist/OpenAgentHands-darwin-*.app.tar.gz*
+
+      - name: Update manifest
+        if: env.AGENTHANDS_UPDATER_PUBKEY != '' && env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: bun scripts/updater-manifest.ts && cat dist/latest.json
 
       - name: Upload to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/OpenAgentHands-darwin-*.app.tar.gz
+          files: |
+            dist/OpenAgentHands-darwin-*.app.tar.gz
+            dist/OpenAgentHands-darwin-*.app.tar.gz.sig
+            dist/latest.json
 
       - name: Keep app archives (dry run)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: dist/OpenAgentHands-darwin-*.app.tar.gz
+          path: |
+            dist/OpenAgentHands-darwin-*.app.tar.gz
+            dist/OpenAgentHands-darwin-*.app.tar.gz.sig
+            dist/latest.json
           retention-days: 3

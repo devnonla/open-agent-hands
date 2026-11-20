@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
@@ -37,8 +37,24 @@ if (!existsSync(join(desktop, "src-tauri", "icons", "icon.icns"))) {
   await $`bun run tauri icon src-tauri/icons/app-icon.png`.cwd(desktop);
 }
 
-const tauriArgs = [...(flag("--debug") ? ["--debug"] : []), ...(explicitTarget ? ["--target", triple] : []), ...(flag("--archive") ? ["--bundles", "app"] : [])];
-await $`bun run tauri build ${tauriArgs}`.cwd(desktop);
+const updaterPubkey = process.env.AGENTHANDS_UPDATER_PUBKEY?.trim();
+const signingKey = process.env.TAURI_SIGNING_PRIVATE_KEY?.trim();
+const repo = process.env.GITHUB_REPOSITORY;
+const updaterEndpoint = process.env.AGENTHANDS_UPDATER_ENDPOINT?.trim() || (repo ? `https://github.com/${repo}/releases/latest/download/latest.json` : "");
+const updater = Boolean(updaterPubkey && signingKey && updaterEndpoint);
+const env: Record<string, string | undefined> = { ...process.env, AGENTHANDS_UPDATER_PUBKEY: "", AGENTHANDS_UPDATER_ENDPOINT: "" };
+const configArgs: string[] = [];
+if (updater) {
+  env.AGENTHANDS_UPDATER_PUBKEY = updaterPubkey;
+  env.AGENTHANDS_UPDATER_ENDPOINT = updaterEndpoint;
+  configArgs.push("--config", JSON.stringify({ bundle: { createUpdaterArtifacts: true }, plugins: { updater: { pubkey: updaterPubkey, endpoints: [updaterEndpoint] } } }));
+  console.log(`Updater on: ${updaterEndpoint}`);
+} else {
+  console.log("Updater off: set AGENTHANDS_UPDATER_PUBKEY, TAURI_SIGNING_PRIVATE_KEY and GITHUB_REPOSITORY (or AGENTHANDS_UPDATER_ENDPOINT) to turn it on.");
+}
+
+const tauriArgs = [...(flag("--debug") ? ["--debug"] : []), ...(explicitTarget ? ["--target", triple] : []), ...(flag("--archive") ? ["--bundles", "app"] : []), ...configArgs];
+await $`bun run tauri build ${tauriArgs}`.cwd(desktop).env(env);
 
 const profile = flag("--debug") ? "debug" : "release";
 const bundle = join(desktop, "src-tauri", "target", ...(explicitTarget ? [triple] : []), profile, "bundle");
@@ -46,7 +62,15 @@ const bundle = join(desktop, "src-tauri", "target", ...(explicitTarget ? [triple
 if (flag("--archive")) {
   const archive = join(root, "dist", `OpenAgentHands-darwin-${arch}.app.tar.gz`);
   mkdirSync(join(root, "dist"), { recursive: true });
-  await $`tar -czf ${archive} -C ${join(bundle, "macos")} ${"Open Agent Hands.app"}`;
+  rmSync(`${archive}.sig`, { force: true });
+  const signed = join(bundle, "macos", "Open Agent Hands.app.tar.gz");
+  if (updater) {
+    if (!existsSync(signed) || !existsSync(`${signed}.sig`)) throw new Error(`Tauri did not produce the signed update archive ${signed}(.sig).`);
+    copyFileSync(signed, archive);
+    copyFileSync(`${signed}.sig`, `${archive}.sig`);
+  } else {
+    await $`tar -czf ${archive} -C ${join(bundle, "macos")} ${"Open Agent Hands.app"}`;
+  }
   console.log(`\nApp archive: ${archive}`);
 }
 
