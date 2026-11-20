@@ -98,6 +98,17 @@ gh run watch "$(gh run list --branch main --workflow CI --limit 1 --json databas
 
 CI must be green before you tag.
 
+### Dry-run the release workflow
+
+CI does not run the release jobs, and runner images change (for example, `macos-14` was retired). Before tagging, run the release workflow on `main` without publishing:
+
+```bash
+gh workflow run Release --ref main
+gh run watch "$(gh run list --workflow Release --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+```
+
+Both jobs must pass. In this mode the `desktop` job checks the signatures and architectures of both bundles and keeps the archives as a `macos-app` artifact instead of uploading them. Do not tag until the dry run is green.
+
 ## 6. Tag and watch the release
 
 ```bash

@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,12 +31,14 @@ jobs:
         run: bun run build:binary:all
 
       - name: Release notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           version="${GITHUB_REF_NAME#v}"
           awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > release-notes.md
           test -s release-notes.md || { echo "CHANGELOG.md has no section for $version"; exit 1; }
 
       - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
@@ -47,7 +50,7 @@ jobs:
   desktop:
     name: Build macOS app
     needs: release
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 40
 
     steps:
@@ -81,7 +84,25 @@ jobs:
       - name: Build app (x64)
         run: bun scripts/build-desktop.ts --skip-binary --target x86_64-apple-darwin --archive
 
+      - name: Check app bundles
+        run: |
+          for arch in aarch64 x86_64; do
+            app="desktop/src-tauri/target/${arch}-apple-darwin/release/bundle/macos/Open Agent Hands.app"
+            codesign --verify --deep --strict "$app"
+            file "$app/Contents/MacOS/agenthands" "$app/Contents/MacOS/agenthands-desktop"
+          done
+          ls -la dist/OpenAgentHands-darwin-*.app.tar.gz
+
       - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/OpenAgentHands-darwin-*.app.tar.gz
+
+      - name: Keep app archives (dry run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist/OpenAgentHands-darwin-*.app.tar.gz
+          retention-days: 3
