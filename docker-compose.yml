@@ -1,0 +1,13 @@
+services:
+  agenthands:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8429:8429"
+    volumes:
+      - agenthands-data:/data
+    security_opt:
+      - seccomp:unconfined
+
+volumes:
+  agenthands-data:

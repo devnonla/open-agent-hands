@@ -160,6 +160,28 @@ agenthands --data-dir ~/work-ah  # a separate set of data
 | `-H, --host` | `127.0.0.1` (env `HOST`) |
 | `-d, --data-dir` | `~/.open-agent-hands` (env `DATA_DIR`) |
 
+## Run on a server with Docker
+
+Build and run it on a VPS. Data lives in the `agenthands-data` volume.
+
+```bash
+git clone https://github.com/devnonla/open-agent-hands.git
+cd open-agent-hands
+docker compose up -d --build
+```
+
+The port is bound to `127.0.0.1:8429`, so put a reverse proxy with HTTPS in front. With Caddy:
+
+```
+agenthands.example.com {
+  reverse_proxy 127.0.0.1:8429
+}
+```
+
+- **Create your account right away.** The first visit to `/setup` creates the only account, and it has full access. Do this before anyone else finds the URL.
+- **Sandbox.** Tools and jobs run in bubblewrap, which Docker's default seccomp profile blocks. The compose file sets `seccomp:unconfined` for that reason. Without it, they run unsandboxed.
+- **Connect your agent** to `https://agenthands.example.com/mcp/core` with the key from the app, as in "Connect your agent".
+
 ## Your data
 
 Everything lives in `~/.open-agent-hands`:
