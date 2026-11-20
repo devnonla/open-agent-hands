@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Agent Hands (`agenthands`) is a local, single-binary server for **tools, MCP, KV, secrets, datatables and cron jobs**. AI coding agents (Claude Code, Codex) connect to it over MCP. Stack: Bun + Hono API, React 19/Vite UI, SQLite via Drizzle. Bun workspaces are `src/server` and `src/web`. Requires Bun ≥ 1.4.3.
 
-It has no in-app LLM agents. The agent, chat, provider, skill and team features, the outbound remote MCP client, multi-user management and roles, plus Postgres and Docker, were removed on purpose. It is single-user: one account created at `/setup`, and every authenticated request has full access. Don't reintroduce them.
+It has no in-app LLM agents. The agent, chat, provider, skill and team features, the outbound remote MCP client, multi-user management and roles, plus Postgres, were removed on purpose. The root `Dockerfile` and `docker-compose.yml` only package the single binary for a VPS; keep them that thin. It is single-user: one account created at `/setup`, and every authenticated request has full access. Don't reintroduce them.
 
 ## Product principle: agent-first, human-observes
 

@@ -37,7 +37,7 @@ Coding agents are great at writing code, but they have nowhere to *keep* what th
 
 - **Agents do the work.** Over one MCP connection, Claude Code or Codex can write a tool, test it, publish it as its own MCP server, schedule a job, store data or ship a small site.
 - **You watch and correct.** The app is for seeing what agents built, reading code and logs, pausing a job or fixing a row. You don't build things in it.
-- **It runs on your machine.** It's one app with a local SQLite database. There's no Docker, no cloud and no account to sign up for.
+- **It runs on your machine.** It's one app with a local SQLite database. There's no cloud and no account to sign up for. To run it on a server instead, see [Run on a server with Docker](#run-on-a-server-with-docker).
 
 <p align="center">
   <img src=".github/assets/how-it-works.svg" alt="Claude Code and Codex manage Open Agent Hands through /mcp/core; hosted MCP servers expose selected tools to any client" width="900" />

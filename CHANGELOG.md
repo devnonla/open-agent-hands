@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
 ### Added
 
+- **Run it on a server with Docker.** The repo has a `Dockerfile` and `docker-compose.yml`. `docker compose up -d --build` builds the binary and runs it with data in a volume, bound to `127.0.0.1:8429` for a reverse proxy. The compose file allows bubblewrap so tools and jobs stay sandboxed. See "Run on a server with Docker" in the README.
 - **A DEV marker for `bun run dev`.** It appears next to the logo, in the sign-in and setup cards and as `· dev` after the version, and the tab title starts with `[DEV]`. Release builds never show it.
+
+### Removed
+
+- **The tool on/off switch.** Tools no longer have an active state. Every tool assigned to a hosted MCP server is listed and callable. The switch on the tool page, the "Inactive" tag and the `active` argument of `update_tool` are gone, and the `agent_tools.is_active` column is dropped on upgrade. Tools that were switched off become callable again.
 
 ## [0.2.1] - 2026-11-20
 
