@@ -77,7 +77,7 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 
 ### Claude Code plugin (`plugins/agenthands/`)
 - A plugin with one skill, `agenthands`, whose `SKILL.md` is a short index and `references/<group>.md` holds one file per group (tools, jobs, sites, datatables, mcp-servers, kv, secrets, workspaces, runtime). Listed by `.claude-plugin/marketplace.json`. Claude loads the skill locally, then reads only the reference it needs, so agents get the exact formats without a tool call.
-- Keep each reference in step with `core-mcp-guide.ts` and the Core MCP tools. When a tool's format or arguments change, update its reference. Bump `plugin.json` `version` with each release.
+- Keep each reference in step with `core-mcp-guide.ts` and the Core MCP tools. When a tool's format or arguments change, update its reference. Bump `plugin.json` `version` only in a release where the plugin changed (the `release` skill checks this).
 
 ### Desktop app (`desktop/`)
 - Tauri v2 shell in Rust (`desktop/src-tauri/src/main.rs`). It is not a Bun workspace. It bundles `dist/agenthands` as a sidecar (`externalBin`, copied to `src-tauri/binaries/agenthands-<rust-triple>` by `scripts/build-desktop.ts`).

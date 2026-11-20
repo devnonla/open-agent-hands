@@ -55,6 +55,8 @@ Set the same version in all four places:
 
 `desktop/src-tauri/Cargo.lock` updates on the next desktop build. Commit it.
 
+**Plugin version (only if it changed):** run `git diff --stat vPREV..HEAD -- plugins .claude-plugin` (PREV is the last tag). If it is empty, leave `plugins/agenthands/.claude-plugin/plugin.json` alone. If the skill or its references changed, set its `version` to the new release version, so Claude Code sees an update. Also check that the references still match the Core MCP tools and their arguments, and run `claude plugin validate .`.
+
 In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (today's date) and keep the Added / Changed / Removed / Fixed groups. Leave a fresh empty `## [Unreleased]` above it. The release body is taken from this section, so write it for users.
 
 Check `README.md` and `CONTRIBUTING.md` for anything this release made stale, such as flags, ports, steps or tool counts. If the tool count changed, verify it with Core MCP `tools/list`.
