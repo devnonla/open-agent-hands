@@ -32,7 +32,11 @@ function describeDays(days: number[]): string {
 function describeTime(minute: string, hour: string): string | null {
   const isNum = (v: string) => /^\d{1,2}$/.test(v);
   if (isNum(minute) && isNum(hour)) return `at ${pad2(Number(hour))}:${pad2(Number(minute))}`;
-  if (isNum(minute) && hour.includes(",") && hour.split(",").every(isNum)) return `at ${hour.split(",").map((h) => `${pad2(Number(h))}:${pad2(Number(minute))}`).join(", ")}`;
+  if (isNum(minute) && hour.includes(",") && hour.split(",").every(isNum))
+    return `at ${hour
+      .split(",")
+      .map((h) => `${pad2(Number(h))}:${pad2(Number(minute))}`)
+      .join(", ")}`;
   const minuteStep = /^\*\/(\d+)$/.exec(minute);
   const hourRange = /^(\d+)-(\d+)$/.exec(hour);
   if (minute === "*" && hour === "*") return "every minute";

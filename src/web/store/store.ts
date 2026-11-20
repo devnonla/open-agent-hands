@@ -1,4 +1,4 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
 
 import { authReducer } from "src/common/authSlice";
@@ -11,8 +11,9 @@ import { sitesReducer } from "src/modules/sites/common/sitesSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
 
-export const store = configureStore({
-  reducer: {
+export const resetWorkspaceState = () => ({ type: "workspace/reset" as const });
+
+const appReducer = combineReducers({
     auth: authReducer,
     tools: toolsReducer,
     toolFolders: toolFoldersReducer,
@@ -22,7 +23,15 @@ export const store = configureStore({
     sites: sitesReducer,
     jobs: jobsReducer,
     datatableProjects: datatableProjectsReducer,
-  },
+});
+
+const rootReducer = (state: ReturnType<typeof appReducer> | undefined, action: { type: string }) => {
+  if (action.type === "workspace/reset" && state) return appReducer({ auth: state.auth } as ReturnType<typeof appReducer>, action);
+  return appReducer(state, action);
+};
+
+export const store = configureStore({
+  reducer: rootReducer,
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });
 

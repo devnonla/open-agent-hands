@@ -1,6 +1,17 @@
 const STORAGE_KEY = "agenthands_workspace";
 const COOKIE_NAME = "agenthands_workspace";
 
+const listeners = new Set<() => void>();
+
+export function subscribeWorkspace(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifyWorkspace(): void {
+  for (const listener of listeners) listener();
+}
+
 export function getCurrentWorkspaceId(): string | null {
   try {
     return localStorage.getItem(STORAGE_KEY);
@@ -14,6 +25,7 @@ export function setCurrentWorkspaceId(id: string): void {
     localStorage.setItem(STORAGE_KEY, id);
   } catch {}
   document.cookie = `${COOKIE_NAME}=${encodeURIComponent(id)}; Path=/; SameSite=Lax`;
+  notifyWorkspace();
 }
 
 export function clearCurrentWorkspaceId(): void {
@@ -21,14 +33,5 @@ export function clearCurrentWorkspaceId(): void {
     localStorage.removeItem(STORAGE_KEY);
   } catch {}
   document.cookie = `${COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
-}
-
-export function enterWorkspace(id: string, path = "/tools"): void {
-  setCurrentWorkspaceId(id);
-  window.location.assign(path);
-}
-
-export function leaveWorkspace(): void {
-  clearCurrentWorkspaceId();
-  window.location.assign("/workspaces");
+  notifyWorkspace();
 }

@@ -7,14 +7,17 @@ import { PageShell } from "src/components/PageShell";
 import { ApiKeysPage } from "./api-keys/ApiKeysPage";
 import { SETTINGS_TABS, type SettingsTab } from "./common/constants";
 import { GeneralPage } from "./general/GeneralPage";
+import { WorkspacePage } from "./workspace/WorkspacePage";
 
 const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
+  workspace: WorkspacePage,
   "api-keys": ApiKeysPage,
 };
 
 const TAB_DESCRIPTION: Record<SettingsTab, string> = {
   general: "Workspace-wide preferences.",
+  workspace: "Name and description of the current workspace.",
   "api-keys": "Create keys to access datatables and KV over HTTP.",
 };
 

@@ -24,7 +24,6 @@ const JobsPage = lazy(() => import("./modules/jobs/JobsPage"));
 const JobEditPage = lazy(() => import("./modules/jobs/[id]/JobEditPage"));
 const SitesPage = lazy(() => import("./modules/sites/SitesPage"));
 const SiteEditorPage = lazy(() => import("./modules/sites/[id]/SiteEditorPage"));
-const WorkspacesPage = lazy(() => import("./modules/workspaces/WorkspacesPage"));
 const NotFoundPage = lazy(() => import("./modules/not-found/NotFoundPage"));
 
 // ── Auth guard ──────────────────────────────────────────────────────────────
@@ -55,9 +54,8 @@ function AppContent() {
   const isLoginRoute = location.pathname === "/login";
   const isSetupRoute = location.pathname === "/setup";
   const isAuthRoute = isLoginRoute || isSetupRoute;
-  const isWorkspacePicker = location.pathname === "/workspaces";
 
-  useSocket(!isAuthRoute && !isWorkspacePicker);
+  useSocket(!isAuthRoute);
 
   // Login/Setup routes → full-width, no auth
   if (isAuthRoute) {
@@ -76,7 +74,7 @@ function AppContent() {
     <Suspense fallback={null}>
       <Routes>
         <Route element={<AuthGuard />}>
-          <Route path="/workspaces" element={<WorkspacesPage />} />
+          <Route path="/workspaces" element={<Navigate to="/tools" replace />} />
           <Route element={<WorkspaceGuard />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/tools" replace />} />
