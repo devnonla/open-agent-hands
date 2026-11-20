@@ -5,19 +5,19 @@
       "name": "dev",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "port": 18430
     },
     {
       "name": "server",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev:server"],
-      "port": 8429
+      "port": 18429
     },
     {
       "name": "binary",
-      "runtimeExecutable": "./dist/nonla",
-      "runtimeArgs": ["--port", "8429"],
-      "port": 8429
+      "runtimeExecutable": "./dist/agenthands",
+      "runtimeArgs": ["--port", "8431", "--data-dir", "/tmp/agenthands-binary-test"],
+      "port": 8431
     }
   ]
 }

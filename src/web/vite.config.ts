@@ -13,7 +13,7 @@ function resolveBuildId(): string {
 }
 
 const APP_BUILD_ID = resolveBuildId();
-const apiPort = process.env.API_PORT ?? "8429";
+const apiPort = process.env.API_PORT ?? "18429";
 
 function buildMetaPlugin(buildId: string, version: string): Plugin {
   return {
@@ -70,6 +70,8 @@ export default defineConfig({
     },
   },
   server: {
+    port: 18430,
+    strictPort: true,
     open: false,
     proxy: {
       // Proxy API calls to the Hono server during dev
