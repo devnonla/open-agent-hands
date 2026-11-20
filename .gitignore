@@ -32,5 +32,12 @@ docker/data
 *.njsproj
 *.sln
 *.sw?
-.claude/*
-!.claude/launch.json
+/.claude/*
+!/.claude/launch.json
+!/.claude/skills/
+
+# Desktop app (Tauri)
+desktop/node_modules
+desktop/src-tauri/target
+desktop/src-tauri/gen
+desktop/src-tauri/binaries
