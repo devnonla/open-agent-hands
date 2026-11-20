@@ -58,7 +58,6 @@ export const agentTools = sqliteTable("agent_tools", {
   }),
   /** Order within folder (or ungrouped when folderId is null) */
   sortOrder: integer("sort_order").notNull().default(0),
-  isActive: boolCol("is_active").notNull().default(true),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
 });
 

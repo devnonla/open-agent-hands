@@ -96,24 +96,6 @@ export default function EditToolPage() {
     if (!hasValidationErrors) setShowValidationError(false);
   }, [hasValidationErrors]);
 
-  const isActive = tool?.isActive ?? false;
-  const [toggling, setToggling] = useState(false);
-
-  const handleToggleActive = useCallback(async () => {
-    if (!id || toggling) return;
-    if (!isActive && hasValidationErrors) {
-      setShowValidationError(true);
-      return;
-    }
-    setToggling(true);
-    try {
-      await dispatch(updateTool({ id, isActive: !isActive })).unwrap();
-      setTool((prev) => (prev ? { ...prev, isActive: !isActive } : prev));
-    } finally {
-      setToggling(false);
-    }
-  }, [id, isActive, toggling, dispatch, hasValidationErrors]);
-
   const [saveError, setSaveError] = useState<string | null>(null);
   const handleSave = async (codeOverride?: string, opts?: { quiet?: boolean }): Promise<boolean> => {
     if (!id) return false;
@@ -233,7 +215,7 @@ export default function EditToolPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <EditToolHeader label={toolLabel} toolId={id} isActive={isActive} toggling={toggling} deleting={deleting} onToggleActive={handleToggleActive} onDelete={handleDelete} />
+      <EditToolHeader label={toolLabel} toolId={id} deleting={deleting} onDelete={handleDelete} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">

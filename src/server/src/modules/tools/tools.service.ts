@@ -61,12 +61,11 @@ async function assertToolNameAvailable(name: string, excludeId?: string) {
 
 export async function createTool(
   body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent"> & {
-    isActive?: boolean;
     folderId?: string | null;
     sortOrder?: number;
   },
 ) {
-  const { isActive = true, folderId = null, sortOrder, ...rest } = body;
+  const { folderId = null, sortOrder, ...rest } = body;
   await assertToolNameAvailable(rest.name);
   const tool: NewAgentTool = {
     workspaceId: currentWorkspaceId(),
@@ -74,7 +73,6 @@ export async function createTool(
     id: crypto.randomUUID(),
     folderId,
     sortOrder: sortOrder ?? (await nextSortOrder(folderId)),
-    isActive,
     createdAt: new Date(),
   };
   await qrun(getDb().insert(agentTools).values(tool));

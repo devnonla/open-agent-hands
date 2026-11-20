@@ -103,8 +103,8 @@ async function findJob(ref: string) {
   return job;
 }
 
-function toolSummary(tool: { id: string; name: string; label: string; description: string; isActive: boolean; folderId?: string | null }) {
-  return { id: tool.id, name: tool.name, label: tool.label, description: tool.description, isActive: tool.isActive, folderId: tool.folderId ?? null };
+function toolSummary(tool: { id: string; name: string; label: string; description: string; folderId?: string | null }) {
+  return { id: tool.id, name: tool.name, label: tool.label, description: tool.description, folderId: tool.folderId ?? null };
 }
 
 async function waitForRun(runId: string, timeoutMs: number) {
@@ -186,13 +186,12 @@ const CORE_TOOLS: CoreTool[] = [
   },
   {
     name: "update_tool",
-    description: "Update a tool's code (annotations re-read) and/or enable or disable it.",
-    inputSchema: input({ tool: s("Tool id or name"), code: s("New full module"), active: { type: "boolean" } }, ["tool"]),
+    description: "Update a tool's code (annotations re-read).",
+    inputSchema: input({ tool: s("Tool id or name"), code: s("New full module") }, ["tool"]),
     run: async (args) => {
       const tool = await findTool(str(args, "tool"));
       const patch: Record<string, unknown> = {};
       if (typeof args.code === "string") patch.codeContent = args.code;
-      if (typeof args.active === "boolean") patch.isActive = args.active;
       return toolSummary(await tools.updateTool(tool.id, patch));
     },
   },

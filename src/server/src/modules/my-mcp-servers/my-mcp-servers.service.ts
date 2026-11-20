@@ -285,7 +285,6 @@ export type LiveMcpTool = {
   inputSchema: object;
   id: string;
   codeContent: string;
-  isActive: boolean;
 };
 
 export async function listLiveMcpTools(serverId: string): Promise<LiveMcpTool[]> {
@@ -297,11 +296,10 @@ export async function listLiveMcpTools(serverId: string): Promise<LiveMcpTool[]>
         description: agentTools.description,
         parameters: agentTools.parameters,
         codeContent: agentTools.codeContent,
-        isActive: agentTools.isActive,
       })
       .from(myMcpServerTools)
       .innerJoin(agentTools, eq(myMcpServerTools.toolId, agentTools.id))
-      .where(and(eq(myMcpServerTools.serverId, serverId), eq(agentTools.isActive, true))),
+      .where(and(eq(myMcpServerTools.serverId, serverId), undefined)),
   );
 
   return rows.map((row) => ({
@@ -310,7 +308,6 @@ export async function listLiveMcpTools(serverId: string): Promise<LiveMcpTool[]>
     description: row.description,
     inputSchema: (row.parameters ?? { type: "object", properties: {} }) as object,
     codeContent: row.codeContent,
-    isActive: Boolean(row.isActive),
   }));
 }
 
@@ -323,7 +320,6 @@ export async function getAssignedToolForCall(serverId: string, toolName: string)
         description: agentTools.description,
         parameters: agentTools.parameters,
         codeContent: agentTools.codeContent,
-        isActive: agentTools.isActive,
       })
       .from(myMcpServerTools)
       .innerJoin(agentTools, eq(myMcpServerTools.toolId, agentTools.id))
@@ -336,6 +332,5 @@ export async function getAssignedToolForCall(serverId: string, toolName: string)
     description: row.description,
     inputSchema: (row.parameters ?? { type: "object", properties: {} }) as object,
     codeContent: row.codeContent,
-    isActive: Boolean(row.isActive),
   };
 }

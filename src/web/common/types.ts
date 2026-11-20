@@ -29,7 +29,6 @@ export interface AgentTool {
   draftCode?: string | null;
   folderId?: string | null;
   sortOrder?: number;
-  isActive: boolean;
   /** Workspace admin builtins. Hidden from user-agent config. Still listed on Builtin Tools. */
   workspaceOnly?: boolean;
   /** Builtin that stays on for every agent. Shown in the Builtin Tools list. */

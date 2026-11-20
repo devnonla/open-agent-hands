@@ -1,7 +1,7 @@
 import { type CollisionDetection, DndContext, type DragEndEvent, type DragOverEvent, DragOverlay, type DragStartEvent, PointerSensor, type UniqueIdentifier, closestCorners, getFirstCollision, pointerWithin, rectIntersection, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Dropdown, Icon, Modal, Tag, message } from "devnonla-ui";
+import { Dropdown, Icon, Modal, message } from "devnonla-ui";
 import type { MenuProps } from "devnonla-ui";
 import { Ellipsis, Pencil, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -218,11 +218,6 @@ function ToolRowView({
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <span className="min-w-0 truncate font-mono text-[13px] leading-snug text-foreground/90 group-hover/tool:text-foreground transition-colors">{tool.label}</span>
-          <RenderIf condition={!tool.isActive}>
-            <Tag color="error" className="m-0! shrink-0 rounded-md text-[10px] leading-none">
-              Inactive
-            </Tag>
-          </RenderIf>
         </div>
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80 opacity-0 transition-opacity group-hover/tool:opacity-100">{paramCount > 0 ? `${paramCount} param${paramCount === 1 ? "" : "s"}` : "No params"}</span>
       </button>
