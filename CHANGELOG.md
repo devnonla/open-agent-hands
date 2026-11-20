@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-20
+
+### Added
+
+- **A Claude Code skill that knows the exact formats.** Install the `agenthands` plugin and Claude reads the right part before it writes a tool, job, site or datatable query, so the header, column types and `where` syntax come out right the first time. Run `claude plugin marketplace add devnonla/open-agent-hands`, then `claude plugin install agenthands@agenthands`.
+- **Agents can organize tools into folders.** Two new Core MCP tools: `manage_tool_folder` (list, create, update, delete) and `move_tool`. `create_tool` also accepts a folder name.
+- **Switch and manage workspaces without leaving the page.** The workspace menu in the sidebar switches workspaces and creates a new one. **Settings → Workspace** renames or deletes the current workspace. The separate Workspaces page is gone.
+
 ## [0.4.0] - 2026-11-20
 
 ### Added

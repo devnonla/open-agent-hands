@@ -100,13 +100,13 @@ Things you might ask an agent:
 - *"Add a tool that converts text to a URL slug and put it on the Everyday server."*
 
 <details>
-<summary><b>Everything the Core MCP can do</b> (49 tools)</summary>
+<summary><b>Everything the Core MCP can do</b> (51 tools)</summary>
 
 | Group | Tools |
 | --- | --- |
 | Guide | `get_guide` |
 | Workspaces | `list_workspaces` `create_workspace` `update_workspace` `delete_workspace` |
-| Tools | `list_tools` `get_tool` `create_tool` `update_tool` `run_tool` `delete_tool` |
+| Tools | `list_tools` `get_tool` `create_tool` `update_tool` `run_tool` `delete_tool` `manage_tool_folder` `move_tool` |
 | MCP servers | `list_mcp_servers` `create_mcp_server` `update_mcp_server` `add_tools_to_mcp_server` `remove_tools_from_mcp_server` `delete_mcp_server` |
 | KV & secrets | `kv_list` `kv_get` `kv_set` `kv_delete` `secret_list` `secret_set` `secret_delete` |
 | Datatables | `datatable_list_projects` `datatable_create_project` `datatable_get_schema` `datatable_create_table` `datatable_add_column` `datatable_query` `datatable_insert_rows` `datatable_update_row` `datatable_delete_rows` `datatable_delete_project` |
