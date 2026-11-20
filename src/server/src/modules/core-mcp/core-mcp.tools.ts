@@ -11,6 +11,7 @@ import * as mcpServers from "../my-mcp-servers/my-mcp-servers.service.js";
 import * as secrets from "../secrets/secrets.service.js";
 import * as sites from "../sites/sites.service.js";
 import { buildJsonSchemaFromCode, parseMetaFromCode } from "../tools/common/code-annotations.js";
+import * as toolFolders from "../tool-folders/tool-folders.service.js";
 import * as tools from "../tools/tools.service.js";
 import * as workspaces from "../workspaces/workspaces.service.js";
 import { CORE_MCP_INSTRUCTIONS, getGuide } from "./core-mcp-guide.js";
@@ -70,6 +71,13 @@ async function findTool(ref: string) {
   const tool = await tools.getTool(match.id);
   if (!tool) throw new NotFoundException(`Tool "${ref}" not found`);
   return tool;
+}
+
+async function findFolder(ref: string) {
+  const list = await toolFolders.listToolFolders({});
+  const match = (list.items as { id: string; name: string; description: string | null; toolIds: string[] }[]).find((f) => f.id === ref || f.name === ref);
+  if (!match) throw new NotFoundException(`Tool folder "${ref}" not found. Use list_tool_folders to see folders.`);
+  return match;
 }
 
 async function findMcpServer(ref: string) {
@@ -174,13 +182,13 @@ const CORE_TOOLS: CoreTool[] = [
   {
     name: "create_tool",
     description: "Create a tool from code. Name, description and parameters come from the @name/@description/@param header. See get_guide topic=tools.",
-    inputSchema: input({ code: s("Full TypeScript module with annotation header and export default async function main(input)"), folder_id: s("Optional tool folder id") }, ["code"]),
+    inputSchema: input({ code: s("Full TypeScript module with annotation header and export default async function main(input)"), folder_id: s("Optional tool folder id or name") }, ["code"]),
     run: async (args) => {
       const code = str(args, "code");
       const meta = parseMetaFromCode(code);
       if (!meta.label || !meta.name) throw new Error("Code must start with // @name <Label>");
       if (!meta.description) throw new Error("Code must include // @description <text>");
-      const created = await tools.createTool({ name: meta.name, label: meta.label, description: meta.description, parameters: buildJsonSchemaFromCode(code), codeContent: code, folderId: optStr(args, "folder_id") ?? null });
+      const created = await tools.createTool({ name: meta.name, label: meta.label, description: meta.description, parameters: buildJsonSchemaFromCode(code), codeContent: code, folderId: optStr(args, "folder_id") ? (await findFolder(str(args, "folder_id"))).id : null });
       return toolSummary(await tools.updateTool(created.id as string, { codeContent: code }));
     },
   },
@@ -193,6 +201,49 @@ const CORE_TOOLS: CoreTool[] = [
       const patch: Record<string, unknown> = {};
       if (typeof args.code === "string") patch.codeContent = args.code;
       return toolSummary(await tools.updateTool(tool.id, patch));
+    },
+  },
+  {
+    name: "manage_tool_folder",
+    description: "Manage tool folders. action=list (folders with their tool ids), create (name, description?), update (folder, name?, description?), delete (folder, confirm=true; tools inside are NOT deleted, they become ungrouped). Use move_tool to put a tool in a folder.",
+    inputSchema: input({ action: { type: "string", enum: ["list", "create", "update", "delete"] }, folder: s("Folder id or name (update, delete)"), name: s("Folder name (create) or new name (update)"), description: s("Description (create, update)"), confirm: { type: "boolean", description: "Required for delete" } }, ["action"]),
+    run: async (args) => {
+      const action = str(args, "action");
+      if (action === "list") return ((await toolFolders.listToolFolders({})).items as { id: string; name: string; description: string | null; toolIds: string[] }[]).map(({ id, name, description, toolIds }) => ({ id, name, description, toolIds }));
+      if (action === "create") {
+        const name = str(args, "name");
+        const existing = await toolFolders.listToolFolders({});
+        if ((existing.items as { name: string }[]).some((f) => f.name.toLowerCase() === name.toLowerCase())) throw new Error(`Tool folder "${name}" already exists`);
+        const { id, description } = await toolFolders.createToolFolder({ name, description: optStr(args, "description") });
+        return { id, name, description };
+      }
+      if (action === "update") {
+        const folder = await findFolder(str(args, "folder"));
+        const patch: { name?: string; description?: string } = {};
+        if (typeof args.name === "string" && args.name.trim()) patch.name = args.name.trim();
+        if (typeof args.description === "string") patch.description = args.description;
+        if (!Object.keys(patch).length) throw new Error("Pass name and/or description to update");
+        const updated = (await toolFolders.updateToolFolder(folder.id, patch)) as { id: string; name: string; description: string | null };
+        return { id: updated.id, name: updated.name, description: updated.description };
+      }
+      if (action === "delete") {
+        if (args.confirm !== true) throw new Error("Set confirm=true to delete the folder (its tools become ungrouped)");
+        const folder = await findFolder(str(args, "folder"));
+        await toolFolders.deleteToolFolder(folder.id);
+        return { ok: true, ungroupedTools: folder.toolIds.length };
+      }
+      throw new Error(`Unknown action "${action}". Use list, create, update or delete`);
+    },
+  },
+  {
+    name: "move_tool",
+    description: "Move a tool into a tool folder. Omit folder (or pass an empty string) to make it ungrouped.",
+    inputSchema: input({ tool: s("Tool id or name"), folder: s("Destination folder id or name; empty for ungrouped") }, ["tool"]),
+    run: async (args) => {
+      const tool = await findTool(str(args, "tool"));
+      const ref = optStr(args, "folder")?.trim();
+      const folderId = ref ? (await findFolder(ref)).id : null;
+      return toolSummary(await tools.updateTool(tool.id, { folderId }));
     },
   },
   {

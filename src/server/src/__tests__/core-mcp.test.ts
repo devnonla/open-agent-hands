@@ -80,6 +80,17 @@ describe("Core MCP", () => {
     expect((created.value as { name: string }).name).toBe("greeter");
     expect((await call("list_tools")).value).toEqual([]);
 
+    const folder = await call("manage_tool_folder", { action: "create", workspace: "Lab", name: "Utils" });
+    expect(folder.isError).toBe(false);
+    expect((await call("manage_tool_folder", { action: "create", workspace: "Lab", name: "utils" })).isError).toBe(true);
+    expect((await call("manage_tool_folder", { action: "update", workspace: "Lab", folder: "Utils", name: "Helpers" })).isError).toBe(false);
+    const moved = await call("move_tool", { workspace: "Lab", tool: "greeter", folder: "Helpers" });
+    expect((moved.value as { folderId: string }).folderId).toBe((folder.value as { id: string }).id);
+    expect(((await call("manage_tool_folder", { action: "list", workspace: "Lab" })).value as { toolIds: string[] }[])[0].toolIds).toHaveLength(1);
+    expect((await call("manage_tool_folder", { action: "delete", workspace: "Lab", folder: "Helpers" })).isError).toBe(true);
+    expect((await call("manage_tool_folder", { action: "delete", workspace: "Lab", folder: "Helpers", confirm: true })).value).toEqual({ ok: true, ungroupedTools: 1 });
+    expect(((await call("move_tool", { workspace: "Lab", tool: "greeter" })).value as { folderId: string | null }).folderId).toBeNull();
+
     const ran = await call("run_tool", { workspace: "Lab", tool: "greeter", input: { name: "Quy" } });
     expect(ran.value).toMatchObject({ ok: true, result: { text: "xin chao Quy" } });
 
