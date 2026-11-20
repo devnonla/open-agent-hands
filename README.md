@@ -138,7 +138,7 @@ const leads = await agenthands.datatable.query("crm", "leads", { where: { score:
 
 ## The Mac app
 
-The app is a thin shell around the same server, much like Ollama:
+The app is a thin shell around the same server:
 
 - The menu bar icon has **Open**, **Open in Browser**, **Start at Login** and **Quit**.
 - Closing the window keeps the server running, so your agents can still connect. **Quit** stops it.
