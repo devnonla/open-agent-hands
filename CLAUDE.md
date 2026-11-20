@@ -75,6 +75,10 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 - Child processes run the binary itself as Bun by setting `BUN_BE_BUN=1` (`common/sandbox/env.ts`, `jobs-runner.ts`). Always spawn `process.execPath`, never a bare `bun`.
 - Migrations are embedded via `import … with { type: "text" }` in `common/db/migrations/index.ts`. A new migration needs a new `00NN_name.sql` **and** an entry in that index.
 
+### Claude Code plugin (`plugins/agenthands/`)
+- A plugin with one skill, `agenthands`, whose `SKILL.md` is a short index and `references/<group>.md` holds one file per group (tools, jobs, sites, datatables, mcp-servers, kv, secrets, workspaces, runtime). Listed by `.claude-plugin/marketplace.json`. Claude loads the skill locally, then reads only the reference it needs, so agents get the exact formats without a tool call.
+- Keep each reference in step with `core-mcp-guide.ts` and the Core MCP tools. When a tool's format or arguments change, update its reference. Bump `plugin.json` `version` with each release.
+
 ### Desktop app (`desktop/`)
 - Tauri v2 shell in Rust (`desktop/src-tauri/src/main.rs`). It is not a Bun workspace. It bundles `dist/agenthands` as a sidecar (`externalBin`, copied to `src-tauri/binaries/agenthands-<rust-triple>` by `scripts/build-desktop.ts`).
 - On launch it checks `GET /api/health` on 8429. It reuses a running agenthands, refuses if another app holds the port, and otherwise spawns the sidecar with stdout/stderr going to `~/.open-agent-hands/logs/server.log`. The window shows `desktop/ui/index.html` until the server is healthy, then navigates to `http://127.0.0.1:8429`.

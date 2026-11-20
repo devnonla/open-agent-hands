@@ -64,7 +64,14 @@ Then open **http://127.0.0.1:8429**, create your account and pick a workspace. E
      --header "Authorization: Bearer <core-key>"
    ```
 
-3. Ask your agent for something, for example:
+3. Install the skill so Claude Code knows the exact formats for tools, jobs, sites and datatables, and reads only the part it needs:
+
+   ```bash
+   claude plugin marketplace add devnonla/open-agent-hands
+   claude plugin install agenthands@agenthands
+   ```
+
+4. Ask your agent for something, for example:
 
    > Create a tool that fetches YouTube transcripts and put it on a new MCP server called "Research kit".
 

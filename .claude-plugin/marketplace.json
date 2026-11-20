@@ -1,0 +1,16 @@
+{
+  "name": "agenthands",
+  "owner": {
+    "name": "Agent Hands"
+  },
+  "plugins": [
+    {
+      "name": "agenthands",
+      "source": "./plugins/agenthands",
+      "description": "Skills for working with an Agent Hands server through its Core MCP."
+    }
+  ],
+  "metadata": {
+    "description": "Skills for Agent Hands, the local server for tools, MCP, KV, secrets, datatables and cron jobs."
+  }
+}
