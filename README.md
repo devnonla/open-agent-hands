@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The hands your AI agents build with.</strong><br />
-  A local, single-binary server where Claude Code and Codex create and run tools, MCP servers, sites, jobs and data over MCP, while people mostly watch.
+  A local app where Claude Code and Codex create and run tools, MCP servers, sites, jobs and data over MCP, while you watch.
 </p>
 
 <p align="center">
@@ -14,6 +14,15 @@
   <a href="https://github.com/devnonla/open-agent-hands/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/devnonla/open-agent-hands/ci.yml?branch=main&label=ci" /></a>
   <img alt="Platforms" src="https://img.shields.io/badge/macOS%20%7C%20Linux-arm64%20%7C%20x64-1a1815" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-1a1815" /></a>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#connect-your-agent">Connect your agent</a> ·
+  <a href="#day-to-day">Day to day</a> ·
+  <a href="#update-and-uninstall">Update</a> ·
+  <a href="#troubleshooting">Troubleshooting</a> ·
+  <a href="CONTRIBUTING.md">Develop</a>
 </p>
 
 <p align="center">
@@ -27,8 +36,8 @@
 Coding agents are great at writing code, but they have nowhere to *keep* what they build. Open Agent Hands gives them a place to work:
 
 - **Agents do the work.** Over one MCP connection, Claude Code or Codex can write a tool, test it, publish it as its own MCP server, schedule a job, store data or ship a small site.
-- **People watch and correct.** The web UI is for watching what agents built, reviewing code and logs, and fixing things by hand. It is not where you build.
-- **It runs on your machine.** One binary with SQLite. No Docker, no cloud and no database server.
+- **You watch and correct.** The app is for seeing what agents built, reading code and logs, pausing a job or fixing a row. You don't build things in it.
+- **It runs on your machine.** It's one app with a local SQLite database. There's no Docker, no cloud and no account to sign up for.
 
 <p align="center">
   <img src=".github/assets/how-it-works.svg" alt="Claude Code and Codex manage Open Agent Hands through /mcp/core; hosted MCP servers expose selected tools to any client" width="900" />
@@ -38,33 +47,53 @@ Coding agents are great at writing code, but they have nowhere to *keep* what th
 
 ```bash
 curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download/install.sh | sh
-agenthands
 ```
 
-Open http://127.0.0.1:8429, create your account and pick a workspace.
+- **macOS:** installs **Open Agent Hands.app** into `/Applications` and opens it. The app sits in the menu bar and runs the server for you. It also adds the `agenthands` command to your terminal.
+- **Linux:** installs the `agenthands` binary into `~/.local/bin`. Start it with `agenthands`.
 
-```
-agenthands [-p|--port 8429] [-H|--host 127.0.0.1] [-d|--data-dir ~/.open-agent-hands]
-```
-
-`install.sh` reads these environment variables: `AGENTHANDS_VERSION` (for example `v0.1.0`, default `latest`), `AGENTHANDS_INSTALL_DIR` (default `~/.local/bin`) and `AGENTHANDS_REPO`.
+Then open **http://127.0.0.1:8429**, create your account and pick a workspace. Everything stays on your machine.
 
 ## Connect your agent
 
-Open **MCP Servers** in the UI and copy the command from the **Core MCP** card:
+1. In the app, open **MCP Servers**.
+2. Copy the command from the **Core MCP** card and run it in a terminal:
 
-```bash
-claude mcp add --transport http agenthands http://127.0.0.1:8429/mcp/core --scope user \
-  --header "Authorization: Bearer <core-key>"
-```
+   ```bash
+   claude mcp add --transport http agenthands http://127.0.0.1:8429/mcp/core --scope user \
+     --header "Authorization: Bearer <core-key>"
+   ```
 
-Then ask your agent something like *"create a tool that fetches YouTube transcripts and expose it on a new MCP server"*. It reads the built-in guide (`get_guide`), writes the code, runs it with `run_tool` until it works, and publishes it.
+3. Ask your agent for something, for example:
 
-Each **hosted MCP server** (`/mcp/<id>`) exposes only the tools you assign and has its own token. Use these to plug a narrow set of tools into Cursor, Claude or any other MCP client. Click **Connect** on a server card to get the URL, token and client config.
+   > Create a tool that fetches YouTube transcripts and put it on a new MCP server called "Research kit".
 
-## What agents can do
+The agent reads the built-in guide, writes the tool, runs it until it works and publishes it. You see each step appear in the app.
 
-The Core MCP has 49 tools in these groups. Every tool takes an optional `workspace` argument (id or name).
+To use those tools from **another** client (Cursor, Claude Desktop, another agent), click **Connect** on the server card. You get the URL, a private token and a ready-to-paste config. Each server exposes only the tools assigned to it.
+
+## Day to day
+
+Agents create things. You mostly look, and step in when needed.
+
+| Area | What you do here |
+| --- | --- |
+| **MCP Servers** | Copy connect info, turn a server on or off, rotate its token |
+| **Tools** | Read and fix code, group tools into folders |
+| **Jobs** | See the schedule in plain words and the next runs, pause or resume, run now, read the logs |
+| **Sites** | Preview, publish, set a password |
+| **Datatables** | Browse and edit rows |
+| **KV Store / Secrets** | Enter values that agents should use but never see in chat, such as API keys |
+| **Workspaces** | Keep clients or projects apart. Each has its own tools, data and keys |
+
+Things you might ask an agent:
+
+- *"Every weekday at 8am, save the top Hacker News stories to a datatable."*
+- *"Make a small site that lists my leads from the crm datatable, with a password."*
+- *"Add a tool that converts text to a URL slug and put it on the Everyday server."*
+
+<details>
+<summary><b>Everything the Core MCP can do</b> (49 tools)</summary>
 
 | Group | Tools |
 | --- | --- |
@@ -77,7 +106,7 @@ The Core MCP has 49 tools in these groups. Every tool takes an optional `workspa
 | Sites | `list_sites` `create_site` `get_site_files` `write_site_file` `preview_site` `approve_site` `publish_site` `delete_site` |
 | Jobs | `list_jobs` `get_job` `create_job` `update_job` `run_job` `get_job_runs` `delete_job` |
 
-Tools, jobs and site backends share a small runtime SDK:
+Every tool takes an optional `workspace` (id or name). The code agents write uses a small runtime SDK:
 
 ```ts
 import agenthands from "@agenthands/runtime";
@@ -87,16 +116,18 @@ const token = await agenthands.secrets.get("OPENWEATHER_API_KEY");
 const leads = await agenthands.datatable.query("crm", "leads", { where: { score: { $gt: 80 } } });
 ```
 
+</details>
+
 ## A look inside
 
 <table>
   <tr>
     <td width="50%"><img src=".github/assets/tool-editor.jpg" alt="Tool editor" /><br /><sub><b>Tools</b>: TypeScript with <code>@param</code> annotations. npm imports install automatically.</sub></td>
-    <td width="50%"><img src=".github/assets/job-activity.jpg" alt="Job run activity" /><br /><sub><b>Jobs</b>: cron scripts with step timings and logs.</sub></td>
+    <td width="50%"><img src=".github/assets/job-activity.jpg" alt="Job run activity" /><br /><sub><b>Jobs</b>: scheduled scripts with step timings and logs.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src=".github/assets/datatables.jpg" alt="Datatables" /><br /><sub><b>Datatables</b>: typed tables that agents and people both read and write.</sub></td>
-    <td width="50%"><img src=".github/assets/site-preview.jpg" alt="Site preview" /><br /><sub><b>Sites</b>: React and a backend, approved from a draft and published at <code>/public/sites/&lt;slug&gt;</code>.</sub></td>
+    <td width="50%"><img src=".github/assets/site-preview.jpg" alt="Site preview" /><br /><sub><b>Sites</b>: small React apps with a backend, published at <code>/public/sites/&lt;slug&gt;</code>.</sub></td>
   </tr>
 </table>
 
@@ -105,30 +136,95 @@ const leads = await agenthands.datatable.query("crm", "leads", { where: { score:
   <sub><b>Workspaces</b> keep clients and projects apart: tools, data, keys and files all live inside one.</sub>
 </p>
 
-## Data
+## The Mac app
 
-Everything lives under `--data-dir` (default `~/.open-agent-hands`):
+The app is a thin shell around the same server, much like Ollama:
 
-```
-data.db                         SQLite: workspaces, tool/job code, KV, secrets, datatables
-workspaces/<id>/tools/<tool>/   tool sandboxes (regenerated on demand)
-workspaces/<id>/sites/<site>/   site source (+ draft/)
-```
+- The menu bar icon has **Open**, **Open in Browser**, **Start at Login** and **Quit**.
+- Closing the window keeps the server running, so your agents can still connect. **Quit** stops it.
+- If the server is already running (for example, started from a terminal), the app uses that one.
 
-To back up, copy `data.db` and `workspaces/`. Secrets are encrypted at rest. You can turn on an optional OS sandbox (bubblewrap on Linux, Seatbelt on macOS) for tools and site backends in **Settings → Sandbox**.
+## Run from the terminal
 
-## Develop
-
-You need [Bun](https://bun.sh/) ≥ 1.4.3.
+On Linux, or on macOS without the app:
 
 ```bash
-bun install
-bun run dev              # API :8429 + Vite HMR http://localhost:5173
-bun run test
-bun run build            # web + single binary → dist/agenthands
+agenthands                       # http://127.0.0.1:8429
+agenthands --port 9000           # another port
+agenthands --data-dir ~/work-ah  # a separate set of data
 ```
 
-`bun run build:binary:all` cross-compiles `dist/agenthands-{darwin,linux}-{arm64,x64}`. Pushing a `v*` tag publishes those binaries and `install.sh` to a GitHub release. See [CLAUDE.md](CLAUDE.md) for the architecture and the agent-first principles.
+| Option | Default |
+| --- | --- |
+| `-p, --port` | `8429` (env `PORT`) |
+| `-H, --host` | `127.0.0.1` (env `HOST`) |
+| `-d, --data-dir` | `~/.open-agent-hands` (env `DATA_DIR`) |
+
+## Your data
+
+Everything lives in `~/.open-agent-hands`:
+
+```
+data.db               all workspaces, tools, jobs, KV, secrets and datatables (SQLite)
+workspaces/<id>/      site files and generated tool folders
+logs/server.log       server log when started by the Mac app
+```
+
+- **Back up:** quit the app, then copy the whole folder.
+- **Secrets:** encrypted at rest.
+- **Sandbox:** tools and site backends can run in an OS sandbox (Seatbelt on macOS, bubblewrap on Linux). Turn it on in **Settings → Sandbox**.
+
+## Update and uninstall
+
+**Update:** run the install command again. On macOS it quits the app, replaces it and opens the new version. Your data stays.
+
+**Uninstall:**
+
+1. **macOS:** turn off **Start at Login** in the menu bar, quit the app, and delete `/Applications/Open Agent Hands.app`.
+2. **macOS and Linux:** remove the command line link or binary with `rm ~/.local/bin/agenthands`.
+3. **Only if you also want to delete all your data:** `rm -rf ~/.open-agent-hands`. This cannot be undone.
+
+## Troubleshooting
+
+<details>
+<summary><b>macOS says the app is damaged or from an unidentified developer</b></summary>
+
+The app is not notarized by Apple. The install command clears the download flag for you. If you downloaded the app in a browser instead, run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Open Agent Hands.app"
+```
+
+</details>
+
+<details>
+<summary><b>"Port 8429 is used by another app"</b></summary>
+
+Something else is listening on 8429. Find it with `lsof -nP -iTCP:8429 -sTCP:LISTEN`, stop it, then reopen the app. Or run the server on another port with `agenthands --port 9000`.
+
+</details>
+
+<details>
+<summary><b>My agent can't connect</b></summary>
+
+- Check that the app (or `agenthands`) is running: open http://127.0.0.1:8429.
+- Copy the command again from the **Core MCP** card. If you rotated the key, the old one stops working.
+- For a hosted server, check it is turned **on** and use its own token from **Connect**.
+
+</details>
+
+<details>
+<summary><b>Where are the logs?</b></summary>
+
+If the Mac app started the server, logs are in `~/.open-agent-hands/logs/server.log`. If you ran `agenthands` yourself, they are in that terminal. Job and tool run logs are in the app, under each job or tool.
+
+</details>
+
+Still stuck? [Open an issue](https://github.com/devnonla/open-agent-hands/issues/new?template=01-bug.yml).
+
+## Contributing
+
+Want to change Open Agent Hands itself, or run your own fork? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
