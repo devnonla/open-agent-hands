@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-20
+
+### Fixed
+
+- **The macOS app is now attached to the release.** The v0.2.0 app job was cancelled because GitHub no longer supports the `macos-14` runner, so v0.2.0 shipped binaries only. On macOS, the one-line install now sets up `Open Agent Hands.app` as intended.
+- **The app job no longer rebuilds the web UI on macOS.** That build ran out of memory. The job now reuses the darwin binaries from the release job, so the app bundles exactly the released binaries.
+
+### Changed
+
+- **The release workflow can be dry-run.** `workflow_dispatch` builds everything without publishing and checks the app bundles first.
+
 ## [0.2.0] - 2026-11-20
 
 ### Added
