@@ -1,94 +1,17 @@
-import { Button, EFormItemType, Empty, Popover, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
-import { Plus } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Empty, message } from "devnonla-ui";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
 import { useNow } from "src/common/hooks/useNow";
 import type { Job } from "src/common/types";
-import { MissingProviderCallout } from "src/components/MissingProviderCallout";
+import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-import { createJob, fetchJobs, removeJobLocal, updateJobLocal, upsertJobLocal } from "./common/jobsSlice";
+import { fetchJobs, removeJobLocal, updateJobLocal, upsertJobLocal } from "./common/jobsSlice";
 import { jobIsScheduled } from "./common/schedule";
 import { JobsTree } from "./components/JobCard";
-
-type CreateJobValues = { name: string };
-
-const CREATE_JOB_ITEMS: TFormItemProps[] = [
-  {
-    type: EFormItemType.Input,
-    name: "name",
-    label: "Name",
-    colSpan: 12,
-    rules: {
-      required: "Name is required",
-      validate: (value) => (typeof value === "string" && value.trim() ? true : "Name is required"),
-    },
-    options: { placeholder: "Daily digest", autoFocus: true },
-  },
-];
-
-function NewJobPopover({ children, placement = "bottomRight" }: { children: ReactNode; placement?: "bottom" | "bottomRight" }) {
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const form = useForm<CreateJobValues>({ defaultValues: { name: "" }, mode: "onSubmit" });
-  const rootError = form.formState.errors.root?.message;
-
-  useEffect(() => {
-    if (!open) return;
-    form.reset({ name: "" });
-    setSaving(false);
-    const t = window.setTimeout(() => form.setFocus("name"), 150);
-    return () => window.clearTimeout(t);
-  }, [open, form]);
-
-  const onSubmit = form.handleSubmit(async ({ name }) => {
-    setSaving(true);
-    try {
-      const job = (await dispatch(createJob({ name: name.trim(), cron: "" })).unwrap()) as Job;
-      message.success("Job created");
-      setOpen(false);
-      navigate(`/jobs/${job.id}`);
-    } catch (err: unknown) {
-      form.setError("root", { message: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setSaving(false);
-    }
-  });
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      trigger="click"
-      placement={placement}
-      arrow
-      contentClassName="w-80 max-w-none p-0"
-      content={
-        <form className="flex flex-col gap-3 p-4" onSubmit={onSubmit}>
-          <p className="m-0 text-sm font-medium text-foreground">New job</p>
-          <SchemaForm form={form} items={CREATE_JOB_ITEMS} />
-          {rootError ? <p className="m-0 text-xs text-destructive">{rootError}</p> : null}
-          <div className="flex justify-end gap-2">
-            <Button type="text" size="medium" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="primary" size="medium" htmlType="submit" loading={saving}>
-              {saving ? "Creating…" : "Create"}
-            </Button>
-          </div>
-        </form>
-      }
-    >
-      {children}
-    </Popover>
-  );
-}
 
 function JobsSkeleton() {
   return (
@@ -153,29 +76,13 @@ export default function JobsPage() {
 
   return (
     <PageShell>
-      <MissingProviderCallout />
-      <PageHeader
-        title="Jobs"
-        icon="jobs"
-        description="Scheduled jobs run on their own. Off jobs stay idle until a schedule is added."
-        actions={
-          <NewJobPopover>
-            <Button type="primary" icon={<Plus size={16} />}>
-              New job
-            </Button>
-          </NewJobPopover>
-        }
-      />
+      <PageHeader title="Jobs" icon="jobs" description="Scheduled jobs run on their own. Off jobs stay idle until a schedule is added." />
 
       <RenderIf
         condition={items.length > 0 || loading}
         fallback={
           <Empty className="rounded-2xl border border-dashed border-border px-5 py-16" description="No jobs yet">
-            <NewJobPopover placement="bottom">
-              <Button type="primary" icon={<Plus size={16} />}>
-                New job
-              </Button>
-            </NewJobPopover>
+            <AskClaudeHint what="job" tool="create_job" />
           </Empty>
         }
       >

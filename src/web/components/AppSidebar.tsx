@@ -1,38 +1,35 @@
-import { Dropdown, Icon, Logo, type MenuProps, Sidebar, type SidebarItemType, type SidebarSelectInfo, ThemeSwitcher } from "devnonla-ui";
+import { Dropdown, Icon, type MenuProps, Sidebar, type SidebarItemType, type SidebarSelectInfo } from "devnonla-ui";
 import { Ellipsis, LogOut } from "lucide-react";
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiClient, clearAuthToken, getRefreshToken } from "src/common/api";
 import type { User } from "src/common/types";
+import { AppLogo } from "src/components/AppLogo";
 import { FeatureIcon, type FeatureIconName } from "src/components/FeatureIcon";
 import { UserAvatar } from "src/components/UserAvatar";
+import { WorkspaceSwitcher } from "src/modules/workspaces/components/WorkspaceSwitcher";
 import { useAppSelector } from "src/store/store";
 
 interface NavItem {
   to: string;
   label: string;
   icon: FeatureIconName;
-  adminOnly?: boolean;
 }
 
-const DASHBOARD_NAV: NavItem[] = [{ to: "/", label: "Dashboard", icon: "dashboard" }];
-
 const WORKSPACE_NAV: NavItem[] = [
-  { to: "/agents", label: "Agents", icon: "agents" },
+  { to: "/my-mcp-servers", label: "MCP Servers", icon: "mcp" },
   { to: "/tools", label: "Tools", icon: "tools" },
-  { to: "/skills", label: "Skills", icon: "skills" },
 ];
 
 const CAPABILITIES_NAV: NavItem[] = [
+  { to: "/jobs", label: "Jobs", icon: "jobs" },
   { to: "/sites", label: "Sites", icon: "sites" },
-  { to: "/jobs", label: "Jobs", icon: "jobs", adminOnly: true },
-  { to: "/my-mcp-servers", label: "MCP Servers", icon: "mcp" },
 ];
 
 const RESOURCES_NAV: NavItem[] = [
   { to: "/datatables", label: "Datatables", icon: "datatables" },
   { to: "/kvstore", label: "KV Store", icon: "kv-store" },
-  { to: "/secrets", label: "Secrets", icon: "secrets", adminOnly: true },
+  { to: "/secrets", label: "Secrets", icon: "secrets" },
 ];
 
 function NavIcon({ name }: { name: FeatureIconName }) {
@@ -43,8 +40,8 @@ function linkItem(item: NavItem): SidebarItemType {
   return { key: item.to, label: item.label, icon: <NavIcon name={item.icon} />, href: item.to };
 }
 
-function visibleLinks(items: NavItem[], isAdmin: boolean): SidebarItemType[] {
-  return items.filter((item) => !item.adminOnly || isAdmin).map((item) => linkItem(item));
+function visibleLinks(items: NavItem[]): SidebarItemType[] {
+  return items.map((item) => linkItem(item));
 }
 
 function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: () => void }) {
@@ -112,33 +109,18 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const currentUser = useAppSelector((s) => s.auth.user);
-  const isAdmin = currentUser?.role === "admin";
 
   const selectedKey = useMemo(() => {
     if (pathname.startsWith("/settings")) return "settings";
-    if (pathname === "/") return "/";
-    const routes = [...DASHBOARD_NAV, ...WORKSPACE_NAV, ...CAPABILITIES_NAV, ...RESOURCES_NAV]
-      .map((item) => item.to)
-      .filter((to) => to !== "/")
-      .sort((a, b) => b.length - a.length);
+    const routes = [...WORKSPACE_NAV, ...CAPABILITIES_NAV, ...RESOURCES_NAV].map((item) => item.to).sort((a, b) => b.length - a.length);
     return routes.find((to) => pathname === to || pathname.startsWith(`${to}/`)) ?? "";
   }, [pathname]);
 
   const items = useMemo<SidebarItemType[]>(() => {
-    const next: SidebarItemType[] = [
-      ...visibleLinks(DASHBOARD_NAV, isAdmin),
-      { type: "group", key: "workspace", label: "Workspace" },
-      ...visibleLinks(WORKSPACE_NAV, isAdmin),
-      { type: "group", key: "capabilities", label: "Compute" },
-      ...visibleLinks(CAPABILITIES_NAV, isAdmin),
-      { type: "group", key: "resources", label: "Storage" },
-      ...visibleLinks(RESOURCES_NAV, isAdmin),
-    ];
-    if (isAdmin) {
-      next.push({ key: "settings", label: "Settings", icon: <NavIcon name="settings" />, href: "/settings/general" });
-    }
+    const next: SidebarItemType[] = [{ type: "group", key: "build", label: "Build" }, ...visibleLinks(WORKSPACE_NAV), { type: "group", key: "capabilities", label: "Compute" }, ...visibleLinks(CAPABILITIES_NAV), { type: "group", key: "resources", label: "Storage" }, ...visibleLinks(RESOURCES_NAV)];
+    next.push({ key: "settings", label: "Settings", icon: <NavIcon name="settings" />, href: "/settings/general" });
     return next;
-  }, [isAdmin]);
+  }, []);
 
   const handleLogout = () => {
     const refreshToken = getRefreshToken();
@@ -159,9 +141,11 @@ export function AppSidebar() {
         header={
           <>
             <div className="flex min-w-0 items-center border-b border-border px-4 pt-3.5 pb-3">
-              <Logo variant="full" size={28} />
+              <AppLogo />
             </div>
-            <div className="h-3 shrink-0" aria-hidden />
+            <div className="px-3 pt-3 pb-2">
+              <WorkspaceSwitcher />
+            </div>
           </>
         }
         items={items}
@@ -169,10 +153,6 @@ export function AppSidebar() {
         onSelect={onSelect}
         footer={
           <div className="shrink-0 border-t border-border px-2 py-2">
-            <div className="flex items-center justify-between gap-2 px-2 pb-1">
-              <span className="text-xs text-muted-foreground">Theme</span>
-              <ThemeSwitcher />
-            </div>
             <SidebarProfileLink user={currentUser} onLogout={handleLogout} />
           </div>
         }

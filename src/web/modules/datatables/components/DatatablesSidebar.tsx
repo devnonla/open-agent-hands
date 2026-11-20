@@ -1,9 +1,9 @@
-import { Logo } from "devnonla-ui";
 import { ArrowLeft, Plus, Settings, Waypoints } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "src/common/lib/cn";
 import type { DatatableTable } from "src/common/types";
+import { AppLogo } from "src/components/AppLogo";
 import type { DatatableProjectListItem } from "../common/datatableProjectsSlice";
 import { NewTablePopover } from "./NewTablePopover";
 
@@ -81,7 +81,7 @@ export function DatatablesSidebar({
   return (
     <aside className="flex h-full min-h-0 flex-col bg-sidebar">
       <div className="flex min-w-0 items-center bg-foreground/3 px-4 pt-3.5 pb-3">
-        <Logo variant="full" size={28} className="min-w-0" />
+        <AppLogo />
       </div>
       <div className="flex min-w-0 items-center gap-1 px-2 pt-3 pb-1">
         <button type="button" aria-label="Back to projects" onClick={() => navigate("/datatables")} className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-ink-hover hover:text-foreground">

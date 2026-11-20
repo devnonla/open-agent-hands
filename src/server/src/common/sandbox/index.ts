@@ -17,12 +17,14 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { isBwrapAvailable, wrapForSandbox as wrapWithBwrap } from "./bwrap.js";
 import { SANDBOX_ENV_ALLOWLIST, sandboxChildEnv } from "./env.js";
 import { isSeatbeltAvailable, wrapForSandbox as wrapWithSeatbelt } from "./seatbelt.js";
+import { isSandboxEnabled } from "./sandbox-setting.js";
 import type { SandboxWrapOpts } from "./types.js";
 
 export type { SandboxWrapOpts } from "./types.js";
 export { detectPackages, isPkgInstalled, packageNameFromSpecifier } from "./detect-packages.js";
 export { SANDBOX_TSCONFIG, rewriteSandboxTs } from "./rewrite-source.js";
 export { SANDBOX_ENV_ALLOWLIST, sandboxChildEnv };
+export { SANDBOX_SETTING_KEY, invalidateSandboxSetting, isSandboxEnabled } from "./sandbox-setting.js";
 export { spawnCaptured, readCapturedOutput, followCaptureFile, unlinkCaptured, type CapturedSpawn } from "./spawn-captured.js";
 
 let warnedUnsupportedPlatform = false;
@@ -43,13 +45,24 @@ export function ensureWritableDir(dir: string): string {
   }
 }
 
+export function sandboxBackendName(): string | null {
+  if (process.platform === "linux") return "bubblewrap";
+  if (process.platform === "darwin") return "seatbelt";
+  return null;
+}
+
 export async function wrapForSandbox(command: string[], opts: SandboxWrapOpts): Promise<string[]> {
+  if (!(await isSandboxEnabled())) return command;
+  return wrapWithSandboxBackend(command, opts);
+}
+
+export async function wrapWithSandboxBackend(command: string[], opts: SandboxWrapOpts): Promise<string[]> {
   if (process.platform === "linux") return wrapWithBwrap(command, opts);
   if (process.platform === "darwin") return wrapWithSeatbelt(command, opts);
 
   if (!warnedUnsupportedPlatform) {
     warnedUnsupportedPlatform = true;
-    console.warn(`[sandbox] No sandbox backend for platform "${process.platform}" — children run unsandboxed. Use the Docker image for sandboxed execution.`);
+    console.warn(`[sandbox] No sandbox backend for platform "${process.platform}" — children run unsandboxed.`);
   }
   return command;
 }

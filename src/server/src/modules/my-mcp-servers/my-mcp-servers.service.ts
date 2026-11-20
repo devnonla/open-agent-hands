@@ -1,3 +1,5 @@
+import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
+import { inWorkspace } from "../../common/workspace/scope.js";
 /**
  * my-mcp-servers.service.ts — CRUD for MCP servers we host (Cursor / Claude Code).
  */
@@ -63,7 +65,7 @@ async function assertCustomToolIds(ids: string[]): Promise<string[]> {
       throw new BadRequestException("Only custom tools can be assigned");
     }
   }
-  const found = await qall(getDb().select({ id: agentTools.id }).from(agentTools).where(inArray(agentTools.id, unique)));
+  const found = await qall(getDb().select({ id: agentTools.id }).from(agentTools).where(and(inWorkspace(agentTools.workspaceId), inArray(agentTools.id, unique))));
   if (found.length !== unique.length) {
     throw new BadRequestException("One or more tools were not found");
   }
@@ -123,7 +125,7 @@ async function loadAssignedToolsMap(serverIds: string[]): Promise<Map<string, My
 }
 
 export async function listMyMcpServers(query: RawQuery = {}) {
-  const result = await listQuery({ table: myMcpServers, searchColumns: ["name", "description"] }, query);
+  const result = await listQuery({ table: myMcpServers, where: inWorkspace(myMcpServers.workspaceId), searchColumns: ["name", "description"] }, query);
   const items = result.items as (typeof myMcpServers.$inferSelect)[];
   const toolsMap = await loadAssignedToolsMap(items.map((row) => row.id));
   return {
@@ -133,7 +135,12 @@ export async function listMyMcpServers(query: RawQuery = {}) {
 }
 
 export async function getMyMcpServer(id: string): Promise<MyMcpServerDetail> {
-  const row = await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(myMcpServers)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
   if (!row) throw new NotFoundException("MCP server not found");
   return toListItem(row, await loadAssignedTools(id));
 }
@@ -145,6 +152,7 @@ export async function createMyMcpServer(body: MyMcpServerWriteBody): Promise<MyM
   const raw = generateRawKey();
   const now = new Date();
   const row = {
+    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     name,
     description: body.description?.trim() || null,
@@ -163,7 +171,12 @@ export async function createMyMcpServer(body: MyMcpServerWriteBody): Promise<MyM
 }
 
 export async function updateMyMcpServer(id: string, body: MyMcpServerWriteBody): Promise<MyMcpServerListItem> {
-  const existing = await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)));
+  const existing = await qone(
+    getDb()
+      .select()
+      .from(myMcpServers)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
   if (!existing) throw new NotFoundException("MCP server not found");
 
   const patch: Partial<typeof myMcpServers.$inferInsert> = { updatedAt: new Date() };
@@ -175,20 +188,36 @@ export async function updateMyMcpServer(id: string, body: MyMcpServerWriteBody):
   if (body.description !== undefined) patch.description = body.description?.trim() || null;
   if (body.isActive !== undefined) patch.isActive = Boolean(body.isActive);
 
-  await qrun(getDb().update(myMcpServers).set(patch).where(eq(myMcpServers.id, id)));
+  await qrun(
+    getDb()
+      .update(myMcpServers)
+      .set(patch)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
 
   if (body.toolIds !== undefined) {
     await replaceTools(id, await assertCustomToolIds(body.toolIds));
   }
 
-  const updated = (await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)))) ?? existing;
+  const updated =
+    (await qone(
+      getDb()
+        .select()
+        .from(myMcpServers)
+        .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+    )) ?? existing;
   const item = toListItem(updated, await loadAssignedTools(id));
   wsHub.emit("my-mcp-servers:updated", item);
   return item;
 }
 
 export async function rotateMyMcpServerKey(id: string): Promise<MyMcpServerListItem & { key: string }> {
-  const existing = await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)));
+  const existing = await qone(
+    getDb()
+      .select()
+      .from(myMcpServers)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
   if (!existing) throw new NotFoundException("MCP server not found");
   const raw = generateRawKey();
   await qrun(
@@ -199,29 +228,54 @@ export async function rotateMyMcpServerKey(id: string): Promise<MyMcpServerListI
         keyHash: hashMcpKey(raw),
         updatedAt: new Date(),
       })
-      .where(eq(myMcpServers.id, id)),
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
   );
-  const updated = (await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)))) ?? existing;
+  const updated =
+    (await qone(
+      getDb()
+        .select()
+        .from(myMcpServers)
+        .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+    )) ?? existing;
   const item = toListItem(updated, await loadAssignedTools(id));
   wsHub.emit("my-mcp-servers:updated", item);
   return { ...item, key: raw };
 }
 
 export async function deleteMyMcpServer(id: string) {
-  const existing = await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)));
+  const existing = await qone(
+    getDb()
+      .select()
+      .from(myMcpServers)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
   if (!existing) throw new NotFoundException("MCP server not found");
-  await qrun(getDb().delete(myMcpServers).where(eq(myMcpServers.id, id)));
+  await qrun(
+    getDb()
+      .delete(myMcpServers)
+      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+  );
   wsHub.emit("my-mcp-servers:deleted", { id });
 }
 
 export type AuthenticatedMyMcpServer = typeof myMcpServers.$inferSelect;
 
 export async function authenticateMyMcpServer(id: string, rawKey: string): Promise<AuthenticatedMyMcpServer | "missing" | "unauthorized" | "inactive"> {
-  const row = await qone(getDb().select().from(myMcpServers).where(eq(myMcpServers.id, id)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(myMcpServers)
+      .where(eq(myMcpServers.id, id)),
+  );
   if (!row) return "missing";
   if (row.keyHash !== hashMcpKey(rawKey)) return "unauthorized";
   if (!row.isActive) return "inactive";
-  await qrun(getDb().update(myMcpServers).set({ lastUsedAt: new Date() }).where(eq(myMcpServers.id, id)));
+  await qrun(
+    getDb()
+      .update(myMcpServers)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(myMcpServers.id, id)),
+  );
   return row;
 }
 

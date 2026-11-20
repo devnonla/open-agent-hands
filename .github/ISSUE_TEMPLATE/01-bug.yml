@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug to help us improve Nonla Agents
+description: Report a bug to help us improve Agent Hands
 title: "[BUG] "
 labels: ["bug", "triage"]
 body:
@@ -53,7 +53,7 @@ body:
         - macOS (Local Dev)
         - Linux (Local Dev)
         - Windows (Local Dev)
-        - Docker
+        - Release binary
         - Production deployment
     validations:
       required: true
@@ -61,7 +61,7 @@ body:
     id: versions
     attributes:
       label: Versions
-      description: Please share the version of Bun and Nonla Agents you are using.
-      placeholder: Bun v1.4.0, Nonla Agents v0.1.0
+      description: Please share the version of Bun and Agent Hands you are using.
+      placeholder: Bun v1.4.0, Agent Hands v0.1.0
     validations:
       required: true

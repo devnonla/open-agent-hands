@@ -3,8 +3,8 @@
  *
  * Token sources (first match wins):
  *   1. Authorization: Bearer <jwt>
- *   2. Sec-WebSocket-Protocol: "nonla-agents", "jwt.<jwt>"
- *      (browser-safe; selected protocol echoed back is only "nonla-agents")
+ *   2. Sec-WebSocket-Protocol: "agenthands", "jwt.<jwt>"
+ *      (browser-safe; selected protocol echoed back is only "agenthands")
  */
 
 import { eq } from "drizzle-orm";
@@ -12,12 +12,11 @@ import { getDb, users } from "../db/client.js";
 import { qone } from "../db/query.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 
-export const WS_APP_PROTOCOL = "nonla-agents";
+export const WS_APP_PROTOCOL = "agenthands";
 export const WS_JWT_PROTOCOL_PREFIX = "jwt.";
 
 export type WsAuthSuccess = {
   userId: string;
-  role: string;
   /** Echo this Sec-WebSocket-Protocol value on upgrade when client offered it. */
   acceptProtocol?: string;
 };
@@ -70,7 +69,6 @@ export async function authenticateWsUpgrade(req: Request): Promise<WsAuthSuccess
 
     return {
       userId: user.id,
-      role: user.role,
       acceptProtocol,
     };
   } catch {

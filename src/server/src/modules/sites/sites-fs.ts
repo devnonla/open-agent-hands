@@ -1,6 +1,5 @@
+import { siteDir } from "../../common/workspace/workspace-paths.js";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { OMITTED_WRITE_MESSAGE, isOmittedSource } from "../../common/ai/apply-exact-replace.js";
-import { getDataDir } from "../../common/utils/data-dir.js";
 
 function join(...parts: string[]): string {
   return parts.join("/");
@@ -20,7 +19,7 @@ export type SiteTree = "prod" | "draft";
 /** Files copied into the browser bundle workspace (backend.ts runs in a Bun subprocess). */
 export const SITE_RUNTIME_FILES = ["app.tsx"] as const;
 
-const DEFAULT_BACKEND = `export async function handle({ request, nonlaagents, query }) {
+const DEFAULT_BACKEND = `export async function handle({ request, agenthands, query }) {
   if (request.method === "GET" || request.method === "HEAD") {
     return {
       title: "This site is a blank canvas",
@@ -347,12 +346,8 @@ export async function handle({ request, nonlaagents, query, params }) {
 `;
 }
 
-export function getSitesRoot(): string {
-  return join(getDataDir(), "sites");
-}
-
 export function getSiteRoot(siteId: string) {
-  return join(getSitesRoot(), siteId);
+  return siteDir(siteId);
 }
 
 export function getTreeDir(siteId: string, tree: SiteTree) {
@@ -372,7 +367,6 @@ export function readSourceFile(siteId: string, tree: SiteTree, file: SiteSourceF
 
 export function writeSourceFile(siteId: string, tree: SiteTree, file: SiteSourceFile, content: string): void {
   if (!isAllowedSourceFile(file)) throw new Error(`Invalid site file: ${file}`);
-  if (isOmittedSource(content)) throw new Error(OMITTED_WRITE_MESSAGE);
   const dir = getTreeDir(siteId, tree);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, file), content, "utf8");

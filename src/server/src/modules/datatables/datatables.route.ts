@@ -1,14 +1,31 @@
-import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
+import { type Context, Hono, type Next } from "hono";
 import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import type { WhereFilter } from "./datatable-where.util.js";
 import * as svc from "./datatables.service.js";
-import { type DatatableAgentStreamRequest, streamDatatableAgent } from "./services/datatable-agent.service.js";
 
 const app = new Hono();
 
 app.use("*", requireAuth);
+
+function guard(param: string, check: (id: string) => Promise<boolean>, label: string) {
+  return async (c: Context, next: Next) => {
+    if (!(await check(c.req.param(param) ?? ""))) throw new NotFoundException(`${label} not found`);
+    await next();
+  };
+}
+
+const projectGuard = guard("projectId", async (id) => !!(await svc.getProject(id)), "Project");
+const tableGuard = guard("tableId", svc.tableInWorkspace, "Table");
+const columnGuard = guard("columnId", svc.columnInWorkspace, "Column");
+const rowGuard = guard("rowId", svc.rowInWorkspace, "Row");
+
+app.use("/projects/:projectId", projectGuard);
+app.use("/projects/:projectId/*", projectGuard);
+app.use("/tables/:tableId", tableGuard);
+app.use("/tables/:tableId/*", tableGuard);
+app.use("/columns/:columnId", columnGuard);
+app.use("/rows/:rowId", rowGuard);
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
@@ -40,17 +57,6 @@ app.delete("/projects/:projectId", async (c) => {
 app.get("/projects/:projectId/tables", async (c) => c.json(await svc.listTables(c.req.param("projectId"))));
 
 app.get("/projects/:projectId/schema", async (c) => c.json(await svc.getProjectSchema(c.req.param("projectId"))));
-
-app.post("/projects/:projectId/agent/stream", async (c) => {
-  const projectId = c.req.param("projectId");
-  if (!(await svc.getProject(projectId))) throw new NotFoundException("Project not found");
-  const body = await c.req.json<DatatableAgentStreamRequest>();
-  return streamSSE(c, async (stream) => {
-    const abort = new AbortController();
-    stream.onAbort(() => abort.abort());
-    await streamDatatableAgent(projectId, body, stream, abort.signal);
-  });
-});
 
 app.post("/projects/:projectId/tables", async (c) => {
   const body = await c.req.json();

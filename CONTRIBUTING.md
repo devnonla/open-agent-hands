@@ -1,6 +1,6 @@
-# Contributing to Nonla Agents
+# Contributing to Agent Hands
 
-Thank you for your interest in contributing to Nonla Agents!
+Thank you for your interest in contributing to Agent Hands!
 
 ## Getting Started
 
@@ -13,8 +13,8 @@ Thank you for your interest in contributing to Nonla Agents!
 
 ```bash
 # Fork the repo on GitHub, then clone your fork
-git clone https://github.com/<your-username>/nonla-agents.git
-cd nonla-agents
+git clone https://github.com/<your-username>/open-agent-hands.git
+cd open-agent-hands
 
 # Install dependencies
 bun install
@@ -84,21 +84,21 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Reporting Bugs
 
-Use the [Bug Report](https://github.com/devnonla/nonla-agents/issues/new?template=01-bug.yml) template.
+Use the [Bug Report](https://github.com/devnonla/open-agent-hands/issues/new?template=01-bug.yml) template.
 
 Include:
 
 - Steps to reproduce
 - Expected vs actual behavior
-- Environment info (OS, Bun / Docker version, Nonla Agents version)
+- Environment info (OS, Bun version / binary, Agent Hands version)
 
 ## Requesting Features
 
-Use the [Feature Request](https://github.com/devnonla/nonla-agents/issues/new?template=02-feature.yml) template.
+Use the [Feature Request](https://github.com/devnonla/open-agent-hands/issues/new?template=02-feature.yml) template.
 
 ## Questions
 
-For questions and discussion (not bugs/features), use [GitHub Discussions](https://github.com/devnonla/nonla-agents/discussions).
+For questions and discussion (not bugs/features), use [GitHub Discussions](https://github.com/devnonla/open-agent-hands/discussions).
 
 ## Security
 
@@ -114,14 +114,12 @@ Do **not** file public issues for vulnerabilities. See [SECURITY.md](SECURITY.md
 ## Project Structure
 
 ```
-nonla-agents/
+open-agent-hands/
 ├── src/
 │   ├── server/     # Hono backend (API, WebSocket, DB)
-│   └── web/        # React frontend (Vite, Tailwind, NonlaUI)
-├── public/         # Built frontend assets (generated)
-├── .github/        # Issue/PR templates and workflows
-├── Dockerfile
-└── docker-compose.yml
+│   └── web/        # React frontend (Vite, Tailwind, devnonla-ui)
+├── scripts/        # build-binary.ts, install.sh
+└── .github/        # Issue/PR templates and workflows
 ```
 
 ## License

@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import type { User } from "../../common/db/client.js";
-import { requireRole } from "../../common/middleware/auth.middleware.js";
+import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import { type ApiKeyWriteBody, createApiKey, deleteApiKey, listApiKeys, revokeApiKey, updateApiKey } from "./api-keys.service.js";
 
 const app = new Hono();
 
-app.use("*", requireRole("admin"));
+app.use("*", requireAuth);
 
 app.get("/", async (c) => c.json(await listApiKeys()));
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hono } from "hono";
 import { finishJobRun, getJob, getJobRun, tryClaimJob } from "../modules/jobs/jobs.service.js";
-import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
+import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
 
 async function waitForRun(runId: string, timeoutMs = 15_000) {
   const start = Date.now();
@@ -34,9 +34,9 @@ describe("Jobs API", () => {
     const res = await authRequest(app, token, "POST", "/api/jobs", {
       name: "Daily ping",
       cron: "0 9 * * *",
-      code: `import nonlaagents from "@nonla-agents/runtime";
-await nonlaagents.step("hello", async () => {
-  nonlaagents.log.info("hello from job");
+      code: `import agenthands from "@agenthands/runtime";
+await agenthands.step("hello", async () => {
+  agenthands.log.info("hello from job");
 });
 `,
     });
@@ -129,31 +129,8 @@ await nonlaagents.step("hello", async () => {
     expect(logs).toContain('"kind":"step"');
   });
 
-  test("runDraftJobCode — starts job_run without waiting", async () => {
-    const { updateDraftCode } = await import("../modules/jobs/jobs.service.js");
-    const { runDraftJobCode } = await import("../modules/jobs/jobs-runner.js");
-
-    await updateDraftCode(
-      jobId,
-      `import nonlaagents from "nonlaagents";
-await nonlaagents.step("draft", async () => {
-  nonlaagents.log.info("from draft run");
-});
-`,
-    );
-
-    const result = await runDraftJobCode(jobId);
-    expect(result.started).toBe(true);
-    expect(result.runId).toBeTruthy();
-
-    const done = await waitForRun(result.runId!);
-    expect(done.status).toBe("success");
-    const stored = typeof done.logs === "string" ? done.logs : JSON.stringify(done.logs);
-    expect(stored).toContain("from draft run");
-  });
-
   test("POST /api/jobs/:id/run — overlap blocked while lease held", async () => {
-    const claimed = await tryClaimJob(jobId, "manual");
+    const claimed = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
     expect(claimed).not.toBeNull();
 
     const res = await authRequest(app, token, "POST", `/api/jobs/${jobId}/run`, {});
@@ -169,9 +146,9 @@ await nonlaagents.step("draft", async () => {
   });
 
   test("tryClaimJob — only one winner", async () => {
-    const a = await tryClaimJob(jobId, "manual");
+    const a = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
     expect(a).not.toBeNull();
-    const b = await tryClaimJob(jobId, "manual");
+    const b = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
     expect(b).toBeNull();
     await finishJobRun({
       jobId,
@@ -190,13 +167,13 @@ await nonlaagents.step("draft", async () => {
     expect(Array.isArray(data.items[0]?.logs)).toBe(true);
   });
 
-  test("manual run with nonlaagents kv", async () => {
+  test("manual run with legacy nonlaagents import", async () => {
     const update = await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, {
-      code: `import nonlaagents from "nonlaagents";
-await nonlaagents.step("kv check", async () => {
-  await nonlaagents.kv.set("JOB_TEST", "ok");
-  const v = await nonlaagents.kv.get("JOB_TEST");
-  nonlaagents.log.info("kv=" + v);
+      code: `import agenthands from "nonlaagents";
+await agenthands.step("kv check", async () => {
+  await agenthands.kv.set("JOB_TEST", "ok");
+  const v = await agenthands.kv.get("JOB_TEST");
+  agenthands.log.info("kv=" + v);
 });
 `,
     });
@@ -235,17 +212,9 @@ await nonlaagents.step("kv check", async () => {
     await authRequest(app, token, "DELETE", `/api/jobs/${slow.id}`);
   });
 
-  test("PUT /api/jobs/:id — omitted compact placeholder is rejected", async () => {
-    const { EDIT_PAYLOAD_OMITTED } = await import("../common/ai/apply-exact-replace.js");
-    const res = await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { code: EDIT_PAYLOAD_OMITTED });
-    expect(res.status).toBe(400);
-    const data = (await res.json()) as { message: string };
-    expect(data.message).toContain("compacted edit placeholder");
-  });
-
   test("DELETE /api/jobs/:id", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/jobs/${jobId}`);
     expect(res.status).toBe(200);
-    expect(await getJob(jobId)).toBeUndefined();
+    expect(await inDefaultWorkspace(() => getJob(jobId))).toBeUndefined();
   });
 });

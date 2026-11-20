@@ -41,3 +41,7 @@ export function claudeCodeMcpSnippet(name: string, url: string, token: string): 
     2,
   )}\n`;
 }
+
+export function claudeCliMcpCommand(name: string, url: string, token: string): string {
+  return `claude mcp add --transport http ${slugifyMcpName(name)} ${url} --header "Authorization: Bearer ${token}"\n`;
+}

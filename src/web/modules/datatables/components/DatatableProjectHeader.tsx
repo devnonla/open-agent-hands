@@ -1,5 +1,5 @@
+import { type BreadcrumbItem, ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { FeatureIcon } from "src/components/FeatureIcon";
-import { AgentsContentHeader, type BreadcrumbItem, ContentBreadcrumb } from "src/modules/agents/components/ContentBreadcrumb";
 
 interface DatatableProjectHeaderProps {
   projectName: string;
@@ -14,5 +14,5 @@ export function DatatableProjectHeader({ projectName, projectTo, tableName, sett
   const items: BreadcrumbItem[] = settings ? [feature, { label: projectName, to: projectTo }, { label: "Settings" }] : schema ? [feature, { label: projectName, to: projectTo }, { label: "Schema" }] : [feature, { label: projectName }];
   if (!settings && !schema && tableName) items.push({ label: tableName });
 
-  return <AgentsContentHeader left={<ContentBreadcrumb items={items} />} />;
+  return <ContentHeader left={<ContentBreadcrumb items={items} />} />;
 }

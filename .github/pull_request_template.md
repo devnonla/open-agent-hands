@@ -21,7 +21,6 @@ Please describe the tests that you ran to verify your changes. Provide instructi
 
 - [ ] Web UI typecheck passed (`bun run typecheck`)
 - [ ] Biome check passed (`bun run lint && bun run format`)
-- [ ] Docker build passed (`docker build .`)
 
 ## Checklist
 

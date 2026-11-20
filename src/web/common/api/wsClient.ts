@@ -1,64 +1,45 @@
 /**
- * wsClient — singleton WebSocket connection to the Nonla Agents server.
+ * wsClient — singleton WebSocket connection to the Agent Hands server.
  *
  * Features:
  *  - JWT via Sec-WebSocket-Protocol (not query string — avoids URL/log leaks)
  *  - Auto-reconnect with exponential back-off (max 30s)
  *  - Typed event subscription via `wsClient.on(type, handler)`
  *  - wsClient.send(type, payload) — send message to server
- *  - CRUD sync events (agents, conversations, tools, …)
+ *  - CRUD sync events (tools, kv, datatables, …)
  *  - clientId received from server on connect (for targeted events)
  *  - Heartbeat ping every 25s to keep connection alive through proxies
  *
  * Chat tokens stream over SSE, not WebSocket.
- * Public chat (/chat) must NOT connect — guests have no app JWT.
  */
 
 import { getAuthToken } from "../api";
+import { getCurrentWorkspaceId } from "../workspace";
 
 /** Must stay in sync with server `WS_APP_PROTOCOL` / `WS_JWT_PROTOCOL_PREFIX`. */
-const WS_APP_PROTOCOL = "nonla-agents";
+const WS_APP_PROTOCOL = "agenthands";
 const WS_JWT_PROTOCOL_PREFIX = "jwt.";
 
 // ─── Types (mirrored from server wsHub — keep in sync) ───────────────────────
 
 export type WsEventType =
-  | "agents:created"
-  | "agents:updated"
-  | "agents:deleted"
-  | "agents:reordered"
-  | "agents:tools-updated"
-  | "agents:skills-updated"
-  | "conversations:created"
-  | "conversations:updated"
-  | "conversations:deleted"
-  | "messages:created"
-  | "messages:updated"
-  | "teams:created"
-  | "teams:updated"
-  | "teams:deleted"
-  | "teams:reordered"
   | "tools:created"
   | "tools:updated"
   | "tools:deleted"
   | "tools:reordered"
-  | "skills:created"
-  | "skills:updated"
-  | "skills:deleted"
-  | "skill-folders:created"
-  | "skill-folders:updated"
-  | "skill-folders:deleted"
-  | "skill-folders:reordered"
   | "tool-folders:created"
   | "tool-folders:updated"
   | "tool-folders:deleted"
   | "tool-folders:reordered"
-  | "mcp-servers:created"
-  | "mcp-servers:updated"
-  | "mcp-servers:deleted"
   | "my-mcp-servers:created"
   | "my-mcp-servers:updated"
   | "my-mcp-servers:deleted"
+  | "sites:created"
+  | "sites:updated"
+  | "sites:deleted"
+  | "workspaces:created"
+  | "workspaces:updated"
+  | "workspaces:deleted"
   | "kvstore:created"
   | "kvstore:updated"
   | "kvstore:deleted"
@@ -162,11 +143,13 @@ function connect() {
 
   const url = getWsUrl();
   // Browser cannot set Authorization on WS; pass JWT as a subprotocol.
-  // Server echoes only "nonla-agents" (never the jwt.* protocol).
+  // Server echoes only "agenthands" (never the jwt.* protocol).
   ws = new WebSocket(url, [WS_APP_PROTOCOL, `${WS_JWT_PROTOCOL_PREFIX}${token}`]);
 
   ws.onopen = () => {
-    retryDelay = 1_000; // reset back-off
+    retryDelay = 1_000;
+    const workspaceId = getCurrentWorkspaceId();
+    if (workspaceId) ws?.send(JSON.stringify({ type: "workspace:select", workspaceId }));
 
     // Heartbeat ping every 25s
     pingInterval = setInterval(() => {

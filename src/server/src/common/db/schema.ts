@@ -1,202 +1,23 @@
 import { sql } from "drizzle-orm";
 import { boolCol, integer, jsonCol, primaryKey, sqlNow, sqliteTable, text, tsCol } from "./columns.js";
 
-// ─── Agents ───────────────────────────────────────────────────────────────────
+// ─── Workspaces ───────────────────────────────────────────────────────────────
 
-export const agents = sqliteTable("agents", {
+export const DEFAULT_WORKSPACE_ID = "default";
+
+export const workspaces = sqliteTable("workspaces", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   description: text("description"),
-  /** AgentAvatar JSON `{ shape, color }` */
-  avatar: text("avatar"),
-  systemPrompt: text("system_prompt"),
-  isActive: boolCol("is_active").notNull().default(true),
-  isPublic: boolCol("is_public").notNull().default(false),
-  publicPassword: text("public_password"), // Mật khẩu cho link public (optional)
-  // Per-agent AI config — aiProvider stores the UUID from llmProviders table
-  aiProvider: text("ai_provider"),
-  aiModel: text("ai_model"),
-
-  /** JSON array of agent UUIDs this agent can delegate to (one nonla_call_agent__* tool each) */
-  callableAgentIds: jsonCol("callable_agent_ids").$type<string[]>().notNull().default(sql`'[]'`),
-  /** Which team this agent belongs to (denormalized for simpler queries) */
-  teamId: text("team_id").references(() => agentTeams.id, {
-    onDelete: "set null",
-  }),
-  /** Display order within a team (or ungrouped) */
-  sortOrder: integer("sort_order").notNull().default(0),
-  /** Which user created this agent */
-  createdBy: text("created_by"),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
   updatedAt: tsCol("updated_at").notNull().default(sqlNow),
 });
 
-export type Agent = typeof agents.$inferSelect;
-export type NewAgent = typeof agents.$inferInsert;
+export type Workspace = typeof workspaces.$inferSelect;
 
-// ─── User Memory Graph ────────────────────────────────────────────────────────
-// Per-user knowledge graph for an agent. Loaded on demand via the `memory`
-// tool (search / neighbors / list). Nodes are untyped facts; edge
-// relations are free-form short labels (normalized snake_case).
-
-export const MEMORY_RELATION_MAX = 40;
-
-export const memoryNodes = sqliteTable("memory_nodes", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  agentId: text("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  ownerId: text("owner_id").notNull().default("user"),
-  content: text("content").notNull(),
-  sourceConversationId: text("source_conversation_id"),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type MemoryNode = typeof memoryNodes.$inferSelect;
-export type NewMemoryNode = typeof memoryNodes.$inferInsert;
-
-export const memoryEdges = sqliteTable("memory_edges", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  agentId: text("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  ownerId: text("owner_id").notNull().default("user"),
-  fromId: text("from_id")
-    .notNull()
-    .references(() => memoryNodes.id, { onDelete: "cascade" }),
-  toId: text("to_id")
-    .notNull()
-    .references(() => memoryNodes.id, { onDelete: "cascade" }),
-  relation: text("relation").notNull(),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type MemoryEdge = typeof memoryEdges.$inferSelect;
-export type NewMemoryEdge = typeof memoryEdges.$inferInsert;
-
-// ─── Agent Teams ──────────────────────────────────────────────────────────────
-
-export const agentTeams = sqliteTable("agent_teams", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  description: text("description"),
-  sortOrder: integer("sort_order").notNull().default(0),
-  isActive: boolCol("is_active").notNull().default(true),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentTeam = typeof agentTeams.$inferSelect;
-export type NewAgentTeam = typeof agentTeams.$inferInsert;
-
-// ─── Conversations ───────────────────────────────────────────────────────────
-// Mỗi conversation là 1 phiên chat: manual (user gõ tay) hoặc task (agent tự chạy)
-export const agentConversations = sqliteTable("agent_conversations", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  agentId: text("agent_id").references(() => agents.id, {
-    onDelete: "set null",
-  }),
-  ownerId: text("owner_id").notNull().default("user"),
-  title: text("title").notNull(),
-  trigger: text("trigger", { enum: ["manual", "cron", "api", "meeting", "public"] })
-    .notNull()
-    .default("manual"),
-  status: text("status", { enum: ["running", "done", "failed"] })
-    .notNull()
-    .default("running"),
-  errorMessage: text("error_message"),
-  summary: text("summary"),
-  summaryUpdatedAt: tsCol("summary_updated_at"),
-  summaryCutMessageId: text("summary_cut_message_id"),
-  summaryVersion: integer("summary_version").notNull().default(0),
-  summaryTokens: integer("summary_tokens"),
-  compactFailures: integer("compact_failures").notNull().default(0),
-  compactRetryAt: tsCol("compact_retry_at"),
-  compactingSince: tsCol("compacting_since"),
-  contextAnchor: jsonCol("context_anchor").$type<ContextAnchor | null>(),
-  startedAt: tsCol("started_at"),
-  finishedAt: tsCol("finished_at"),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentConversation = typeof agentConversations.$inferSelect;
-export type NewAgentConversation = typeof agentConversations.$inferInsert;
-
-// ─── Messages ─────────────────────────────────────────────────────────────────
-// Messages thuộc về một conversation cụ thể.
-
-export const agentMessages = sqliteTable("agent_messages", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  /**
-   * The agent this message is addressed TO (the AI agent being chatted with).
-   */
-  agentId: text("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  /**
-   * Conversation this message belongs to.
-   * null → legacy orphan messages
-   */
-  conversationId: text("conversation_id").references(() => agentConversations.id, { onDelete: "cascade" }),
-  /**
-   * For agent-to-agent chat: the other agent's ID.
-   * null → human / task
-   */
-  chatAgentId: text("chat_agent_id"),
-  role: text("role", { enum: ["user", "assistant", "tool", "thinking"] })
-    .notNull()
-    .default("user"),
-  content: text("content").notNull(),
-  /** JSON metadata: { toolName, toolLabel, input, output, usage } */
-  metadata: jsonCol("metadata").$type<Record<string, unknown>>(),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentMessage = typeof agentMessages.$inferSelect;
-export type NewAgentMessage = typeof agentMessages.$inferInsert;
-
-// ─── MCP Servers ──────────────────────────────────────────────────────────────
-
-/** Catalog entry synced from a remote MCP server (listTools). */
-export type McpCatalogTool = {
-  name: string;
-  description: string;
-  inputSchema: object;
-};
-
-export const mcpServers = sqliteTable("mcp_servers", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  url: text("url").notNull(),
-  /** JSON object: custom headers for auth etc. */
-  headers: jsonCol("headers").$type<Record<string, string>>().notNull().default(sql`'{}'`),
-  /** Synced MCP tool catalog — enable/disable is per-agent via assignments. */
-  tools: jsonCol("tools").$type<McpCatalogTool[]>().notNull().default(sql`'[]'`),
-  isActive: boolCol("is_active").notNull().default(true),
-  /** Last sync failure message; null when the latest sync succeeded. */
-  lastSyncError: text("last_sync_error"),
-  /** Timestamp of the last sync attempt (success or failure). */
-  lastSyncedAt: tsCol("last_synced_at"),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type McpServer = typeof mcpServers.$inferSelect;
-export type NewMcpServer = typeof mcpServers.$inferInsert;
+const workspaceIdCol = () => text("workspace_id").notNull().default(DEFAULT_WORKSPACE_ID);
 
 // ─── Tool Folders ─────────────────────────────────────────────────────────────
 
@@ -204,6 +25,7 @@ export const toolFolders = sqliteTable("tool_folders", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -220,7 +42,8 @@ export const agentTools = sqliteTable("agent_tools", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull().unique(), // snake_case identifier
+  workspaceId: workspaceIdCol(),
+  name: text("name").notNull(),
   label: text("label").notNull(),
   description: text("description").notNull(),
   /** SVG markup (Iconify Lucide) shown next to the tool name in the UI */
@@ -242,24 +65,6 @@ export const agentTools = sqliteTable("agent_tools", {
 export type AgentTool = typeof agentTools.$inferSelect;
 export type NewAgentTool = typeof agentTools.$inferInsert;
 
-// ─── Agent Tool Assignments (junction table) ──────────────────────────────────
-// Maps agents ↔ tools with per-assignment metadata (parameters).
-// tool_id FK cascade: deleting a tool auto-removes all its assignments.
-
-export const agentToolAssignments = sqliteTable("agent_tool_assignments", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  agentId: text("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  toolId: text("tool_id").notNull(),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentToolAssignment = typeof agentToolAssignments.$inferSelect;
-export type NewAgentToolAssignment = typeof agentToolAssignments.$inferInsert;
-
 // ─── App Settings ─────────────────────────────────────────────────────────────
 
 export const appSettings = sqliteTable("configurations", {
@@ -269,67 +74,6 @@ export const appSettings = sqliteTable("configurations", {
 });
 
 export type AppSetting = typeof appSettings.$inferSelect;
-
-// ─── LLM Providers ─────────────────────────────────────────────────────────────
-
-export const llmProviders = sqliteTable("llm_providers", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  provider: text("provider").notNull(), // "openai" | "openrouter" | "google" | ...
-  label: text("label").notNull(), // human-readable name
-  apiKey: text("api_key").notNull().default(""),
-  customBaseUrl: text("custom_base_url").notNull().default(""),
-  /** Cached list of model IDs from the provider's /models endpoint */
-  models: jsonCol("models").$type<string[]>().notNull().default(sql`'[]'`),
-  modelMeta: jsonCol("model_meta").$type<ModelMetaMap>().notNull().default(sql`'{}'`),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type LlmProvider = typeof llmProviders.$inferSelect;
-export type NewLlmProvider = typeof llmProviders.$inferInsert;
-
-export type ModelMetaEntry = {
-  contextLength?: number;
-  source?: "api" | "table" | "manual" | "learned";
-  calibration?: number;
-};
-
-export type ModelMetaMap = Record<string, ModelMetaEntry>;
-
-export type ContextAnchor = {
-  contextTokens: number;
-  contextMax: number;
-  anchorMessageId: string;
-  providerId: string;
-  modelId: string;
-  summaryVersion: number;
-  source: string;
-};
-
-export const agentUsageEvents = sqliteTable("agent_usage_events", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  conversationId: text("conversation_id"),
-  runId: text("run_id"),
-  agentId: text("agent_id"),
-  providerId: text("provider_id"),
-  providerType: text("provider_type"),
-  modelId: text("model_id"),
-  purpose: text("purpose").notNull().default("chat"),
-  inputTokens: integer("input_tokens").notNull().default(0),
-  outputTokens: integer("output_tokens").notNull().default(0),
-  cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
-  cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
-  reasoningTokens: integer("reasoning_tokens").notNull().default(0),
-  estimatedInputTokens: integer("estimated_input_tokens"),
-  suspicious: boolCol("suspicious").notNull().default(false),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentUsageEvent = typeof agentUsageEvents.$inferSelect;
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 // User accounts for authentication and authorization.
@@ -342,9 +86,7 @@ export const users = sqliteTable("users", {
   name: text("name").notNull().default(""),
   avatar: text("avatar"),
   passwordHash: text("password_hash").notNull(),
-  role: text("role", { enum: ["admin", "member"] })
-    .notNull()
-    .default("member"),
+  theme: text("theme"),
   isActive: boolCol("is_active").notNull().default(true),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
   updatedAt: tsCol("updated_at").notNull().default(sqlNow),
@@ -375,7 +117,8 @@ export const kvStore = sqliteTable("kv_store", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  key: text("key").notNull().unique(),
+  workspaceId: workspaceIdCol(),
+  key: text("key").notNull(),
   value: text("value").notNull(),
   description: text("description"),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
@@ -391,7 +134,8 @@ export const secrets = sqliteTable("secrets", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  key: text("key").notNull().unique(),
+  workspaceId: workspaceIdCol(),
+  key: text("key").notNull(),
   value: text("value").notNull(),
   description: text("description"),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
@@ -410,7 +154,8 @@ export const datatableProjects = sqliteTable("datatable_projects", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull().unique(),
+  workspaceId: workspaceIdCol(),
+  name: text("name").notNull(),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
   updatedAt: tsCol("updated_at").notNull().default(sqlNow),
 });
@@ -472,6 +217,7 @@ export const sites = sqliteTable("sites", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   isPublished: boolCol("is_published").notNull().default(false),
@@ -501,6 +247,7 @@ export const jobs = sqliteTable("jobs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   code: text("code").notNull().default(""),
@@ -538,81 +285,13 @@ export const jobRuns = sqliteTable("job_runs", {
 export type JobRun = typeof jobRuns.$inferSelect;
 export type NewJobRun = typeof jobRuns.$inferInsert;
 
-// ─── Skill Folders ────────────────────────────────────────────────────────────
-
-export const skillFolders = sqliteTable("skill_folders", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  description: text("description"),
-  sortOrder: integer("sort_order").notNull().default(0),
-  isActive: boolCol("is_active").notNull().default(true),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type SkillFolder = typeof skillFolders.$inferSelect;
-export type NewSkillFolder = typeof skillFolders.$inferInsert;
-
-// ─── Skills (shared catalog) ──────────────────────────────────────────────────
-// Progressive disclosure: name+description in system prompt; body/references via read_skill.
-
-export const skills = sqliteTable("skills", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull().unique(),
-  description: text("description").notNull(),
-  content: text("content").notNull().default(""),
-  folderId: text("folder_id").references(() => skillFolders.id, {
-    onDelete: "set null",
-  }),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type Skill = typeof skills.$inferSelect;
-export type NewSkill = typeof skills.$inferInsert;
-
-export const skillReferences = sqliteTable("skill_references", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  skillId: text("skill_id")
-    .notNull()
-    .references(() => skills.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull().default(""),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type SkillReference = typeof skillReferences.$inferSelect;
-export type NewSkillReference = typeof skillReferences.$inferInsert;
-
-export const agentSkillAssignments = sqliteTable("agent_skill_assignments", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  agentId: text("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  skillId: text("skill_id")
-    .notNull()
-    .references(() => skills.id, { onDelete: "cascade" }),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-});
-
-export type AgentSkillAssignment = typeof agentSkillAssignments.$inferSelect;
-export type NewAgentSkillAssignment = typeof agentSkillAssignments.$inferInsert;
-
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
 export const apiKeys = sqliteTable("api_keys", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   keyPrefix: text("key_prefix").notNull(),
   keyHash: text("key_hash").notNull().unique(),
@@ -620,28 +299,12 @@ export const apiKeys = sqliteTable("api_keys", {
   createdAt: tsCol("created_at").notNull().default(sqlNow),
   lastUsedAt: tsCol("last_used_at"),
   revokedAt: tsCol("revoked_at"),
-  agentsUnrestricted: boolCol("agents_unrestricted").notNull().default(false),
   datatablesUnrestricted: boolCol("datatables_unrestricted").notNull().default(false),
   kvUnrestricted: boolCol("kv_unrestricted").notNull().default(false),
 });
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
-
-export const apiKeyAgents = sqliteTable(
-  "api_key_agents",
-  {
-    apiKeyId: text("api_key_id")
-      .notNull()
-      .references(() => apiKeys.id, { onDelete: "cascade" }),
-    agentId: text("agent_id")
-      .notNull()
-      .references(() => agents.id, { onDelete: "cascade" }),
-  },
-  (t) => [primaryKey({ columns: [t.apiKeyId, t.agentId] })],
-);
-
-export type ApiKeyAgent = typeof apiKeyAgents.$inferSelect;
 
 export const apiKeyDatatableProjects = sqliteTable(
   "api_key_datatable_projects",
@@ -673,12 +336,13 @@ export const apiKeyKvEntries = sqliteTable(
 
 export type ApiKeyKvEntry = typeof apiKeyKvEntries.$inferSelect;
 
-// ─── My MCP servers (we serve tools to Cursor / Claude Code) ──────────────────
+// ─── Hosted MCP servers ──────────────────
 
 export const myMcpServers = sqliteTable("my_mcp_servers", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   isActive: boolCol("is_active").notNull().default(true),

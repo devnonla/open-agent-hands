@@ -1,4 +1,6 @@
-import { eq } from "drizzle-orm";
+import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
+import { inWorkspace } from "../../common/workspace/scope.js";
+import { and, eq } from "drizzle-orm";
 import { type NewKvStoreEntry, getDb, kvStore } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { qall, qone, qrun } from "../../common/db/query.js";
@@ -14,15 +16,29 @@ function assertKey(key: string) {
 }
 
 export async function listKvEntries(query: RawQuery = {}) {
-  return await listQuery({ table: kvStore, searchColumns: ["key", "value", "description"] }, query);
+  return await listQuery({ table: kvStore, where: inWorkspace(kvStore.workspaceId), searchColumns: ["key", "value", "description"] }, query);
 }
 
 export async function getKvEntry(id: string) {
-  return (await qone(getDb().select().from(kvStore).where(eq(kvStore.id, id)))) ?? null;
+  return (
+    (await qone(
+      getDb()
+        .select()
+        .from(kvStore)
+        .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.id, id))),
+    )) ?? null
+  );
 }
 
 export async function getKvByKey(key: string) {
-  return (await qone(getDb().select().from(kvStore).where(eq(kvStore.key, key)))) ?? null;
+  return (
+    (await qone(
+      getDb()
+        .select()
+        .from(kvStore)
+        .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.key, key))),
+    )) ?? null
+  );
 }
 
 /** Upsert by key — create or update value. */
@@ -55,11 +71,17 @@ export async function createKvEntry(body: { key: string; value: string; descript
   }
 
   const db = getDb();
-  const existing = await qone(db.select().from(kvStore).where(eq(kvStore.key, key)));
+  const existing = await qone(
+    db
+      .select()
+      .from(kvStore)
+      .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.key, key))),
+  );
   if (existing) throw new BadRequestException(`Key "${key}" already exists`);
 
   const now = new Date();
   const entry: NewKvStoreEntry = {
+    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     key,
     value: body.value,
@@ -80,7 +102,12 @@ export async function updateKvEntry(id: string, body: { key?: string; value?: st
   assertKey(nextKey);
 
   if (nextKey !== current.key) {
-    const clash = await qone(getDb().select().from(kvStore).where(eq(kvStore.key, nextKey)));
+    const clash = await qone(
+      getDb()
+        .select()
+        .from(kvStore)
+        .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.key, nextKey))),
+    );
     if (clash) throw new BadRequestException(`Key "${nextKey}" already exists`);
   }
 
@@ -94,7 +121,7 @@ export async function updateKvEntry(id: string, body: { key?: string; value?: st
         description: body.description !== undefined ? body.description?.trim() || null : current.description,
         updatedAt,
       })
-      .where(eq(kvStore.id, id)),
+      .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.id, id))),
   );
 
   const updated = await getKvEntry(id);
@@ -105,12 +132,16 @@ export async function updateKvEntry(id: string, body: { key?: string; value?: st
 export async function deleteKvEntry(id: string) {
   const current = await getKvEntry(id);
   if (!current) throw new BadRequestException("KV entry not found");
-  await qrun(getDb().delete(kvStore).where(eq(kvStore.id, id)));
+  await qrun(
+    getDb()
+      .delete(kvStore)
+      .where(and(inWorkspace(kvStore.workspaceId), eq(kvStore.id, id))),
+  );
   wsHub.emit("kvstore:deleted", { id });
 }
 
 /** Internal — map for tool runtime ctx.kv */
 export async function loadKvMap(): Promise<Record<string, string>> {
-  const rows = await qall(getDb().select({ key: kvStore.key, value: kvStore.value }).from(kvStore));
+  const rows = await qall(getDb().select({ key: kvStore.key, value: kvStore.value }).from(kvStore).where(inWorkspace(kvStore.workspaceId)));
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }

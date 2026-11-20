@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev:server"],
+      "port": 8429
+    },
+    {
+      "name": "binary",
+      "runtimeExecutable": "./dist/nonla",
+      "runtimeArgs": ["--port", "8429"],
+      "port": 8429
+    }
+  ]
+}

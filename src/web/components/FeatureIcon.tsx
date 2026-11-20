@@ -1,5 +1,3 @@
-import agentsIcon from "src/assets/feature-icons/agents.svg";
-import dashboardIcon from "src/assets/feature-icons/dashboard.svg";
 import datatablesIcon from "src/assets/feature-icons/datatables.svg";
 import jobsIcon from "src/assets/feature-icons/jobs.svg";
 import kvStoreIcon from "src/assets/feature-icons/kv-store.svg";
@@ -7,22 +5,18 @@ import mcpIcon from "src/assets/feature-icons/mcp.svg";
 import secretsIcon from "src/assets/feature-icons/secrets.svg";
 import settingsIcon from "src/assets/feature-icons/settings.svg";
 import sitesIcon from "src/assets/feature-icons/sites.svg";
-import skillsIcon from "src/assets/feature-icons/skills.svg";
 import toolsIcon from "src/assets/feature-icons/tools.svg";
 import { cn } from "src/common/lib/cn";
 
 const FEATURE_ICONS = {
-  dashboard: dashboardIcon,
-  agents: agentsIcon,
   tools: toolsIcon,
-  skills: skillsIcon,
-  sites: sitesIcon,
   jobs: jobsIcon,
   mcp: mcpIcon,
   datatables: datatablesIcon,
   "kv-store": kvStoreIcon,
   secrets: secretsIcon,
   settings: settingsIcon,
+  sites: sitesIcon,
 } as const;
 
 export type FeatureIconName = keyof typeof FEATURE_ICONS;

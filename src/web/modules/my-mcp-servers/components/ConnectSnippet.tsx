@@ -1,19 +1,20 @@
 import { Button, Icon, Segmented } from "devnonla-ui";
 import { useState } from "react";
 import { copyText } from "../common/copy";
-import { claudeCodeMcpSnippet, cursorMcpSnippet } from "../common/snippets";
+import { claudeCliMcpCommand, claudeCodeMcpSnippet, cursorMcpSnippet } from "../common/snippets";
 
-type Client = "cursor" | "claude";
+type Client = "claude-cli" | "claude" | "cursor";
 
 const CLIENT_HINT: Record<Client, string> = {
+  "claude-cli": "Run in a terminal. Add --scope user to make it available in every project.",
   cursor: "Paste into ~/.cursor/mcp.json (global) or .cursor/mcp.json (this project).",
   claude: "Paste into .mcp.json at your project root, then restart Claude Code.",
 };
 
-export function ConnectSnippet({ name, url, token, maxHeightClass = "max-h-56" }: { name: string; url: string; token: string; maxHeightClass?: string }) {
-  const [client, setClient] = useState<Client>("cursor");
+export function ConnectSnippet({ name, url, token, maxHeightClass = "max-h-56", defaultClient = "cursor" }: { name: string; url: string; token: string; maxHeightClass?: string; defaultClient?: Client }) {
+  const [client, setClient] = useState<Client>(defaultClient);
   const [copied, setCopied] = useState(false);
-  const value = client === "cursor" ? cursorMcpSnippet(name, url, token) : claudeCodeMcpSnippet(name, url, token);
+  const value = client === "cursor" ? cursorMcpSnippet(name, url, token) : client === "claude" ? claudeCodeMcpSnippet(name, url, token) : claudeCliMcpCommand(name, url, token);
 
   const handleCopy = async () => {
     if (!(await copyText(value, "Config copied"))) return;
@@ -29,8 +30,9 @@ export function ConnectSnippet({ name, url, token, maxHeightClass = "max-h-56" }
           value={client}
           onChange={(v) => setClient(v as Client)}
           options={[
-            { label: "Cursor", value: "cursor" },
+            { label: "Claude CLI", value: "claude-cli" },
             { label: "Claude Code", value: "claude" },
+            { label: "Cursor", value: "cursor" },
           ]}
         />
         <Button type="text" size="small" icon={<Icon name={copied ? "check" : "copy"} size={13} />} onClick={() => void handleCopy()}>

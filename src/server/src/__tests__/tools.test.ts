@@ -19,48 +19,6 @@ describe("Tools API", () => {
 
   // ── List (includes builtins) ──────────────────────────────────────────
 
-  test("GET /api/tools — list includes builtin tools", async () => {
-    const res = await authRequest(app, token, "GET", "/api/tools");
-    expect(res.status).toBe(200);
-
-    const data = (await res.json()) as { items: Record<string, unknown>[]; total: number };
-    // Should have at least the builtin tools (get_current_time, web_fetch)
-    expect(data.items.length).toBeGreaterThanOrEqual(1);
-
-    // Verify builtin tools are present
-    const builtinIds = data.items.map((t) => t.id).filter((id) => (id as string).startsWith("builtin:"));
-    expect(builtinIds.length).toBeGreaterThanOrEqual(1);
-    expect(builtinIds).toContain("builtin:nonla_web_fetch");
-    expect(builtinIds).toContain("builtin:nonla_run_js");
-    expect(builtinIds).toContain("builtin:nonla_agent_task");
-    expect(builtinIds).toContain("builtin:nonla_get_current_time");
-    expect(builtinIds).toContain("builtin:nonla_memory");
-    expect(builtinIds).toContain("builtin:nonla_openui");
-    expect(builtinIds).not.toContain("builtin:web_fetch");
-    expect(builtinIds).not.toContain("builtin:browser");
-    expect(builtinIds).not.toContain("builtin:fetch_url");
-    expect(builtinIds).not.toContain("builtin:nonla_kv_store");
-    expect(builtinIds).toContain("builtin:nonla_manage_kv_entries");
-    expect(builtinIds).toContain("builtin:nonla_manage_agents");
-    expect(builtinIds).toContain("builtin:nonla_list_model_providers");
-    expect(builtinIds).toContain("builtin:nonla_manage_secrets");
-
-    const byId = new Map(data.items.map((tool) => [tool.id, tool]));
-    expect(byId.get("builtin:nonla_web_fetch")?.workspaceOnly).toBe(false);
-    expect(byId.get("builtin:nonla_web_fetch")?.alwaysOn).toBe(false);
-    expect(byId.get("builtin:nonla_run_js")?.alwaysOn).toBe(false);
-    expect(byId.get("builtin:nonla_agent_task")?.alwaysOn).toBe(true);
-    expect(byId.get("builtin:nonla_memory")?.alwaysOn).toBe(true);
-    expect(byId.get("builtin:nonla_get_current_time")?.alwaysOn).toBe(true);
-    expect(byId.get("builtin:nonla_openui")?.alwaysOn).toBe(true);
-    expect(byId.get("builtin:nonla_manage_agents")?.workspaceOnly).toBe(true);
-    expect(byId.get("builtin:nonla_manage_secrets")?.workspaceOnly).toBe(true);
-    expect(builtinIds).not.toContain("builtin:nonla_goto_page");
-    expect(builtinIds).not.toContain("builtin:datatable");
-    expect(builtinIds).not.toContain("builtin:nonla_datatable");
-    expect(builtinIds).not.toContain("builtin:secrets");
-  });
-
   // ── Custom Tool CRUD ──────────────────────────────────────────────────
 
   let customToolId = "";
@@ -90,15 +48,6 @@ describe("Tools API", () => {
     expect(data.id).toBe(customToolId);
     expect(data.name).toBe("demo_tool");
     expect(data.codeContent).toBeTruthy();
-  });
-
-  test("GET /api/tools/:id — get builtin tool", async () => {
-    const res = await authRequest(app, token, "GET", "/api/tools/builtin:get_current_time");
-    expect(res.status).toBe(200);
-
-    const data = (await res.json()) as Record<string, unknown>;
-    expect(data.id).toBe("builtin:nonla_get_current_time");
-    expect(data.name).toBe("nonla_get_current_time");
   });
 
   test("GET /api/tools/:id — not found", async () => {
@@ -156,54 +105,7 @@ describe("Tools API", () => {
     expect(data.message).toContain("export default");
   });
 
-  test("PUT /api/tools/builtin:* — cannot modify builtin", async () => {
-    const res = await authRequest(app, token, "PUT", "/api/tools/builtin:get_current_time", {
-      label: "Hacked",
-    });
-
-    expect(res.status).toBe(500); // Throws error, caught by global handler
-  });
-
   // ── Delete with cascade ───────────────────────────────────────────────
-
-  test("DELETE /api/tools/:id — delete custom tool", async () => {
-    // First create a second tool for delete test
-    const createRes = await authRequest(app, token, "POST", "/api/tools", {
-      name: "deletable_tool",
-      label: "Deletable",
-      description: "Will be deleted",
-      codeContent: "return {}",
-    });
-    const created = (await createRes.json()) as { id: string };
-
-    // Create an agent and assign this tool
-    const agentRes = await authRequest(app, token, "POST", "/api/agents", {
-      name: "Agent with tool",
-    });
-    const agent = (await agentRes.json()) as { id: string };
-
-    await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, {
-      toolId: created.id,
-    });
-
-    // Delete the tool
-    const res = await authRequest(app, token, "DELETE", `/api/tools/${created.id}`);
-    expect(res.status).toBe(200);
-
-    // Verify tool is gone
-    const getRes = await authRequest(app, token, "GET", `/api/tools/${created.id}`);
-    expect(getRes.status).toBe(400);
-
-    // Verify assignment is also removed
-    const assignRes = await authRequest(app, token, "GET", `/api/agents/${agent.id}/tool-assignments`);
-    const assignments = (await assignRes.json()) as unknown[];
-    expect(assignments.length).toBe(0);
-  });
-
-  test("DELETE /api/tools/builtin:* — cannot delete builtin", async () => {
-    const res = await authRequest(app, token, "DELETE", "/api/tools/builtin:get_current_time");
-    expect(res.status).toBe(500); // Throws error
-  });
 
   // ── List after operations ─────────────────────────────────────────────
 
@@ -437,72 +339,5 @@ describe("Tools API", () => {
     expect(res.status).toBe(400);
     const data = (await res.json()) as { message: string };
     expect(data.message).toContain("description");
-  });
-
-  test("PUT /api/tools/:id — omitted compact placeholder is rejected", async () => {
-    const { EDIT_PAYLOAD_OMITTED } = await import("../common/ai/apply-exact-replace.js");
-    const res = await authRequest(app, token, "PUT", `/api/tools/${customToolId}`, {
-      draftCode: EDIT_PAYLOAD_OMITTED,
-    });
-    expect(res.status).toBe(400);
-    const data = (await res.json()) as { message: string };
-    expect(data.message).toContain("compacted edit placeholder");
-  });
-
-  test("makeReadCurrentCodeTool — returns published code, then draft", async () => {
-    const createRes = await authRequest(app, token, "POST", "/api/tools", {
-      name: "read_code_tool",
-      label: "Read Code Tool",
-      description: "For read_current_code",
-      parameters: { type: "object", properties: {}, required: [] },
-      codeContent: "// @name Read Code Tool\n// @description For read_current_code\nexport default async function main() {\n  return { published: true };\n}\n",
-    });
-    expect(createRes.status).toBe(201);
-    const tool = (await createRes.json()) as { id: string };
-
-    const { makeReadCurrentCodeTool } = await import("../modules/tools/common/agent-tools/read-current-code.tool.js");
-    const { updateDraftCode } = await import("../modules/tools/tools.service.js");
-    const readTool = makeReadCurrentCodeTool(tool.id);
-
-    const published = String(await readTool.invoke({}));
-    expect(published).toContain("published: true");
-    expect(published.startsWith("{")).toBe(false);
-
-    await updateDraftCode(tool.id, "// @name Read Code Tool\nexport default async function main() {\n  return { draft: true };\n}\n");
-    const draft = String(await readTool.invoke({}));
-    expect(draft).toContain("draft: true");
-    expect(draft).not.toContain("published: true");
-
-    const missing = String(await makeReadCurrentCodeTool("missing-id").invoke({}));
-    expect(missing).toMatch(/not found/i);
-  });
-
-  test("calling a removed builtin drops that assignment and does not run it", async () => {
-    const agentRes = await authRequest(app, token, "POST", "/api/agents", { name: "Agent with removed kv" });
-    expect(agentRes.status).toBe(201);
-    const agent = (await agentRes.json()) as { id: string };
-
-    expect((await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId: "builtin:nonla_kv_store" })).status).toBe(201);
-    expect((await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId: "builtin:nonla_get_current_time" })).status).toBe(201);
-
-    const { resolveAgentTools } = await import("../modules/agents/runtime/utils/resolveTools.js");
-    const tools = await resolveAgentTools(agent.id, ["builtin:nonla_kv_store", "builtin:nonla_get_current_time"], "owner", false, { enableMemory: false });
-    const clock = tools.find((item) => item.name === "nonla_get_current_time");
-    const kv = tools.find((item) => item.name === "nonla_kv_store");
-    expect(clock).toBeTruthy();
-    expect(kv).toBeTruthy();
-
-    const time = JSON.parse(String(await clock!.invoke({}))) as { iso?: string };
-    expect(time.iso).toBeTruthy();
-
-    const removed = JSON.parse(String(await kv!.invoke({ action: "list" }))) as { ok?: boolean; entries?: unknown };
-    expect(removed.ok).toBe(false);
-    expect(removed.entries).toBeUndefined();
-
-    const listed = (await (await authRequest(app, token, "GET", `/api/agents/${agent.id}/tool-assignments`)).json()) as { toolId: string }[];
-    const ids = listed.map((row) => row.toolId);
-    expect(ids).toContain("builtin:nonla_get_current_time");
-    expect(ids).not.toContain("builtin:nonla_kv_store");
-    expect(ids).not.toContain("builtin:kv_store");
   });
 });

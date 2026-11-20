@@ -6,9 +6,6 @@ describe("API Keys", () => {
   let app: Hono;
   let cleanup: () => void;
   let adminToken: string;
-  let memberToken: string;
-  let agentId: string;
-  let extraAgentId: string;
   let keyId: string;
   let rawKey: string;
 
@@ -18,27 +15,6 @@ describe("API Keys", () => {
     cleanup = t.cleanup;
     const admin = await setupAdmin(app);
     adminToken = admin.token;
-
-    const memberRes = await authRequest(app, adminToken, "POST", "/api/users", {
-      username: "member1",
-      name: "Member",
-      password: "memberpass",
-      role: "member",
-    });
-    expect(memberRes.status).toBe(201);
-
-    const loginRes = await app.request("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "member1", password: "memberpass" }),
-    });
-    const login = (await loginRes.json()) as { token: string };
-    memberToken = login.token;
-
-    const a1 = await authRequest(app, adminToken, "POST", "/api/agents", { name: "Key Agent A" });
-    agentId = ((await a1.json()) as { id: string }).id;
-    const a2 = await authRequest(app, adminToken, "POST", "/api/agents", { name: "Key Agent B" });
-    extraAgentId = ((await a2.json()) as { id: string }).id;
   });
 
   afterAll(() => cleanup());
@@ -46,15 +22,13 @@ describe("API Keys", () => {
   test("POST /api/api-keys — create returns raw key once", async () => {
     const res = await authRequest(app, adminToken, "POST", "/api/api-keys", {
       name: "Prod key",
-      agentIds: [agentId],
+      kvUnrestricted: true,
     });
     expect(res.status).toBe(201);
     const data = (await res.json()) as {
       id: string;
       key: string;
       keyPrefix: string;
-      agentIds: string[];
-      agentsUnrestricted: boolean;
       datatablesUnrestricted: boolean;
       datatableProjectIds: string[];
       kvUnrestricted: boolean;
@@ -64,11 +38,9 @@ describe("API Keys", () => {
     expect(data.key.startsWith("ra_")).toBe(false);
     expect(data.key).toMatch(/^[0-9a-f]{64}$/);
     expect(data.keyPrefix).toBe(data.key.slice(0, 12));
-    expect(data.agentIds).toEqual([agentId]);
-    expect(data.agentsUnrestricted).toBe(false);
     expect(data.datatablesUnrestricted).toBe(false);
     expect(data.datatableProjectIds).toEqual([]);
-    expect(data.kvUnrestricted).toBe(false);
+    expect(data.kvUnrestricted).toBe(true);
     expect(data.kvEntryIds).toEqual([]);
     expect(data).not.toHaveProperty("keyHash");
     keyId = data.id;
@@ -87,29 +59,24 @@ describe("API Keys", () => {
     expect(row?.keyPrefix).toBe(rawKey.slice(0, 12));
   });
 
-  test("PUT /api/api-keys/:id — update name and agents", async () => {
+  test("PUT /api/api-keys/:id — update name and scope", async () => {
     const res = await authRequest(app, adminToken, "PUT", `/api/api-keys/${keyId}`, {
       name: "Prod key v2",
-      agentIds: [agentId, extraAgentId],
+      datatablesUnrestricted: true,
     });
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { name: string; agentIds: string[] };
+    const data = (await res.json()) as { name: string; datatablesUnrestricted: boolean };
     expect(data.name).toBe("Prod key v2");
-    expect(data.agentIds.sort()).toEqual([agentId, extraAgentId].sort());
-  });
-
-  test("GET /api/api-keys — member is forbidden", async () => {
-    const res = await authRequest(app, memberToken, "GET", "/api/api-keys");
-    expect(res.status).toBe(403);
+    expect(data.datatablesUnrestricted).toBe(true);
   });
 
   test("POST /api/api-keys — missing name returns 400", async () => {
-    const res = await authRequest(app, adminToken, "POST", "/api/api-keys", { agentIds: [agentId] });
+    const res = await authRequest(app, adminToken, "POST", "/api/api-keys", { kvUnrestricted: true });
     expect(res.status).toBe(400);
   });
 
   test("POST /api/api-keys/:id/revoke — revokes key", async () => {
-    const created = await authRequest(app, adminToken, "POST", "/api/api-keys", { name: "Temp", agentIds: [agentId] });
+    const created = await authRequest(app, adminToken, "POST", "/api/api-keys", { name: "Temp" });
     const temp = (await created.json()) as { id: string };
     const res = await authRequest(app, adminToken, "POST", `/api/api-keys/${temp.id}/revoke`);
     expect(res.status).toBe(200);
@@ -118,7 +85,7 @@ describe("API Keys", () => {
   });
 
   test("DELETE /api/api-keys/:id — deletes key", async () => {
-    const created = await authRequest(app, adminToken, "POST", "/api/api-keys", { name: "To delete", agentIds: [] });
+    const created = await authRequest(app, adminToken, "POST", "/api/api-keys", { name: "To delete" });
     const temp = (await created.json()) as { id: string };
     const res = await authRequest(app, adminToken, "DELETE", `/api/api-keys/${temp.id}`);
     expect(res.status).toBe(200);

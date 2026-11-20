@@ -4,7 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| latest (`main` / Docker `latest`) | ✅ |
+| latest (`main` / latest release binary) | ✅ |
 | Older tagged releases | Best-effort fixes only |
 
 ## Reporting a Vulnerability
@@ -13,14 +13,13 @@ Please **do not** open a public GitHub issue for security vulnerabilities.
 
 Report privately via one of:
 
-1. **GitHub Security Advisories** — [Report a vulnerability](https://github.com/devnonla/nonla-agents/security/advisories/new) on this repository
-2. **Email** — `devlangla0x01@gmail.com` with subject `[SECURITY] nonla-agents …`
+1. **GitHub Security Advisories** — [Report a vulnerability](https://github.com/devnonla/open-agent-hands/security/advisories/new) on this repository
 
 Include:
 
 - Description of the issue and impact
 - Steps to reproduce or a proof of concept
-- Affected version / commit / Docker tag if known
+- Affected version / commit if known
 
 We aim to acknowledge reports within **72 hours** and share a remediation plan or status update within **7 days**. Please give us reasonable time to fix and disclose before public discussion.
 

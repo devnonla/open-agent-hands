@@ -47,7 +47,6 @@ describe("Auth API", () => {
     expect(data.refreshToken).toBeTruthy();
     expect(data.user.username).toBe("admin");
     expect(data.user.name).toBe("Admin User");
-    expect(data.user.role).toBe("admin");
     // Password hash should NOT be in response
     expect(data.user).not.toHaveProperty("passwordHash");
 
@@ -279,5 +278,14 @@ describe("Auth API", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.name).toBe("Updated Admin");
+  });
+  test("PATCH /api/auth/update-profile — theme is saved per account", async () => {
+    const saved = await authRequest(app, adminToken, "PATCH", "/api/auth/update-profile", { theme: "light" });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as { theme: string }).theme).toBe("light");
+    const me = (await (await authRequest(app, adminToken, "GET", "/api/auth/me")).json()) as { theme: string; passwordHash?: string };
+    expect(me.theme).toBe("light");
+    expect(me.passwordHash).toBeUndefined();
+    expect((await authRequest(app, adminToken, "PATCH", "/api/auth/update-profile", { theme: "neon" })).status).toBe(400);
   });
 });

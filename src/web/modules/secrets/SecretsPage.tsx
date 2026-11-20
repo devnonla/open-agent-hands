@@ -111,7 +111,7 @@ export default function SecretsPage() {
       <PageHeader
         title="Secrets"
         icon="secrets"
-        description="Encrypted credentials agents and tools can read by key."
+        description="Encrypted credentials tools can read by key."
         className="mb-4 shrink-0"
         actions={<SecretsToolbar search={filterSearch} onSearchChange={handleSearch} onAddClick={handleAddClick} selectedCount={selectedRowKeys.length} onDeleteSelected={handleDeleteSelected} />}
       />

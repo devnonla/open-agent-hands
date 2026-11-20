@@ -2,8 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
 import { rewriteSandboxTs } from "../common/sandbox/rewrite-source.js";
 import { tmpDir } from "../common/utils/data-dir.js";
-import { _stopProxyHubForTests } from "../modules/tools/common/nonlaagents-proxy.js";
+import { _stopProxyHubForTests } from "../modules/tools/common/runtime-proxy.js";
 import { executeTool } from "../modules/tools/common/tool-runner.js";
+import { inDefaultWorkspace } from "./test-helpers.js";
 
 describe("rewriteSandboxTs", () => {
   test("rewrites caret regex literals to new RegExp", () => {
@@ -53,8 +54,8 @@ describe("sandbox executeTool caret regex", () => {
   });
 
   test("runs ASI `/^` and /^\\/+|\\/+$/g without Unexpected ^", async () => {
-    dataDir = `${tmpDir()}/nonla-agents-sandbox-rewrite-${crypto.randomUUID()}`;
-    const raw = await executeTool(
+    dataDir = `${tmpDir()}/agenthands-sandbox-rewrite-${crypto.randomUUID()}`;
+    const raw = await inDefaultWorkspace(() => executeTool(
       "tool-caret-regex",
       `export default async function main(input: Record<string, unknown>) {
   const x = "hello"
@@ -69,9 +70,8 @@ describe("sandbox executeTool caret regex", () => {
   }
 }`,
       JSON.stringify({ path: "/hello/world/" }),
-      dataDir,
       30_000,
-    );
+    ));
     const parsed = JSON.parse(raw) as { ok: boolean; result?: { normalized: string; message: string }; error?: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.result?.normalized).toBe("hello/world");

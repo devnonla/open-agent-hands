@@ -24,7 +24,7 @@ export function createAppServer(options: CreateAppServerOptions = {}) {
 
         const clientId = crypto.randomUUID();
         const upgraded = bunServer.upgrade(req, {
-          data: { clientId, userId: auth.userId, role: auth.role },
+          data: { clientId, userId: auth.userId },
           ...(auth.acceptProtocol ? { headers: { "Sec-WebSocket-Protocol": auth.acceptProtocol } } : {}),
         });
         if (upgraded) return undefined;
@@ -34,15 +34,20 @@ export function createAppServer(options: CreateAppServerOptions = {}) {
     },
     websocket: {
       open(ws) {
-        const { clientId, userId, role } = ws.data;
-        wsHub.add(ws, clientId, { userId, role });
+        const { clientId, userId } = ws.data;
+        wsHub.add(ws, clientId, { userId });
         ws.send(JSON.stringify({ type: "client:id", payload: { clientId } }));
       },
       close(ws) {
         wsHub.remove(ws.data.clientId);
       },
-      message(_ws, _data) {
-        // WS is only used for connection management + broadcasts.
+      message(ws, data) {
+        try {
+          const msg = JSON.parse(String(data)) as { type?: string; workspaceId?: unknown };
+          if (msg.type === "workspace:select") {
+            wsHub.selectWorkspace(ws.data.clientId, typeof msg.workspaceId === "string" && msg.workspaceId ? msg.workspaceId : null);
+          }
+        } catch {}
       },
     },
     port,

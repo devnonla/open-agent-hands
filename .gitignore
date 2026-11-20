@@ -32,13 +32,5 @@ docker/data
 *.njsproj
 *.sln
 *.sw?
-/.agents
-/scripts
-.claude/settings.json
-.claude/hooks/stop-hook.sh
-CLAUDE.md
-.claude/DESIGN.md
-.claude/skills/write-test/SKILL.md
-# Keep project hooks + plugins tracked; ignore the rest of .cursor
-.cursor/*
-.claude
+.claude/*
+!.claude/launch.json

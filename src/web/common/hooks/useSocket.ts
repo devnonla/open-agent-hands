@@ -1,24 +1,9 @@
-/**
- * useSocket — mounts the WebSocket connection and wires up store updates.
- *
- * Call from AppContent with `enabled` only for authenticated app routes
- * (not login/setup/public chat). Guests on /chat must never receive CRUD WS events.
- */
-
 import { useEffect } from "react";
 import { getAuthToken } from "src/common/api";
-import type { Agent, AgentConversation, AgentTool, KvStoreEntry, McpServer, MyMcpServer, SecretEntry, Skill } from "src/common/types";
-import { removeAgentLocal, reorderAgentsLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
-import { removeConversationLocal, upsertConversationLocal } from "src/modules/agents/common/chatSlice";
-import { removeTeamLocal, reorderTeamsLocal, upsertTeamLocal } from "src/modules/agents/common/teamsSlice";
-import type { TeamWithMembers } from "src/modules/agents/common/teamsSlice";
+import type { AgentTool, KvStoreEntry, MyMcpServer, SecretEntry } from "src/common/types";
 import { removeKvEntryLocal, upsertKvEntryLocal } from "src/modules/kvstore/common/kvStoreSlice";
-import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { removeMyMcpServerLocal, upsertMyMcpServerLocal } from "src/modules/my-mcp-servers/common/myMcpServersSlice";
 import { removeSecretLocal, upsertSecretLocal } from "src/modules/secrets/common/secretsSlice";
-import { removeSkillFolderLocal, reorderSkillFoldersLocal, upsertSkillFolderLocal } from "src/modules/skills/common/skillFoldersSlice";
-import type { SkillFolderWithSkills } from "src/modules/skills/common/skillFoldersSlice";
-import { removeSkillLocal, updateSkillLocal, upsertSkillLocal } from "src/modules/skills/common/skillsSlice";
 import { removeToolFolderLocal, reorderToolFoldersLocal, upsertToolFolderLocal } from "src/modules/tools/common/toolFoldersSlice";
 import type { ToolFolderWithTools } from "src/modules/tools/common/toolFoldersSlice";
 import { removeToolLocal, reorderToolsLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
@@ -30,55 +15,6 @@ function handleEvent(event: WsEvent) {
   const { type, payload } = event;
 
   switch (type) {
-    // ── Agents ──────────────────────────────────────────────────────────────
-    case "agents:created":
-    case "agents:updated": {
-      store.dispatch(upsertAgentLocal(payload as Agent));
-      break;
-    }
-    case "agents:deleted": {
-      store.dispatch(removeAgentLocal((payload as { id: string }).id));
-      break;
-    }
-    case "agents:reordered": {
-      const { teamId, agentIds } = payload as { teamId: string | null; agentIds: string[] };
-      store.dispatch(reorderAgentsLocal({ teamId, agentIds }));
-      break;
-    }
-
-    // ── Conversations ────────────────────────────────────────────────────────
-    case "conversations:created":
-    case "conversations:updated": {
-      const conv = payload as AgentConversation;
-      // Skip public conversations — they belong to public users and should not
-      // appear in the admin conversation list.
-      if (conv.trigger === "public") break;
-      // Only sync conversations owned by the current user
-      const userId = store.getState().auth.user?.id;
-      if (userId && conv.ownerId !== userId) break;
-      store.dispatch(upsertConversationLocal(conv));
-      break;
-    }
-    case "conversations:deleted": {
-      store.dispatch(removeConversationLocal((payload as { id: string }).id));
-      break;
-    }
-
-    // ── Teams ────────────────────────────────────────────────────────────────
-    case "teams:created":
-    case "teams:updated": {
-      store.dispatch(upsertTeamLocal(payload as TeamWithMembers));
-      break;
-    }
-    case "teams:deleted": {
-      store.dispatch(removeTeamLocal((payload as { id: string }).id));
-      break;
-    }
-    case "teams:reordered": {
-      store.dispatch(reorderTeamsLocal((payload as { teamIds: string[] }).teamIds));
-      break;
-    }
-
     // ── Tools ─────────────────────────────────────────────────────────────────
     case "tools:created":
     case "tools:updated": {
@@ -92,35 +28,6 @@ function handleEvent(event: WsEvent) {
     case "tools:reordered": {
       const { folderId, toolIds } = payload as { folderId: string | null; toolIds: string[] };
       store.dispatch(reorderToolsLocal({ folderId, toolIds }));
-      break;
-    }
-
-    case "skills:created":
-    case "skills:updated": {
-      store.dispatch(upsertSkillLocal(payload as Skill));
-      break;
-    }
-    case "skills:deleted": {
-      store.dispatch(removeSkillLocal((payload as { id: string }).id));
-      break;
-    }
-
-    case "skill-folders:created":
-    case "skill-folders:updated": {
-      store.dispatch(upsertSkillFolderLocal(payload as SkillFolderWithSkills));
-      break;
-    }
-    case "skill-folders:deleted": {
-      const id = (payload as { id: string }).id;
-      store.dispatch(removeSkillFolderLocal(id));
-      const skills = store.getState().skills.items as Skill[];
-      for (const skill of skills) {
-        if (skill.folderId === id) store.dispatch(updateSkillLocal({ id: skill.id, folderId: null }));
-      }
-      break;
-    }
-    case "skill-folders:reordered": {
-      store.dispatch(reorderSkillFoldersLocal((payload as { folderIds: string[] }).folderIds));
       break;
     }
 
@@ -140,15 +47,6 @@ function handleEvent(event: WsEvent) {
     }
 
     // ── MCP Servers ──────────────────────────────────────────────────────────
-    case "mcp-servers:created":
-    case "mcp-servers:updated": {
-      store.dispatch(upsertMcpServerLocal(payload as McpServer));
-      break;
-    }
-    case "mcp-servers:deleted": {
-      store.dispatch(removeMcpServerLocal((payload as { id: string }).id));
-      break;
-    }
 
     case "my-mcp-servers:created":
     case "my-mcp-servers:updated": {

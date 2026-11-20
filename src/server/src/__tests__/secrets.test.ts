@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Hono } from "hono";
 import { secrets } from "../common/db/schema.js";
 import { loadSecretsMap } from "../modules/secrets/secrets.service.js";
-import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
+import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
 
 describe("Secrets API", () => {
   let app: Hono;
@@ -67,7 +67,7 @@ describe("Secrets API", () => {
   });
 
   test("loadSecretsMap decrypts for tool runtime", async () => {
-    const map = await loadSecretsMap();
+    const map = await inDefaultWorkspace(() => loadSecretsMap());
     expect(map.API_TOKEN).toBe("super-secret-value");
   });
 
@@ -79,12 +79,12 @@ describe("Secrets API", () => {
     });
     expect(res.status).toBe(201);
     const created = (await res.json()) as { id: string };
-    expect((await loadSecretsMap()).VI_SECRET).toBe(original);
+    expect((await inDefaultWorkspace(() => loadSecretsMap())).VI_SECRET).toBe(original);
 
     const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
     const put = await authRequest(app, token, "PUT", `/api/secrets/${created.id}`, { value: updated });
     expect(put.status).toBe(200);
-    expect((await loadSecretsMap()).VI_SECRET).toBe(updated);
+    expect((await inDefaultWorkspace(() => loadSecretsMap())).VI_SECRET).toBe(updated);
 
     await authRequest(app, token, "DELETE", `/api/secrets/${created.id}`);
   });
@@ -96,7 +96,7 @@ describe("Secrets API", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as Record<string, unknown>;
     expect(data).not.toHaveProperty("value");
-    expect((await loadSecretsMap()).API_TOKEN).toBe("rotated-secret");
+    expect((await inDefaultWorkspace(() => loadSecretsMap())).API_TOKEN).toBe("rotated-secret");
   });
 
   test("GET /api/settings/values — secret_encryption_key never returned", async () => {
@@ -109,23 +109,6 @@ describe("Secrets API", () => {
   test("DELETE /api/secrets/:id", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/secrets/${secretId}`);
     expect(res.status).toBe(200);
-    expect((await loadSecretsMap()).API_TOKEN).toBeUndefined();
-  });
-
-  test("GET /api/secrets — member → 403", async () => {
-    await authRequest(app, token, "POST", "/api/users", {
-      username: "sec_member",
-      name: "Sec Member",
-      password: "password123",
-      role: "member",
-    });
-    const loginRes = await app.request("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "sec_member", password: "password123" }),
-    });
-    const { token: memberToken } = (await loginRes.json()) as { token: string };
-    const res = await authRequest(app, memberToken, "GET", "/api/secrets");
-    expect(res.status).toBe(403);
+    expect((await inDefaultWorkspace(() => loadSecretsMap())).API_TOKEN).toBeUndefined();
   });
 });

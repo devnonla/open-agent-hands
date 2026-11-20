@@ -1,4 +1,3 @@
-import "./openui-no-devtools";
 import { App as NonlaApp } from "devnonla-ui";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";

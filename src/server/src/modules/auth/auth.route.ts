@@ -71,7 +71,7 @@ app.patch("/update-profile", async (c) => {
   if (!user) {
     throw new UnauthorizedException("Authentication required");
   }
-  const body = await c.req.json<{ name?: string; avatar?: string }>();
+  const body = await c.req.json<{ name?: string; avatar?: string; theme?: string | null }>();
   const result = await updateProfile(user.id, body);
   return c.json(result);
 });

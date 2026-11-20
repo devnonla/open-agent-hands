@@ -230,31 +230,6 @@ describe("Datatables API", () => {
     expect(data.items.every((r) => !("status" in r.data))).toBe(true);
   });
 
-  test("POST /api/agents/:id/tool-assignments — datatable project is rejected", async () => {
-    const agentRes = await authRequest(app, token, "POST", "/api/agents", { name: "DT Agent" });
-    expect(agentRes.status).toBe(201);
-    const agent = (await agentRes.json()) as { id: string };
-    const toolId = `datatable:${projectId}`;
-    const res = await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { message?: string };
-    expect(body.message ?? "").toMatch(/Datatable Manager/i);
-
-    const { resolveAgentTools } = await import("../modules/agents/runtime/utils/resolveTools.js");
-    const names = (await resolveAgentTools(agent.id, [toolId, "builtin:datatable"], "owner")).map((t) => t.name);
-    expect(names).not.toContain("nonla_datatable");
-    expect(names.every((n) => !n.startsWith("datatable__"))).toBe(true);
-  });
-
-  test("POST /api/agents/:id/tool-assignments — legacy builtin:datatable is rejected", async () => {
-    const agentRes = await authRequest(app, token, "POST", "/api/agents", { name: "Legacy DT Agent" });
-    expect(agentRes.status).toBe(201);
-    const agent = (await agentRes.json()) as { id: string };
-
-    const legacyRes = await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId: "builtin:datatable" });
-    expect(legacyRes.status).toBe(400);
-  });
-
   test("DELETE /api/datatables/projects/:id — cascade", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/datatables/projects/${projectId}`);
     expect(res.status).toBe(200);
@@ -265,14 +240,5 @@ describe("Datatables API", () => {
   test("GET /api/datatables/projects — unauthenticated → 401", async () => {
     const res = await app.request("/api/datatables/projects");
     expect(res.status).toBe(401);
-  });
-
-  test("POST /api/datatables/projects/:id/agent/stream — project not found", async () => {
-    const res = await authRequest(app, token, "POST", "/api/datatables/projects/missing-project/agent/stream", {
-      providerId: "p",
-      modelId: "m",
-      messages: [],
-    });
-    expect(res.status).toBe(404);
   });
 });

@@ -98,28 +98,4 @@ describe("KV Store API", () => {
     const res = await app.request("/api/kvstore");
     expect(res.status).toBe(401);
   });
-
-  test("GET /api/kvstore — member can access", async () => {
-    await authRequest(app, token, "POST", "/api/users", {
-      username: "kv_member",
-      name: "KV Member",
-      password: "password123",
-      role: "member",
-    });
-    const loginRes = await app.request("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "kv_member", password: "password123" }),
-    });
-    const { token: memberToken } = (await loginRes.json()) as { token: string };
-
-    const createRes = await authRequest(app, memberToken, "POST", "/api/kvstore", {
-      key: "MEMBER_KEY",
-      value: "from-member",
-    });
-    expect(createRes.status).toBe(201);
-
-    const listRes = await authRequest(app, memberToken, "GET", "/api/kvstore");
-    expect(listRes.status).toBe(200);
-  });
 });

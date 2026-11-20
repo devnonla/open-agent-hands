@@ -99,14 +99,6 @@ describe("My MCP servers API", () => {
     expect(((await drop.json()) as { toolCount: number }).toolCount).toBe(1);
   });
 
-  test("POST /api/my-mcp-servers — rejects builtin tools", async () => {
-    const res = await authRequest(app, token, "POST", "/api/my-mcp-servers", {
-      name: "bad",
-      toolIds: ["builtin:web_fetch"],
-    });
-    expect(res.status).toBe(400);
-  });
-
   test("GET /mcp/:id — 405 not HTML", async () => {
     const res = await app.request(`/mcp/${serverId}`, { method: "GET" });
     expect(res.status).toBe(405);

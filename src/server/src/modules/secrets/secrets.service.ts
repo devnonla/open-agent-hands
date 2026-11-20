@@ -1,4 +1,6 @@
-import { eq } from "drizzle-orm";
+import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
+import { inWorkspace } from "../../common/workspace/scope.js";
+import { and, eq } from "drizzle-orm";
 import { decryptSecret, encryptSecret } from "../../common/crypto/secret-crypto.js";
 import { type NewSecretEntry, getDb, secrets } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
@@ -33,7 +35,7 @@ function toMeta(row: { id: string; key: string; description: string | null; crea
 }
 
 export async function listSecrets(query: RawQuery = {}) {
-  const result = await listQuery({ table: secrets, searchColumns: ["key", "description"] }, query);
+  const result = await listQuery({ table: secrets, where: inWorkspace(secrets.workspaceId), searchColumns: ["key", "description"] }, query);
   return {
     ...result,
     items: (result.items as (typeof secrets.$inferSelect)[]).map(toMeta),
@@ -41,25 +43,45 @@ export async function listSecrets(query: RawQuery = {}) {
 }
 
 export async function getSecretMeta(id: string): Promise<SecretMeta | null> {
-  const row = await qone(getDb().select().from(secrets).where(eq(secrets.id, id)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.id, id))),
+  );
   return row ? toMeta(row) : null;
 }
 
 export async function getSecretMetaByKey(key: string): Promise<SecretMeta | null> {
-  const row = await qone(getDb().select().from(secrets).where(eq(secrets.key, key)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.key, key))),
+  );
   return row ? toMeta(row) : null;
 }
 
 /** Decrypt a single secret by key. Returns null if missing. */
 export async function getSecretValueByKey(key: string): Promise<string | null> {
-  const row = await qone(getDb().select().from(secrets).where(eq(secrets.key, key)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.key, key))),
+  );
   if (!row) return null;
   return decryptSecret(row.value);
 }
 
 /** Decrypt a single secret by id. Returns null if missing. */
 export async function getSecretValue(id: string): Promise<string | null> {
-  const row = await qone(getDb().select().from(secrets).where(eq(secrets.id, id)));
+  const row = await qone(
+    getDb()
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.id, id))),
+  );
   if (!row) return null;
   return decryptSecret(row.value);
 }
@@ -94,11 +116,17 @@ export async function createSecret(body: { key: string; value: string; descripti
   }
 
   const db = getDb();
-  const existing = await qone(db.select().from(secrets).where(eq(secrets.key, key)));
+  const existing = await qone(
+    db
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.key, key))),
+  );
   if (existing) throw new BadRequestException(`Key "${key}" already exists`);
 
   const now = new Date();
   const entry: NewSecretEntry = {
+    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     key,
     value: encryptSecret(body.value),
@@ -119,14 +147,24 @@ export async function createSecret(body: { key: string; value: string; descripti
 }
 
 export async function updateSecret(id: string, body: { key?: string; value?: string; description?: string | null }) {
-  const current = await qone(getDb().select().from(secrets).where(eq(secrets.id, id)));
+  const current = await qone(
+    getDb()
+      .select()
+      .from(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.id, id))),
+  );
   if (!current) throw new BadRequestException("Secret not found");
 
   const nextKey = body.key !== undefined ? body.key.trim() : current.key;
   assertKey(nextKey);
 
   if (nextKey !== current.key) {
-    const clash = await qone(getDb().select().from(secrets).where(eq(secrets.key, nextKey)));
+    const clash = await qone(
+      getDb()
+        .select()
+        .from(secrets)
+        .where(and(inWorkspace(secrets.workspaceId), eq(secrets.key, nextKey))),
+    );
     if (clash) throw new BadRequestException(`Key "${nextKey}" already exists`);
   }
 
@@ -144,7 +182,7 @@ export async function updateSecret(id: string, body: { key?: string; value?: str
         description: body.description !== undefined ? body.description?.trim() || null : current.description,
         updatedAt,
       })
-      .where(eq(secrets.id, id)),
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.id, id))),
   );
 
   const meta = await getSecretMeta(id);
@@ -155,13 +193,17 @@ export async function updateSecret(id: string, body: { key?: string; value?: str
 export async function deleteSecret(id: string) {
   const current = await getSecretMeta(id);
   if (!current) throw new BadRequestException("Secret not found");
-  await qrun(getDb().delete(secrets).where(eq(secrets.id, id)));
+  await qrun(
+    getDb()
+      .delete(secrets)
+      .where(and(inWorkspace(secrets.workspaceId), eq(secrets.id, id))),
+  );
   wsHub.emit("secrets:deleted", { id });
 }
 
 /** Internal — decrypt map for tool runtime ctx.secrets */
 export async function loadSecretsMap(): Promise<Record<string, string>> {
-  const rows = await qall(getDb().select({ key: secrets.key, value: secrets.value }).from(secrets));
+  const rows = await qall(getDb().select({ key: secrets.key, value: secrets.value }).from(secrets).where(inWorkspace(secrets.workspaceId)));
   const out: Record<string, string> = {};
   for (const row of rows) {
     try {

@@ -5,7 +5,7 @@ import { getDb } from "../common/db/client.js";
 import { users } from "../common/db/schema.js";
 import { createAppServer } from "../common/ws/create-app-server.js";
 import { WS_APP_PROTOCOL, WS_JWT_PROTOCOL_PREFIX, extractWsToken } from "../common/ws/ws-auth.js";
-import { clientMayReceive, wsHub } from "../common/ws/wsHub.js";
+import { wsHub } from "../common/ws/wsHub.js";
 import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 /** Bun WebSocket accepts headers; DOM typings only allow protocol list. */
@@ -17,23 +17,6 @@ type BunWsOptions = {
 function openWs(url: string, options?: BunWsOptions): WebSocket {
   return new WebSocket(url, options as never);
 }
-
-describe("wsHub role filter", () => {
-  test("secrets:* — admin only", () => {
-    expect(clientMayReceive("admin", "secrets:created")).toBe(true);
-    expect(clientMayReceive("admin", "secrets:updated")).toBe(true);
-    expect(clientMayReceive("admin", "secrets:deleted")).toBe(true);
-    expect(clientMayReceive("member", "secrets:created")).toBe(false);
-    expect(clientMayReceive("member", "secrets:updated")).toBe(false);
-    expect(clientMayReceive("member", "secrets:deleted")).toBe(false);
-  });
-
-  test("kvstore:* — any authenticated role", () => {
-    expect(clientMayReceive("admin", "kvstore:created")).toBe(true);
-    expect(clientMayReceive("member", "kvstore:updated")).toBe(true);
-    expect(clientMayReceive("member", "kvstore:deleted")).toBe(true);
-  });
-});
 
 describe("extractWsToken", () => {
   test("reads Authorization Bearer", () => {
@@ -117,7 +100,6 @@ describe("WS upgrade integration", () => {
   let cleanup: () => void;
   let server: ReturnType<typeof createAppServer>;
   let adminToken: string;
-  let memberToken: string;
   let adminUserId: string;
   let baseUrl: string;
   let wsUrl: string;
@@ -130,19 +112,6 @@ describe("WS upgrade integration", () => {
     const admin = await setupAdmin(app);
     adminToken = admin.token;
     adminUserId = admin.user.id as string;
-
-    await authRequest(app, adminToken, "POST", "/api/users", {
-      username: "ws_member",
-      name: "WS Member",
-      password: "password123",
-      role: "member",
-    });
-    const loginRes = await app.request("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "ws_member", password: "password123" }),
-    });
-    memberToken = ((await loginRes.json()) as { token: string }).token;
 
     server = createAppServer({ port: 0, host: "127.0.0.1" });
     baseUrl = `http://127.0.0.1:${server.port}`;
@@ -185,7 +154,7 @@ describe("WS upgrade integration", () => {
     }
   });
 
-  test("upgrade with Sec-WebSocket-Protocol jwt.* → opens, echoes nonla-agents only", async () => {
+  test("upgrade with Sec-WebSocket-Protocol jwt.* → opens, echoes agenthands only", async () => {
     const ws = openWs(wsUrl, {
       protocols: [WS_APP_PROTOCOL, `${WS_JWT_PROTOCOL_PREFIX}${adminToken}`],
     });
@@ -209,39 +178,6 @@ describe("WS upgrade integration", () => {
       expect(res.status).toBe(401);
     } finally {
       getDb().update(users).set({ isActive: true }).where(eq(users.id, adminUserId)).run();
-    }
-  });
-
-  test("member does not receive secrets:* broadcast; admin does", async () => {
-    const adminWs = openWs(wsUrl, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
-    const memberWs = openWs(wsUrl, {
-      headers: { Authorization: `Bearer ${memberToken}` },
-    });
-
-    try {
-      await Promise.all([connectUntilClientId(adminWs), connectUntilClientId(memberWs)]);
-
-      const adminMsgsP = collectMessages(adminWs, 200);
-      const memberMsgsP = collectMessages(memberWs, 200);
-
-      wsHub.broadcast("secrets:created", { id: "sec-1", key: "API_TOKEN" });
-      wsHub.broadcast("kvstore:created", { id: "kv-1", key: "BASE_URL" });
-
-      const [adminMsgs, memberMsgs] = await Promise.all([adminMsgsP, memberMsgsP]);
-
-      const adminTypes = adminMsgs.map((m) => (m as { type: string }).type);
-      const memberTypes = memberMsgs.map((m) => (m as { type: string }).type);
-
-      expect(adminTypes).toContain("secrets:created");
-      expect(adminTypes).toContain("kvstore:created");
-      expect(memberTypes).not.toContain("secrets:created");
-      expect(memberTypes).toContain("kvstore:created");
-    } finally {
-      adminWs.close();
-      memberWs.close();
-      await Promise.all([waitForClose(adminWs), waitForClose(memberWs)]);
     }
   });
 });

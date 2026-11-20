@@ -376,7 +376,7 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
                 <Icon name="document" size={24} />
               </span>
               <p className="m-0 text-sm font-medium text-foreground">No properties yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Ask the assistant to add columns</p>
+              <p className="mt-1 text-sm text-muted-foreground">Add a column to get started</p>
             </div>
           </RenderIf>
         </div>

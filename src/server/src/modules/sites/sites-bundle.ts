@@ -1,8 +1,7 @@
 import { readdirSync, rmSync } from "node:fs";
-import { OMITTED_WRITE_MESSAGE, isOmittedSource } from "../../common/ai/apply-exact-replace.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { SANDBOX_TSCONFIG, rewriteSandboxTs } from "../../common/sandbox/index.js";
-import { ogMetaTags } from "../../common/spa-html.js";
+import { ogMetaTags } from "../../common/html.js";
 import { PLATFORM_ENTRY_SOURCE, PLATFORM_SITE_API_SOURCE } from "./platform/site-api-source.js";
 import { SITE_RUNTIME_FILES, type SiteTree, getTreeDir, readSourceFile, treeContentHash } from "./sites-fs.js";
 
@@ -55,12 +54,11 @@ async function materializeBundleDir(siteId: string, tree: SiteTree): Promise<str
   for (const file of SITE_RUNTIME_FILES) {
     const content = readSourceFile(siteId, tree, file);
     if (!content.trim()) throw new BadRequestException(`Missing ${file} in ${tree}`);
-    if (isOmittedSource(content)) throw new BadRequestException(`${file} ${OMITTED_WRITE_MESSAGE}`);
     await Bun.write(join(outDir, file), rewriteSandboxTs(content));
   }
 
   const css = readSourceFile(siteId, tree, "styles.css");
-  await Bun.write(join(outDir, "styles.css"), isOmittedSource(css) ? "" : css);
+  await Bun.write(join(outDir, "styles.css"), css);
   await Bun.write(join(outDir, "site-api.js"), PLATFORM_SITE_API_SOURCE);
   await Bun.write(join(outDir, "entry.tsx"), PLATFORM_ENTRY_SOURCE);
   await Bun.write(join(outDir, "tsconfig.json"), SANDBOX_TSCONFIG);

@@ -13,11 +13,11 @@ function resolveBuildId(): string {
 }
 
 const APP_BUILD_ID = resolveBuildId();
-const apiPort = process.env.PORT ?? "8429";
+const apiPort = process.env.API_PORT ?? "8429";
 
 function buildMetaPlugin(buildId: string, version: string): Plugin {
   return {
-    name: "nonla-agents-build-meta",
+    name: "agenthands-build-meta",
     writeBundle(outputOptions) {
       const outDir = outputOptions.dir ?? `${import.meta.dirname}/dist`;
       writeFileSync(`${outDir}/build-meta.json`, `${JSON.stringify({ buildId, version }, null, 2)}\n`);
@@ -40,7 +40,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["highlight.js", "highlight.js/lib/common", "highlight.js/lib/core", "mermaid", "devnonla-agent-avatar", "devnonla-ui", "devnonla-ui/chat", "devnonla-ui/markdown"],
+    include: ["devnonla-ui"],
   },
   build: {
     outDir: "dist",
@@ -77,7 +77,6 @@ export default defineConfig({
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
       },
-      // Public site HTML + assets (Hono React sites — not the SPA shell)
       "/public/sites": {
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,

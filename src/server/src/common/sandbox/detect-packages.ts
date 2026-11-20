@@ -28,7 +28,7 @@ function stripNpmVersion(spec: string): string {
 export function packageNameFromSpecifier(spec: string): string | null {
   const trimmed = spec.trim();
   if (!trimmed || trimmed.startsWith(".") || trimmed.startsWith("/") || trimmed.startsWith("node:") || trimmed.startsWith("bun:")) return null;
-  if (trimmed === "nonlaagents" || trimmed === "@nonla-agents/runtime") return null;
+  if (trimmed === "agenthands" || trimmed === "nonlaagents" || trimmed === "@agenthands/runtime" || trimmed === "@nonla-agents/runtime") return null;
   if (trimmed.startsWith("@")) {
     const [scope, name] = trimmed.split("/");
     if (!scope || !name) return null;

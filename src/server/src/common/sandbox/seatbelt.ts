@@ -1,7 +1,7 @@
 /**
  * macOS sandbox via Apple Seatbelt (`sandbox-exec`). Same policy intent as
  * the Linux bwrap backend: read-only filesystem except optional writable
- * subpaths, network left open for the loopback nonlaagents proxy.
+ * subpaths, network left open for the loopback runtime proxy.
  *
  * `sandbox-exec` is deprecated but has no replacement for "sandbox an
  * arbitrary subprocess from a server" — Chrome, Cursor, Codex CLI, and

@@ -2,7 +2,7 @@ import { rmSync } from "node:fs";
 import { BadRequestException, ServiceUnavailableException } from "../../common/exceptions/http.exception.js";
 import { ensureWritableDir, readCapturedOutput, sandboxChildEnv, spawnCaptured, unlinkCaptured, wrapForSandbox } from "../../common/sandbox/index.js";
 import { tmpDir } from "../../common/utils/data-dir.js";
-import { startNonlaagentsProxy } from "../tools/common/nonlaagents-proxy.js";
+import { startRuntimeProxy } from "../tools/common/runtime-proxy.js";
 
 const DEFAULT_WALL_MS = 15_000;
 /** After soft kill, wait this long then SIGKILL + abandon stream reads. */
@@ -46,13 +46,21 @@ function workerWallMs(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_WALL_MS;
 }
 
-/** Dev: sibling .ts next to this module. Prod bundle: sites-backend-worker.js next to dist/index.js. */
-function resolveWorkerPath(): string {
-  const candidates = [`${import.meta.dir}/sites-backend-worker.js`, `${import.meta.dir}/sites-backend-worker.ts`];
-  for (const path of candidates) {
-    if (Bun.file(path).size > 0) return path;
-  }
-  return candidates[0];
+export const SITE_WORKER_FLAG = "__sites-backend-worker";
+
+function isCompiledBinary(): boolean {
+  return import.meta.dir.startsWith("/$bunfs/") || import.meta.dir.startsWith("B:~BUN");
+}
+
+function workerEnv(extra: Record<string, string>): Record<string, string> {
+  const env = sandboxChildEnv(extra);
+  if (isCompiledBinary()) delete env.BUN_BE_BUN;
+  return env;
+}
+
+function workerCommand(): string[] {
+  if (isCompiledBinary()) return [process.execPath, SITE_WORKER_FLAG];
+  return [process.execPath, `${import.meta.dir}/sites-backend-worker.ts`];
 }
 
 async function serializeJsonFile(prefix: string, data: unknown): Promise<string> {
@@ -159,7 +167,7 @@ export async function runSiteBackendWorker(opts: {
 }): Promise<{ value: unknown }> {
   await acquireWorkerSlot();
 
-  const proxy = startNonlaagentsProxy();
+  const proxy = startRuntimeProxy();
   let requestPath: string | undefined;
   let queryPath: string | undefined;
   let paramsPath: string | undefined;
@@ -173,22 +181,17 @@ export async function runSiteBackendWorker(opts: {
     paramsPath = await serializeJsonFile("site-backend-params", opts.params ?? {});
     bunTmp = ensureWritableDir(`${tmpDir()}/site-backend-${crypto.randomUUID()}`);
 
-    const workerPath = resolveWorkerPath();
-    if (Bun.file(workerPath).size === 0) {
-      throw new BadRequestException(`Backend worker not found at ${workerPath}`);
-    }
-
-    const argv = await wrapForSandbox([process.execPath, workerPath], { cwd: opts.treeDir, writablePaths: [bunTmp] });
+    const argv = await wrapForSandbox(workerCommand(), { cwd: opts.treeDir, writablePaths: [bunTmp] });
     captured = await spawnCaptured(argv, {
       cwd: opts.treeDir,
-      env: sandboxChildEnv({
+      env: workerEnv({
         SITE_RUNTIME_DIR: opts.runtimeDir,
         SITE_TREE_DIR: opts.treeDir,
         SITE_REQUEST_PATH: requestPath,
         SITE_QUERY_PATH: queryPath,
         SITE_PARAMS_PATH: paramsPath,
-        NONLAAGENTS_URL: proxy.url,
-        NONLAAGENTS_TOKEN: proxy.token,
+        AGENTHANDS_URL: proxy.url,
+        AGENTHANDS_TOKEN: proxy.token,
         TMPDIR: bunTmp,
         TMP: bunTmp,
         TEMP: bunTmp,

@@ -1,140 +1,79 @@
-# Nonla Agents
+# Agent Hands
 
-Self-hosted AI agent platform with a web UI. Build agents with TypeScript tools and MCP, schedule Jobs, and publish public chats and Sites — one container, SQLite or PostgreSQL, MIT licensed.
+A local server for **tools, MCP, KV and datatables** that AI coding agents (Claude Code, Codex, …) connect to over MCP.
 
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Runtime](https://img.shields.io/badge/runtime-Bun-f472b6)](https://bun.sh)
-[![Docker](https://img.shields.io/badge/docker-devnonla%2Fnonla--agents-2496ED)](https://hub.docker.com/r/devnonla/nonla-agents)
+It ships as one binary. Data lives in SQLite, and the web UI is built in. You don't need Docker or a database server.
 
-## Quick start
-
-Pull the published image [`devnonla/nonla-agents:latest`](https://hub.docker.com/r/devnonla/nonla-agents) and run:
+## Install
 
 ```bash
-docker run -d \
-  --name nonla-agents \
-  -p 8429:8429 \
-  -v nonla-agents-data:/data \
-  --security-opt seccomp=unconfined \
-  devnonla/nonla-agents:latest
+curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download/install.sh | sh
+agenthands
 ```
 
-Open [http://localhost:8429](http://localhost:8429).
+Then open http://127.0.0.1:8429 and create your account (single user, no roles).
 
-> `seccomp=unconfined` lets bubblewrap sandbox custom tools and site workers. Without it, the app still runs; sandboxed children fall back to unsandboxed execution.
+`install.sh` reads these environment variables: `AGENTHANDS_REPO` (`owner/name`), `AGENTHANDS_VERSION` (`v0.5.0`, default `latest`) and `AGENTHANDS_INSTALL_DIR` (default `~/.local/bin`).
 
-## Docker Compose
-
-Uses the same published image (`devnonla/nonla-agents:latest`).
-
-**SQLite (default)**
-
-```bash
-docker compose up -d
 ```
-
-**PostgreSQL**
-
-```bash
-docker compose -f docker-compose.postgres.yml up -d
+agenthands [-p|--port 8429] [-H|--host 127.0.0.1] [-d|--data-dir ~/.open-agent-hands]
 ```
-
-Postgres defaults: user / password / database = `nonla`. Override with `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
-
-## Environment
-
-| Variable          | Default   | Description |
-| ----------------- | --------- | ----------- |
-| `PORT`            | `8429`    | HTTP port |
-| `HOST`            | `0.0.0.0` | Bind address |
-| `DATA_DIR`        | `/data`   | Persistent data (SQLite file, sites, sandboxes) |
-| `DATABASE_URL`    | _(unset)_ | Unset → SQLite at `{DATA_DIR}/data.db`. Set `postgres://…` or `postgresql://…` for PostgreSQL |
-| `PUBLIC_BASE_URL` | _(auto)_  | Public origin behind a reverse proxy (e.g. `https://agents.example.com`) |
-| `OBSCURA_BIN`     | _(auto)_  | Optional path to Obscura for `web_fetch`. Else: `PATH`, then auto-download to `{DATA_DIR}/bin/obscura`. Docker image ships `/usr/local/bin/obscura` |
 
 ## Features
 
-- **Agents** — Personas, tools, skills, avatars, teams; board drag-and-drop; agent-to-agent calls
-- **Models** — OpenAI, Anthropic, Google Gemini, OpenRouter, and more via LangChain
-- **Tools** — Custom TypeScript/Bun tools in folders; OS sandbox; builtin Web Fetch, KV, secrets, datatables
-- **Skills & memory** — Shared markdown skills (`read_skill`); per-owner memory list
-- **Instruct** — Full-page system prompt editor with AI draft review
-- **MCP** — MCP servers over SSE / Streamable HTTP, including local and private hosts; sync catalogs and attach tools; My MCP to expose workspace tools
-- **Jobs** — Cron-scheduled Bun/TypeScript scripts with an AI editor
-- **Sites** — AI-assisted React sites (`app.tsx` / `backend.ts` / `styles.css`) with draft/publish and public links
-- **Chat & sharing** — Live streaming chat; public links with optional passwords and Open Graph cards
-- **API keys** — Scoped Bearer keys for `/api/v1` (agents, datatables, KV)
-- **Database** — SQLite by default, or PostgreSQL via `DATABASE_URL` / `docker-compose.postgres.yml`
+- **Workspaces**: every resource belongs to a workspace. A `Default` workspace always exists; you pick one when you open the app, and you can create, rename or delete others.
+- **Tools**: TypeScript/Bun functions, grouped in folders. Each one runs in an OS sandbox (bubblewrap on Linux, Seatbelt on macOS) and installs npm packages automatically from its imports.
+- **Hosted MCP**: pick a set of tools and serve them at `/mcp/<id>` (Streamable HTTP, Bearer key).
+- **KV store, secrets, datatables**: workspace storage. Tools and jobs reach it through `@agenthands/runtime`; scoped API keys reach it through `/api/v1`.
+- **Sites**: small React sites (`app.tsx` + `backend.ts`) with a draft/approve flow. Publish them at `/public/sites/<slug>`, optionally behind a password.
+- **Jobs**: Bun/TypeScript scripts on a cron schedule, with run logs.
+
+## Connect Claude Code
+
+**Core MCP (recommended).** It lets Claude Code or Codex manage everything: workspaces, tools, hosted MCP servers, KV, secrets, datatables, sites and jobs. Open **MCP Servers** in the UI and copy the command from the **Core MCP** card:
+
+```bash
+claude mcp add --transport http agenthands http://127.0.0.1:8429/mcp/core --header "Authorization: Bearer <core-key>"
+```
+
+**Workspace MCP servers.** These expose only the tools you pick, which suits sharing a narrow set of tools:
+
+In the UI, open **MCP Servers**, create a server, assign tools to it and copy its key. Then run:
+
+```bash
+claude mcp add --transport http agenthands http://127.0.0.1:8429/mcp/<server-id> --header "Authorization: Bearer <key>"
+```
 
 ## Data
 
-| Path | Location |
-| ---- | -------- |
-| Docker | `/data` (bind or named volume) |
-| From source | `~/.nonla-agents` by default |
+Everything lives under `--data-dir` (default `~/.open-agent-hands`):
 
 ```
-<data-dir>/
-├── data.db                 # SQLite when DATABASE_URL is unset
-├── agent.pid               # Daemon PID
-└── agent.log               # Daemon logs
+data.db                         SQLite: workspaces, tool/job code, KV, secrets, datatables
+workspaces/<id>/tools/<tool>/   tool sandboxes (regenerated on demand)
+workspaces/<id>/sites/<site>/   site source (+ draft/)
 ```
 
-With PostgreSQL, `DATA_DIR` is still used for site files and sandboxes.
+To back up, copy `data.db` and `workspaces/`.
 
-The published Docker image includes Obscura for `web_fetch`. From source, the first fetch downloads the latest release to `{DATA_DIR}/bin/obscura`. Override with `OBSCURA_BIN`.
+| Variable   | Default             |
+| ---------- | ------------------- |
+| `PORT`     | `8429`              |
+| `HOST`     | `127.0.0.1`         |
+| `DATA_DIR` | `~/.open-agent-hands`   |
 
-## Develop from source
+## Develop
 
-Requires [Bun](https://bun.sh/) ≥ 1.4.3.
+You need [Bun](https://bun.sh/) ≥ 1.4.3.
 
 ```bash
-git clone https://github.com/devnonla/nonla-agents.git
-cd nonla-agents
 bun install
-bun run dev          # API + Vite HMR → http://localhost:5173
-# bun run build && bun run start   # production → http://localhost:8429
+bun run dev              # API :8429 + Vite HMR http://localhost:5173
+bun run build            # web + single binary → dist/agenthands
+bun run test
 ```
 
-| Script                | Description |
-| --------------------- | ----------- |
-| `bun run dev`         | API + Vite HMR |
-| `bun run build`       | Production build |
-| `bun run start`       | Run production server |
-| `bun run test`        | Server tests |
-| `bun run lint`        | Lint web |
-| `bun run typecheck`   | Typecheck web |
-| `bun run typecheck:server` | Typecheck server |
-
-### Build the image locally (optional)
-
-For contributors iterating on the image. Production deploys should use `devnonla/nonla-agents:latest` (or a version tag) from Docker Hub.
-
-```bash
-docker build -t nonla-agents:local .
-docker run -d -p 8429:8429 -v nonla-agents-data:/data \
-  --security-opt seccomp=unconfined \
-  nonla-agents:local
-```
-
-## Tech stack
-
-| Layer | Stack |
-| ----- | ----- |
-| Runtime | [Bun](https://bun.sh/) |
-| API | [Hono](https://hono.dev/) |
-| UI | React 19, Vite, Tailwind CSS, devnonla-ui |
-| Database | SQLite (`bun:sqlite`) or PostgreSQL via `DATABASE_URL` — Drizzle ORM |
-| Agents | LangChain (`createAgent`, built on LangGraph) |
-| State | Redux Toolkit |
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Questions belong in [Discussions](https://github.com/devnonla/nonla-agents/discussions).
-
-## Security
-
-Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
+`bun run build:binary:all` cross-compiles `dist/agenthands-{darwin,linux}-{arm64,x64}`. Pushing a `v*` tag runs `.github/workflows/release.yml`, which publishes those binaries and `install.sh` to a GitHub release.
 
 ## License
 

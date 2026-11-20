@@ -5,11 +5,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
 import { cn } from "src/common/lib/cn";
 import type { Job, JobRun } from "src/common/types";
+import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { DraftReviewBar } from "src/components/DraftReviewBar";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
 import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
-import { AgentsContentHeader, ContentBreadcrumb } from "src/modules/agents/components/ContentBreadcrumb";
 import { jobsApi } from "../common/jobsApi";
 import { type JobSchedule, buildJobCrons, formatJobSchedulesLabel, jobIsScheduled, parseJobSchedules, validateJobSchedules } from "../common/schedule";
 import { type JobSettingsSection, JobSettingsView } from "./components/JobSettingsView";
@@ -330,7 +330,7 @@ export default function JobEditPage() {
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <AgentsContentHeader
+        <ContentHeader
           left={
             <div className="flex min-w-0 items-center gap-2">
               <WindowHeaderBackButton to="/jobs" label="Back to Jobs" />

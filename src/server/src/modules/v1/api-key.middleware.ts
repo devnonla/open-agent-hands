@@ -1,4 +1,5 @@
 import type { Context, Next } from "hono";
+import { runInWorkspace } from "../../common/workspace/workspace-context.js";
 import { UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { type ApiKeyContext, authenticateApiKey } from "../api-keys/api-keys.service.js";
 
@@ -12,7 +13,7 @@ export async function requireApiKey(c: Context, next: Next) {
     throw new UnauthorizedException("Invalid API key");
   }
   c.set("apiKey", apiKey);
-  await next();
+  await runInWorkspace(apiKey.workspaceId, () => next());
 }
 
 export function getApiKey(c: Context): ApiKeyContext {

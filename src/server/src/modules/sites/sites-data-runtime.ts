@@ -1,4 +1,3 @@
-import { OMITTED_WRITE_MESSAGE, isOmittedSource } from "../../common/ai/apply-exact-replace.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { rewriteSandboxTs } from "../../common/sandbox/index.js";
 import { runSiteBackendWorker } from "./sites-backend-runner.js";
@@ -62,7 +61,6 @@ async function materializeDataDirUnlocked(siteId: string, tree: SiteTree): Promi
 
   const out = dirFor(gen);
   const backend = readSourceFile(siteId, tree, "backend.ts") || "export async function handle(){return{}}";
-  if (isOmittedSource(backend)) throw new BadRequestException(`backend.ts ${OMITTED_WRITE_MESSAGE}`);
   await Bun.write(`${out}/backend.ts`, rewriteSandboxTs(backend));
   await Bun.write(stampPath(gen), stamp);
   return out;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { closeSync, openSync } from "node:fs";
-import { wrapForSandbox } from "../common/sandbox/index.js";
+import { wrapWithSandboxBackend } from "../common/sandbox/index.js";
 import { followCaptureFile, readCapturedOutput, spawnCaptured, unlinkCaptured } from "../common/sandbox/spawn-captured.js";
 import { tmpDir } from "../common/utils/data-dir.js";
 
@@ -91,7 +91,7 @@ describe("spawnCaptured", () => {
     }
     expect(fds.length).toBeGreaterThan(1_000);
 
-    const argv = await wrapForSandbox(["/bin/echo", "seatbelt-ok"], { cwd: tmpDir(), writablePaths: [] });
+    const argv = await wrapWithSandboxBackend(["/bin/echo", "seatbelt-ok"], { cwd: tmpDir(), writablePaths: [] });
     expect(argv[0]).toBe("sandbox-exec");
 
     const captured = await spawnCaptured(argv);

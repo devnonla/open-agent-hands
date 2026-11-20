@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { toolSandboxDir } from "../../../common/workspace/workspace-paths.js";
+import { existsSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
 import { SANDBOX_TSCONFIG, detectPackages, ensureWritableDir, followCaptureFile, isPkgInstalled, readCapturedOutput, rewriteSandboxTs, sandboxChildEnv, spawnCaptured, unlinkCaptured, wrapForSandbox } from "../../../common/sandbox/index.js";
-import { bgTaskRegistry } from "./bg-task-registry.js";
-import { startNonlaagentsProxy } from "./nonlaagents-proxy.js";
-import { writeToolsNonlaagentsPackage } from "./nonlaagents-ts.js";
+import { startRuntimeProxy } from "./runtime-proxy.js";
+import { writeToolsRuntimePackage } from "./runtime-sdk.js";
 
 /** Soft-wait before detaching a custom tool into bgTaskRegistry (Cursor-style). */
 export const CUSTOM_TOOL_SOFT_WAIT_MS = 120_000;
@@ -366,7 +366,7 @@ type PreparedRun = {
   sandboxDir: string;
   runPath: string;
   userFile: string;
-  proxy: ReturnType<typeof startNonlaagentsProxy>;
+  proxy: ReturnType<typeof startRuntimeProxy>;
 };
 
 async function ensurePackages(toolId: string, sandboxDir: string, pkgs: string[]): Promise<{ errorJson: string } | null> {
@@ -393,8 +393,8 @@ async function ensurePackages(toolId: string, sandboxDir: string, pkgs: string[]
   });
 }
 
-async function prepareToolRun(toolId: string, code: string, dataDir: string): Promise<PreparedRun | { errorJson: string }> {
-  const sandboxDir = ensureWritableDir(`${dataDir}/tool_envs/${toolId}`);
+async function prepareToolRun(toolId: string, code: string): Promise<PreparedRun | { errorJson: string }> {
+  const sandboxDir = ensureWritableDir(toolSandboxDir(toolId));
 
   const pkgPath = `${sandboxDir}/package.json`;
   if (!existsSync(pkgPath)) {
@@ -405,7 +405,7 @@ async function prepareToolRun(toolId: string, code: string, dataDir: string): Pr
   const installError = await ensurePackages(toolId, sandboxDir, pkgs);
   if (installError) return installError;
 
-  await writeToolsNonlaagentsPackage(sandboxDir);
+  await writeToolsRuntimePackage(sandboxDir);
 
   const userCode = rewriteSandboxTs(ensureDefaultExport(code));
   const userFile = `user_${hashShort(userCode)}.ts`;
@@ -423,7 +423,7 @@ async function prepareToolRun(toolId: string, code: string, dataDir: string): Pr
     await writeIfChanged(runPath, HARNESS_TS);
     await writeIfChanged(tsconfigPath, SANDBOX_TSCONFIG);
     await sweepSandboxDir(sandboxDir, userFile);
-    const proxy = startNonlaagentsProxy();
+    const proxy = startRuntimeProxy();
     return { sandboxDir, runPath, userFile, proxy };
   } catch (err) {
     releaseUserFile(sandboxDir, userFile);
@@ -489,12 +489,12 @@ function toolRunEnv(prepared: PreparedRun, inputPath: string): Record<string, st
   return sandboxRuntimeEnv(prepared.sandboxDir, {
     INPUT_JSON_FILE: inputPath,
     USER_MODULE: `./${prepared.userFile}`,
-    NONLAAGENTS_URL: prepared.proxy.url,
-    NONLAAGENTS_TOKEN: prepared.proxy.token,
+    AGENTHANDS_URL: prepared.proxy.url,
+    AGENTHANDS_TOKEN: prepared.proxy.token,
   });
 }
 
-export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<string> {
+export async function executeTool(toolId: string, code: string, inputJson: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<string> {
   await acquireSlot();
   const wallMs = resolveTimeoutMs(timeoutMs);
   let prepared: PreparedRun | undefined;
@@ -507,7 +507,7 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
     handle?.kill();
   };
   try {
-    const prep = await prepareToolRun(toolId, code, dataDir);
+    const prep = await prepareToolRun(toolId, code);
     if ("errorJson" in prep) return prep.errorJson;
     prepared = prep;
     if (abortSignal?.aborted) return JSON.stringify({ ok: false, error: "cancelled" });
@@ -548,117 +548,6 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
   }
 }
 
-export type SoftWaitExecuteResult = { status: "completed"; payload: string } | { status: "running"; taskId: string; toolName: string };
-
-export type ExecuteToolSoftWaitOptions = {
-  toolId: string;
-  toolName: string;
-  code: string;
-  inputJson: string;
-  dataDir: string;
-  softWaitMs?: number;
-  agentId?: string;
-  conversationId?: string | null;
-};
-
-/**
- * Run a custom tool with Cursor-style soft-wait: wait up to softWaitMs for completion,
- * otherwise return taskId while the process continues in the background.
- */
-export async function executeToolWithSoftWait(opts: ExecuteToolSoftWaitOptions): Promise<SoftWaitExecuteResult> {
-  const softWaitMs = opts.softWaitMs ?? CUSTOM_TOOL_SOFT_WAIT_MS;
-  await acquireSlot();
-  let transferSlot = false;
-  let prepared: PreparedRun | undefined;
-  let inputPath: string | undefined;
-  let handle: SpawnHandle | undefined;
-  let hardTimer: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    const prep = await prepareToolRun(opts.toolId, opts.code, opts.dataDir);
-    if ("errorJson" in prep) {
-      return { status: "completed", payload: prep.errorJson };
-    }
-    prepared = prep;
-
-    inputPath = await writeToolInputJson(prepared.sandboxDir, opts.inputJson);
-    let attachedTaskId: string | null = null;
-    let pendingLog = "";
-    handle = await spawnCmd(process.execPath, [prepared.runPath], prepared.sandboxDir, toolRunEnv(prepared, inputPath), (chunk) => {
-      if (attachedTaskId) bgTaskRegistry.appendLog(attachedTaskId, chunk);
-      else {
-        pendingLog += chunk;
-        if (pendingLog.length > PENDING_LOG_MAX_CHARS) pendingLog = pendingLog.slice(-PENDING_LOG_MAX_CHARS);
-      }
-    });
-
-    const hardMs = hardTimeoutMs();
-    let hardTimedOut = false;
-    hardTimer = setTimeout(() => {
-      hardTimedOut = true;
-      handle?.kill();
-    }, hardMs);
-
-    let softTimer: ReturnType<typeof setTimeout> | undefined;
-    const softPromise = new Promise<"timeout">((resolve) => {
-      softTimer = setTimeout(() => resolve("timeout"), Math.max(0, softWaitMs));
-    });
-
-    const raced = await Promise.race([handle.done.then((r) => ({ kind: "done" as const, r })), softPromise.then(() => ({ kind: "timeout" as const }))]);
-    if (softTimer) clearTimeout(softTimer);
-
-    if (raced.kind === "done") {
-      clearTimeout(hardTimer);
-      hardTimer = undefined;
-      const payload = hardTimedOut ? JSON.stringify({ ok: false, error: `Tool timed out after ${hardMs}ms` }) : formatRunResult(raced.r);
-      await cleanupPrepared(prepared, inputPath);
-      prepared = undefined;
-      return { status: "completed", payload };
-    }
-
-    const taskId = bgTaskRegistry.register({
-      toolId: opts.toolId,
-      toolName: opts.toolName,
-      agentId: opts.agentId,
-      conversationId: opts.conversationId,
-      pid: handle.pid,
-      kill: handle.kill,
-    });
-    attachedTaskId = taskId;
-    if (pendingLog) bgTaskRegistry.appendLog(taskId, pendingLog);
-
-    transferSlot = true;
-    const prepForBg = prepared;
-    const inputForBg = inputPath;
-    const bgHandle = handle;
-    prepared = undefined;
-    inputPath = undefined;
-
-    void (async () => {
-      try {
-        const r = await bgHandle.done;
-        const payload = hardTimedOut ? JSON.stringify({ ok: false, error: `Tool timed out after ${hardMs}ms` }) : formatRunResult(r);
-        bgTaskRegistry.finish(taskId, parseOutcomeFromResultJson(payload));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        bgTaskRegistry.finish(taskId, { ok: false, error: message });
-      } finally {
-        clearTimeout(hardTimer);
-        try {
-          await cleanupPrepared(prepForBg, inputForBg);
-        } finally {
-          releaseSlot();
-        }
-      }
-    })();
-
-    return { status: "running", taskId, toolName: opts.toolName };
-  } finally {
-    if (!transferSlot) {
-      handle?.kill();
-      if (hardTimer) clearTimeout(hardTimer);
-      if (prepared) await cleanupPrepared(prepared, inputPath);
-      releaseSlot();
-    }
-  }
+export function removeToolSandbox(toolId: string, workspaceId?: string): void {
+  rmSync(toolSandboxDir(toolId, workspaceId), { recursive: true, force: true });
 }

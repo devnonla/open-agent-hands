@@ -3,34 +3,24 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { Dropdown, Icon, Modal, Tag, message } from "devnonla-ui";
 import type { MenuProps } from "devnonla-ui";
-import { Ellipsis, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { Ellipsis, Pencil, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentTool, McpServer, McpServerTool } from "src/common/types";
-import { FeatureIcon } from "src/components/FeatureIcon";
+import { cn } from "src/common/lib/cn";
+import type { AgentTool } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
-import { cn } from "src/lib/utils";
-import { getServerStatus, toolCountOf } from "src/modules/mcp-servers/components/McpServerListItem";
 import { useAppDispatch } from "src/store/store";
 import type { ToolFolderWithTools } from "../common/toolFoldersSlice";
 import { fetchTools, reorderTools, reorderToolsLocal } from "../common/toolsSlice";
-import { AddToolDialog } from "./AddToolDialog";
 
 const UNGROUPED_ID = "ungrouped";
 
 interface ToolsTreeViewProps {
   tools: AgentTool[];
   folders: ToolFolderWithTools[];
-  mcpServers?: McpServer[];
-  showCustomTools?: boolean;
-  showMcpServers?: boolean;
   onToolClick?: (toolId: string) => void;
-  onToolCreated?: (toolId: string) => void;
   onEditFolder?: (folder: ToolFolderWithTools) => void;
   onDeleteFolder?: (folderId: string) => void;
   onCreateFolder?: () => void;
-  onManageMcpServer?: (server: McpServer) => void;
-  onSyncMcpServer?: (serverId: string) => void;
-  onDeleteMcpServer?: (serverId: string) => void;
 }
 
 type Items = Record<string, string[]>;
@@ -266,14 +256,12 @@ function FolderNode({
   meta,
   tools,
   onToolClick,
-  onToolCreated,
   onEditFolder,
   onDeleteFolder,
 }: {
   meta: FolderMeta;
   tools: AgentTool[];
   onToolClick: (toolId: string) => void;
-  onToolCreated: (toolId: string) => void;
   onEditFolder: (folder: ToolFolderWithTools) => void;
   onDeleteFolder: (folderId: string) => void;
 }) {
@@ -295,12 +283,6 @@ function FolderNode({
           </div>
           <span className="shrink-0 text-[15px] font-semibold tracking-tight text-foreground">{meta.title}</span>
         </div>
-
-        <AddToolDialog onCreated={onToolCreated} defaultFolderId={meta.folderId} triggerClassName="inline-flex shrink-0">
-          <button type="button" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-input-fill hover:text-foreground cursor-pointer opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100" aria-label="Add tool" title="Add tool">
-            <Plus size={14} />
-          </button>
-        </AddToolDialog>
 
         <RenderIf condition={meta.editable && !!meta.folder}>
           <FolderMenu title={meta.title} onEdit={() => meta.folder && onEditFolder(meta.folder)} onDelete={() => meta.folder && onDeleteFolder(meta.folder.id)} />
@@ -331,176 +313,7 @@ function FolderNode({
   );
 }
 
-function schemaParamCount(schema: object | undefined): number {
-  const props = (schema as { properties?: Record<string, unknown> } | undefined)?.properties;
-  return props ? Object.keys(props).length : 0;
-}
-
-function McpToolRow({
-  tool,
-  isLast,
-  onClick,
-}: {
-  tool: McpServerTool;
-  isLast: boolean;
-  onClick?: () => void;
-}) {
-  const paramCount = schemaParamCount(tool.inputSchema);
-
-  return (
-    <div className="relative flex items-stretch">
-      <TreeGuide isLast={isLast} />
-      <button type="button" onClick={onClick} className="group/tool flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-input-fill">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <span className="min-w-0 truncate font-mono text-[13px] leading-snug text-foreground/90 transition-colors group-hover/tool:text-foreground">{tool.name}</span>
-        </div>
-        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80 opacity-0 transition-opacity group-hover/tool:opacity-100">{paramCount > 0 ? `${paramCount} param${paramCount === 1 ? "" : "s"}` : "No params"}</span>
-      </button>
-    </div>
-  );
-}
-
-function McpFolderMenu({
-  title,
-  onManage,
-  onSync,
-  onDelete,
-}: {
-  title: string;
-  onManage?: () => void;
-  onSync?: () => void;
-  onDelete?: () => void;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const menuItems: MenuProps["items"] = [
-    {
-      key: "manage",
-      label: (
-        <div className="flex items-center gap-2">
-          <Pencil size={14} />
-          Manage
-        </div>
-      ),
-      onClick: () => onManage?.(),
-    },
-    {
-      key: "sync",
-      label: (
-        <div className="flex items-center gap-2">
-          <RefreshCw size={14} />
-          Sync tools
-        </div>
-      ),
-      onClick: () => onSync?.(),
-    },
-    {
-      key: "delete",
-      danger: true,
-      label: (
-        <div className="flex items-center gap-2">
-          <X size={14} />
-          Disconnect
-        </div>
-      ),
-      onClick: () => {
-        Modal.confirm({
-          title: "Disconnect MCP server?",
-          content: `Disconnect "${title}"? Agents using its tools will lose those assignments.`,
-          okText: "Disconnect",
-          okButtonProps: { danger: true },
-          cancelText: "Cancel",
-          onOk: () => onDelete?.(),
-        });
-      },
-    },
-  ];
-
-  return (
-    <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems, style: { minWidth: 160 } }}>
-      <button
-        type="button"
-        className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors hover:bg-input-fill hover:text-foreground group-hover/folder:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        aria-label="MCP server actions"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Ellipsis size={14} />
-      </button>
-    </Dropdown>
-  );
-}
-
-function McpFolderNode({
-  server,
-  onManage,
-  onSync,
-  onDelete,
-}: {
-  server: McpServer;
-  onManage?: (server: McpServer) => void;
-  onSync?: (serverId: string) => void;
-  onDelete?: (serverId: string) => void;
-}) {
-  const tools = server.tools ?? [];
-  const tone = getServerStatus(server);
-  const count = toolCountOf(server);
-
-  return (
-    <div className="flex flex-col gap-1 rounded-xl">
-      <div className="group/folder flex items-center gap-1">
-        <button type="button" onClick={() => onManage?.(server)} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md py-1.5 text-left transition-colors hover:bg-input-fill">
-          <div className="flex w-8 shrink-0 items-center justify-center">
-            <div className="relative flex h-7 w-7 items-center justify-center rounded-md bg-muted ring-1 ring-inset ring-foreground/10">
-              <FeatureIcon name="mcp" size={16} variant="sticker" />
-              <span className={cn("absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-background", tone === "live" && "bg-link", tone === "error" && "bg-destructive", tone === "off" && "bg-muted-foreground")} aria-hidden />
-            </div>
-          </div>
-          <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">{server.name}</span>
-          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-            {count} tool{count === 1 ? "" : "s"}
-          </span>
-        </button>
-
-        <McpFolderMenu title={server.name} onManage={() => onManage?.(server)} onSync={() => onSync?.(server.id)} onDelete={() => onDelete?.(server.id)} />
-      </div>
-
-      <div className="relative">
-        <div className={cn("absolute left-4 top-0 h-2.5 w-px -translate-x-1/2", TREE_LINE_FILL)} aria-hidden />
-        <RenderIf
-          condition={tools.length > 0}
-          fallback={
-            <div className="relative flex min-h-10 items-stretch">
-              <TreeGuide isLast />
-              <p className="m-0 px-2 py-3 text-[12px] text-muted-foreground">{server.lastSyncError ? "Sync failed — open Manage to fix" : "No tools yet — sync to pull catalog"}</p>
-            </div>
-          }
-        >
-          <div className="flex flex-col gap-0.5 pt-1">
-            {tools.map((tool, index) => (
-              <McpToolRow key={tool.name} tool={tool} isLast={index === tools.length - 1} onClick={() => onManage?.(server)} />
-            ))}
-          </div>
-        </RenderIf>
-      </div>
-    </div>
-  );
-}
-
-export function ToolsTreeView({
-  tools,
-  folders,
-  mcpServers = [],
-  showCustomTools = true,
-  showMcpServers = true,
-  onToolClick = () => {},
-  onToolCreated = () => {},
-  onEditFolder = () => {},
-  onDeleteFolder = () => {},
-  onCreateFolder: _onCreateFolder,
-  onManageMcpServer,
-  onSyncMcpServer,
-  onDeleteMcpServer,
-}: ToolsTreeViewProps) {
+export function ToolsTreeView({ tools, folders, onToolClick = () => {}, onEditFolder = () => {}, onDeleteFolder = () => {}, onCreateFolder: _onCreateFolder }: ToolsTreeViewProps) {
   const dispatch = useAppDispatch();
   const [items, setItems] = useState<Items>(() => buildItems(tools, folders));
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
@@ -695,42 +508,18 @@ export function ToolsTreeView({
 
   const toolsFor = (containerId: string) => (items[containerId] ?? []).map((id) => toolsById.get(id)).filter((t): t is AgentTool => !!t);
 
-  const showCustomSection = showCustomTools;
-  const showMcpSection = showMcpServers;
-  const showSectionLabels = showCustomSection && showMcpSection;
-
   return (
     <div className="flex flex-col gap-8">
-      <RenderIf condition={showCustomSection}>
-        <section className="flex flex-col gap-4">
-          <RenderIf condition={showSectionLabels}>
-            <h2 className="m-0 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Custom tools</h2>
-          </RenderIf>
-          <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-            <div className="flex flex-col gap-8">
-              {folderMetas.map((meta) => (
-                <FolderNode key={meta.key} meta={meta} tools={toolsFor(meta.key)} onToolClick={handleToolClick} onToolCreated={onToolCreated} onEditFolder={onEditFolder} onDeleteFolder={onDeleteFolder} />
-              ))}
-            </div>
-            <DragOverlay dropAnimation={null}>{activeTool ? <ToolRowView tool={activeTool} dragging /> : null}</DragOverlay>
-          </DndContext>
-        </section>
-      </RenderIf>
-
-      <RenderIf condition={showMcpSection}>
-        <section className="flex flex-col gap-4">
-          <RenderIf condition={showSectionLabels}>
-            <h2 className="m-0 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">MCP servers</h2>
-          </RenderIf>
-          <RenderIf condition={mcpServers.length > 0} fallback={<p className="m-0 text-[13px] text-muted-foreground">No MCP servers connected yet. Use Connect to add one.</p>}>
-            <div className="flex flex-col gap-8">
-              {mcpServers.map((server) => (
-                <McpFolderNode key={server.id} server={server} onManage={onManageMcpServer} onSync={onSyncMcpServer} onDelete={onDeleteMcpServer} />
-              ))}
-            </div>
-          </RenderIf>
-        </section>
-      </RenderIf>
+      <section className="flex flex-col gap-4">
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+          <div className="flex flex-col gap-8">
+            {folderMetas.map((meta) => (
+              <FolderNode key={meta.key} meta={meta} tools={toolsFor(meta.key)} onToolClick={handleToolClick} onEditFolder={onEditFolder} onDeleteFolder={onDeleteFolder} />
+            ))}
+          </div>
+          <DragOverlay dropAnimation={null}>{activeTool ? <ToolRowView tool={activeTool} dragging /> : null}</DragOverlay>
+        </DndContext>
+      </section>
     </div>
   );
 }

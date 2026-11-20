@@ -1,18 +1,13 @@
 import { Alert, Button, Empty, Icon, Input, Modal, Popconfirm, Switch, message } from "devnonla-ui";
-import { ChevronDown, ChevronRight, Pencil, RefreshCw, Search, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { apiClient } from "src/common/api";
+import { ChevronDown, ChevronRight, Pencil, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { MyMcpServer } from "src/common/types";
 import { relativeTime } from "src/common/utils/date";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch } from "src/store/store";
-import { copyText } from "../common/copy";
 import { deleteMyMcpServer, toMyMcpServerListItem, updateMyMcpServer, upsertMyMcpServerLocal } from "../common/myMcpServersSlice";
-import { mcpEndpointUrl } from "../common/snippets";
-import { ConnectSnippet } from "./ConnectSnippet";
-
-const TOKEN_PLACEHOLDER = "YOUR_TOKEN";
+import { McpConnectPanel } from "./McpConnectPanel";
 
 export function MyMcpServerDetailDialog({
   serverId,
@@ -30,32 +25,22 @@ export function MyMcpServerDetailDialog({
   const dispatch = useAppDispatch();
   const [toolQuery, setToolQuery] = useState("");
   const [connectOpen, setConnectOpen] = useState(false);
-  const [urlCopied, setUrlCopied] = useState(false);
-  const [rotating, setRotating] = useState(false);
   const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (!serverId) return;
     setToolQuery("");
     setConnectOpen(false);
-    setUrlCopied(false);
   }, [serverId]);
 
   const server = listItem;
   const tools = server?.tools ?? [];
-  const url = server ? mcpEndpointUrl(server.id) : "";
 
   const filteredTools = useMemo(() => {
     const q = toolQuery.trim().toLowerCase();
     if (!q) return tools;
     return tools.filter((tool) => tool.name.toLowerCase().includes(q) || tool.label.toLowerCase().includes(q) || (tool.description ?? "").toLowerCase().includes(q));
   }, [tools, toolQuery]);
-
-  const handleCopyUrl = async () => {
-    if (!(await copyText(url, "URL copied"))) return;
-    setUrlCopied(true);
-    window.setTimeout(() => setUrlCopied(false), 1500);
-  };
 
   const handleToggle = async (checked: boolean) => {
     if (!server) return;
@@ -67,20 +52,6 @@ export function MyMcpServerDetailDialog({
       message.error(err instanceof Error ? err.message : String(err));
     } finally {
       setToggling(false);
-    }
-  };
-
-  const handleRotate = async () => {
-    if (!server) return;
-    setRotating(true);
-    try {
-      const rotated = await apiClient.post<MyMcpServer>(`/api/my-mcp-servers/${server.id}/rotate-key`);
-      dispatch(upsertMyMcpServerLocal(toMyMcpServerListItem(rotated)));
-      onRotated(rotated);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRotating(false);
     }
   };
 
@@ -176,34 +147,8 @@ export function MyMcpServerDetailDialog({
               </button>
 
               <RenderIf condition={connectOpen}>
-                <div className="flex flex-col gap-5 border-t border-border-subtle px-3.5 py-4">
-                  <Step n={1} title="Endpoint URL">
-                    <div className="flex items-center gap-1 rounded-lg border border-border bg-card py-1 pr-1 pl-3">
-                      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">{url}</span>
-                      <Button type="text" size="small" icon={<Icon name={urlCopied ? "check" : "copy"} size={13} />} onClick={() => void handleCopyUrl()}>
-                        {urlCopied ? "Copied" : "Copy"}
-                      </Button>
-                    </div>
-                  </Step>
-
-                  <Step n={2} title="Token">
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-card py-1.5 pr-1.5 pl-3">
-                      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">{s.keyPrefix}…</span>
-                      <Popconfirm title="Rotate token?" description="The current token stops working immediately. You will get a new one to copy." okText="Rotate" onConfirm={() => void handleRotate()} styles={{ root: { width: 300 } }}>
-                        <Button size="small" icon={<RefreshCw size={13} />} loading={rotating}>
-                          Rotate
-                        </Button>
-                      </Popconfirm>
-                    </div>
-                    <p className="m-0 text-[11px] text-tertiary-foreground">The full token is only shown once when the server is created. Lost it? Rotate to get a new one.</p>
-                  </Step>
-
-                  <Step n={3} title="Add to your client">
-                    <ConnectSnippet name={s.name} url={url} token={TOKEN_PLACEHOLDER} />
-                    <p className="m-0 text-[11px] text-tertiary-foreground">
-                      Replace <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">{TOKEN_PLACEHOLDER}</code> with your token and keep the file private.
-                    </p>
-                  </Step>
+                <div className="border-t border-border-subtle px-3.5 py-4">
+                  <McpConnectPanel server={s} onRotated={onRotated} />
                 </div>
               </RenderIf>
             </section>
@@ -211,17 +156,5 @@ export function MyMcpServerDetailDialog({
         )}
       </RenderIf>
     </Modal>
-  );
-}
-
-function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold tabular-nums text-muted-foreground">{n}</span>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="text-[13px] font-semibold text-foreground">{title}</div>
-        {children}
-      </div>
-    </div>
   );
 }

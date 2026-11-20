@@ -41,7 +41,7 @@ export function TimezoneSection() {
   }, []);
 
   return (
-    <SectionCard title="Timezone" description="Used for scheduled tasks and time display in agent system prompts.">
+    <SectionCard title="Timezone" description="Used for scheduled jobs and time display.">
       <div className="flex items-center gap-4">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
           <Icon name="clock" size={20} />

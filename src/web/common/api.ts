@@ -2,6 +2,8 @@
  * API utility functions for making HTTP requests
  */
 
+import { clearCurrentWorkspaceId, getCurrentWorkspaceId } from "./workspace";
+
 const TOKEN_KEY = "raw_agents_auth_token";
 const REFRESH_KEY = "raw_agents_refresh_token";
 const PROACTIVE_REFRESH_MS = 5 * 60 * 1000;
@@ -29,6 +31,7 @@ export function setAuthToken(token: string, refreshToken?: string): void {
 export function clearAuthToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  clearCurrentWorkspaceId();
   clearProactiveRefresh();
 }
 
@@ -151,6 +154,8 @@ export async function authorizedFetch(input: string, init: RequestInit = {}): Pr
   }
   const token = getAuthToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  const workspaceId = getCurrentWorkspaceId();
+  if (workspaceId) headers.set("X-Workspace-Id", workspaceId);
 
   let response = await fetch(input, { ...init, headers });
   if (response.status === 401) {
@@ -162,6 +167,8 @@ export async function authorizedFetch(input: string, init: RequestInit = {}): Pr
       }
       const next = getAuthToken();
       if (next) headers2.set("Authorization", `Bearer ${next}`);
+      const nextWorkspaceId = getCurrentWorkspaceId();
+      if (nextWorkspaceId) headers2.set("X-Workspace-Id", nextWorkspaceId);
       response = await fetch(input, { ...init, headers: headers2 });
     } else {
       forceLogout();
@@ -201,6 +208,10 @@ export class ApiClient {
     const token = getAuthToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+    const workspaceId = getCurrentWorkspaceId();
+    if (workspaceId) {
+      headers["X-Workspace-Id"] = workspaceId;
     }
 
     return headers;

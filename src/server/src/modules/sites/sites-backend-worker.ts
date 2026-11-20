@@ -1,10 +1,10 @@
 /**
  * Site backend worker — runs in a Bun subprocess. No SQLite / no Hono.
- * Speaks to parent via NONLAAGENTS_URL + NONLAAGENTS_TOKEN.
+ * Speaks to parent via AGENTHANDS_URL + AGENTHANDS_TOKEN.
  * Writes one JSON line to stdout: { ok: true, value } | { ok: false, error }.
  */
 
-import { createSiteNonlaagentsHttpClient } from "./sites-nonlaagents-http.js";
+import { createSiteRuntimeHttpClient } from "./sites-runtime-http.js";
 
 interface SerializedRequest {
   method: string;
@@ -16,6 +16,7 @@ interface SerializedRequest {
 type HandleFn = (args: {
   request: Request;
   params: Record<string, string>;
+  agenthands: unknown;
   nonlaagents: unknown;
   query: Record<string, string>;
 }) => unknown;
@@ -66,7 +67,7 @@ async function main() {
   const params = await loadJsonFile<Record<string, string>>(process.env.SITE_PARAMS_PATH, {});
   const request = buildRequest(serialized, queryFile);
   const query = Object.keys(queryFile).length > 0 ? queryFile : Object.fromEntries(new URL(request.url).searchParams.entries());
-  const nonlaagents = await createSiteNonlaagentsHttpClient();
+  const runtime = createSiteRuntimeHttpClient();
 
   const backendPath = `${runtimeDir}/backend.ts`;
   if (!(await Bun.file(backendPath).exists())) throw new Error("Missing backend.ts");
@@ -76,17 +77,21 @@ async function main() {
     throw new Error("backend.ts must export async function handle");
   }
 
-  const value = await mod.handle({ request, params, nonlaagents, query });
+  const value = await mod.handle({ request, params, agenthands: runtime, nonlaagents: runtime, query });
   emit({ ok: true, value: serializeValue(value) });
   process.exit(0);
 }
 
-main().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  try {
-    emit({ ok: false, error: message });
-  } catch {
-    process.stderr.write(`${message}\n`);
-  }
-  process.exit(1);
-});
+export function runSiteBackendWorker() {
+  main().catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    try {
+      emit({ ok: false, error: message });
+    } catch {
+      process.stderr.write(`${message}\n`);
+    }
+    process.exit(1);
+  });
+}
+
+if (import.meta.main) runSiteBackendWorker();

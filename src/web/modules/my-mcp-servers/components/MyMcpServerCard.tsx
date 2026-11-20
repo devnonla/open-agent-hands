@@ -1,11 +1,10 @@
 import { Icon, Switch } from "devnonla-ui";
+import { Plug } from "lucide-react";
 import { cn } from "src/common/lib/cn";
 import type { MyMcpServer } from "src/common/types";
 import { relativeTime } from "src/common/utils/date";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
-import { copyText } from "../common/copy";
-import { mcpEndpointUrl } from "../common/snippets";
 
 const MAX_VISIBLE_TOOLS = 4;
 
@@ -13,17 +12,18 @@ export function MyMcpServerCard({
   server,
   toggling,
   onOpen,
+  onConnect,
   onToggleActive,
 }: {
   server: MyMcpServer;
   toggling: boolean;
   onOpen: () => void;
+  onConnect: () => void;
   onToggleActive: (checked: boolean) => void;
 }) {
   const tools = server.tools ?? [];
   const visibleTools = tools.slice(0, MAX_VISIBLE_TOOLS);
   const hiddenCount = tools.length - visibleTools.length;
-  const url = mcpEndpointUrl(server.id);
   const lastUsed = server.lastUsedAt ? `Used ${relativeTime(server.lastUsedAt)}` : "Never used";
 
   return (
@@ -81,12 +81,12 @@ export function MyMcpServerCard({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            void copyText(url, "URL copied");
+            onConnect();
           }}
-          className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none"
+          className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-muted focus-visible:outline-none"
         >
-          <Icon name="copy" size={12} />
-          Copy URL
+          <Plug size={12} />
+          Connect
         </button>
       </div>
     </div>

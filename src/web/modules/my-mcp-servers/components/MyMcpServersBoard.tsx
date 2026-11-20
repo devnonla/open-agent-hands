@@ -1,17 +1,18 @@
-import { Alert, Button } from "devnonla-ui";
-import { Plus } from "lucide-react";
+import { Alert } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import type { MyMcpServer } from "src/common/types";
+import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { fetchMyMcpServers, toMyMcpServerListItem, updateMyMcpServer, upsertMyMcpServerLocal } from "../common/myMcpServersSlice";
+import { MyMcpConnectDialog } from "./MyMcpConnectDialog";
 import { MyMcpServerCard } from "./MyMcpServerCard";
 import { MyMcpServerDetailDialog } from "./MyMcpServerDetailDialog";
 import { MyMcpServerDialog } from "./MyMcpServerDialog";
 import { MyMcpTokenDialog } from "./MyMcpTokenDialog";
 
-export function MyMcpServersBoard({ createOpen, onCreateOpenChange }: { createOpen: boolean; onCreateOpenChange: (open: boolean) => void }) {
+export function MyMcpServersBoard() {
   const dispatch = useAppDispatch();
   const servers = useAppSelector((s) => s.myMcpServers.items) as MyMcpServer[];
   const [loaded, setLoaded] = useState(false);
@@ -19,6 +20,7 @@ export function MyMcpServersBoard({ createOpen, onCreateOpenChange }: { createOp
   const [error, setError] = useState("");
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [connectId, setConnectId] = useState<string | null>(null);
   const [edit, setEdit] = useState<MyMcpServer | null>(null);
   const [tokenServer, setTokenServer] = useState<MyMcpServer | null>(null);
 
@@ -51,28 +53,34 @@ export function MyMcpServersBoard({ createOpen, onCreateOpenChange }: { createOp
         <Alert type="error" description={error} showIcon className="mb-4 border-destructive/30 bg-destructive/10" />
       </RenderIf>
 
-      <RenderIf condition={servers.length > 0} fallback={<EmptyGuide loading={!loaded} onCreate={() => onCreateOpenChange(true)} />}>
+      <RenderIf condition={servers.length > 0} fallback={<EmptyGuide loading={!loaded} />}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {servers.map((server) => (
-            <MyMcpServerCard key={server.id} server={server} toggling={togglingIds.has(server.id)} onOpen={() => setDetailId(server.id)} onToggleActive={(checked) => void handleToggleActive(server.id, checked)} />
+            <MyMcpServerCard key={server.id} server={server} toggling={togglingIds.has(server.id)} onOpen={() => setDetailId(server.id)} onConnect={() => setConnectId(server.id)} onToggleActive={(checked) => void handleToggleActive(server.id, checked)} />
           ))}
         </div>
       </RenderIf>
 
       <MyMcpServerDetailDialog serverId={detailId} listItem={detailListItem} onClose={() => setDetailId(null)} onEdit={(server) => setEdit(server)} onRotated={setTokenServer} />
 
-      <RenderIf condition={createOpen || edit !== null}>
+      <RenderIf condition={edit !== null}>
         <MyMcpServerDialog
           edit={edit}
-          onClose={() => {
-            onCreateOpenChange(false);
-            setEdit(null);
-          }}
+          onClose={() => setEdit(null)}
           onCreated={(created) => {
             setTokenServer(created);
           }}
         />
       </RenderIf>
+
+      <MyMcpConnectDialog
+        server={servers.find((s) => s.id === connectId) ?? null}
+        onClose={() => setConnectId(null)}
+        onRotated={(server) => {
+          setConnectId(null);
+          setTokenServer(server);
+        }}
+      />
 
       <RenderIf condition={!!tokenServer?.key}>
         <MyMcpTokenDialog server={tokenServer!} onClose={() => setTokenServer(null)} />
@@ -87,7 +95,7 @@ const STEPS = [
   { title: "Paste into your client", body: "Add the ready-made config to Cursor or Claude Code and the tools show up." },
 ];
 
-function EmptyGuide({ loading, onCreate }: { loading: boolean; onCreate: () => void }) {
+function EmptyGuide({ loading }: { loading: boolean }) {
   if (loading) return null;
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-6 py-12 text-center">
@@ -105,9 +113,7 @@ function EmptyGuide({ loading, onCreate }: { loading: boolean; onCreate: () => v
           </li>
         ))}
       </ol>
-      <Button type="primary" className="mt-6" icon={<Plus size={16} />} onClick={onCreate}>
-        Create your first server
-      </Button>
+      <AskClaudeHint what="hosted MCP server" tool="create_mcp_server" />
     </div>
   );
 }

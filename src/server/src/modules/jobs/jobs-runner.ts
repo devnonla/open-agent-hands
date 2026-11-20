@@ -1,10 +1,11 @@
+import { jobRunDir } from "../../common/workspace/workspace-paths.js";
 import { rmSync } from "node:fs";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { followCaptureFile, rewriteSandboxTs, spawnCaptured, unlinkCaptured } from "../../common/sandbox/index.js";
-import { getDataDir } from "../../common/utils/data-dir.js";
-import { startNonlaagentsProxy } from "../tools/common/nonlaagents-proxy.js";
+import { startRuntimeProxy } from "../tools/common/runtime-proxy.js";
 import { type JobLogEntry, createLineBuffer } from "./common/job-logs.js";
-import { JOBS_NONLAAGENTS_INDEX_TS, JOBS_NONLAAGENTS_LEGACY_PACKAGE_JSON, JOBS_NONLAAGENTS_PACKAGE_JSON } from "./jobs-nonlaagents.js";
+import { writeRuntimePackages } from "../tools/common/runtime-sdk.js";
+import { JOBS_RUNTIME_INDEX_TS } from "./jobs-runtime-sdk.js";
 import { appendRunLogEntries, finishJobRun, getDraftCode, getJob, getJobRun, toPublicJobRun, tryClaimJob } from "./jobs.service.js";
 
 const MAX_CONCURRENT = 3;
@@ -34,14 +35,8 @@ function releaseSlot() {
 }
 
 async function writeWorkspace(runId: string, code: string): Promise<string> {
-  const dir = `${getDataDir()}/job_workspaces/${runId}`;
-  const pkgDir = `${dir}/node_modules/@nonla-agents/runtime`;
-  await Bun.write(`${pkgDir}/package.json`, JOBS_NONLAAGENTS_PACKAGE_JSON);
-  await Bun.write(`${pkgDir}/index.ts`, JOBS_NONLAAGENTS_INDEX_TS);
-
-  const legacyPkgDir = `${dir}/node_modules/nonlaagents`;
-  await Bun.write(`${legacyPkgDir}/package.json`, JOBS_NONLAAGENTS_LEGACY_PACKAGE_JSON);
-  await Bun.write(`${legacyPkgDir}/index.ts`, JOBS_NONLAAGENTS_INDEX_TS);
+  const dir = jobRunDir(runId);
+  await writeRuntimePackages(dir, JOBS_RUNTIME_INDEX_TS);
 
   await Bun.write(`${dir}/package.json`, JSON.stringify({ name: `job-run-${runId}`, type: "module" }));
   await Bun.write(`${dir}/main.ts`, rewriteSandboxTs(code));
@@ -64,7 +59,7 @@ export async function runBunScript(opts: {
   onLogEntries?: (entries: JobLogEntry[]) => void;
   abortSignal?: AbortSignal;
 }): Promise<{ exitCode: number; entries: JobLogEntry[]; timedOut: boolean; cancelled: boolean }> {
-  const proxy = startNonlaagentsProxy();
+  const proxy = startRuntimeProxy();
   const workspace = await writeWorkspace(opts.workspaceId, opts.code);
   const startedAtMs = opts.startedAtMs ?? Date.now();
   const entries: JobLogEntry[] = [];
@@ -80,12 +75,13 @@ export async function runBunScript(opts: {
       return { exitCode: 1, entries, timedOut: false, cancelled: true };
     }
 
-    const captured = await spawnCaptured(["bun", "run", "main.ts"], {
+    const captured = await spawnCaptured([process.execPath, "run", "main.ts"], {
       cwd: workspace,
       env: {
         ...process.env,
-        NONLAAGENTS_URL: proxy.url,
-        NONLAAGENTS_TOKEN: proxy.token,
+        BUN_BE_BUN: "1",
+        AGENTHANDS_URL: proxy.url,
+        AGENTHANDS_TOKEN: proxy.token,
       },
     });
 
@@ -287,7 +283,7 @@ export async function runDraftJobCode(jobId: string): Promise<{ started: boolean
   const job = await getJob(jobId);
   if (!job) return { started: false, error: "Job not found" };
   const code = await getDraftCode(jobId);
-  if (!code?.trim()) return { started: false, error: "No draft code available. Use nonla_edit_code first." };
+  if (!code?.trim()) return { started: false, error: "No draft code available." };
 
   const claimed = await tryClaimJob(jobId, "manual");
   if (!claimed) {
@@ -308,7 +304,7 @@ export async function runLiveJobCode(jobId: string): Promise<{ started: boolean;
   const job = await getJob(jobId);
   if (!job) return { started: false, error: "Job not found" };
   const code = job.code;
-  if (!code?.trim()) return { started: false, error: "No code to run. Use nonla_edit_job_code first." };
+  if (!code?.trim()) return { started: false, error: "No code to run." };
 
   const claimed = await tryClaimJob(jobId, "manual");
   if (!claimed) {

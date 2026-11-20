@@ -3,7 +3,7 @@
  * read-only filesystem view, with optional writable overlays.
  *
  * Network stays shared with the host so children can reach the loopback
- * nonlaagents proxy. This does not allowlist egress.
+ * runtime proxy. This does not allowlist egress.
  *
  * bwrap needs to create kernel namespaces (`clone`/`unshare`), which Docker's
  * default seccomp profile blocks even for root. That's why docker-compose.yml

@@ -11,5 +11,5 @@ export function sandboxChildEnv(extra: Record<string, string> = {}): Record<stri
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
-  return { ...env, ...extra };
+  return { ...env, BUN_BE_BUN: "1", ...extra };
 }

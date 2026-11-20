@@ -1,10 +1,11 @@
+import { SANDBOX_SETTING_KEY, invalidateSandboxSetting } from "../../common/sandbox/sandbox-setting.js";
 import { inArray } from "drizzle-orm";
 import { appSettings, getDb } from "../../common/db/client.js";
 import { qall, qrun } from "../../common/db/query.js";
 import { getConfiguredTimezone } from "../../common/utils/cronHelper.js";
 import { recalculateAllJobSchedules } from "../jobs/jobs.service.js";
 
-const HIDDEN_SETTINGS_KEYS = new Set(["jwt_secret", "secret_encryption_key"]);
+const HIDDEN_SETTINGS_KEYS = new Set(["jwt_secret", "secret_encryption_key", "core_mcp_key"]);
 
 /** Load only the requested setting keys. Never returns jwt_secret / secret_encryption_key. */
 export async function loadSettingsByKeys(keys: string[]): Promise<Record<string, string>> {
@@ -21,6 +22,7 @@ export async function saveSettings(body: Record<string, string>) {
   for (const [key, value] of Object.entries(body)) {
     if (HIDDEN_SETTINGS_KEYS.has(key)) continue;
     if (key === "timezone") timezoneChanged = true;
+    if (key === SANDBOX_SETTING_KEY) invalidateSandboxSetting();
     await qrun(
       db
         .insert(appSettings)

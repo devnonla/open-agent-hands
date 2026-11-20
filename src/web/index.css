@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @import "devnonla-ui/styles.css";
-@import "@openuidev/react-ui/components.css";
-@import "@openuidev/react-ui/index.css";
 @source "../node_modules/devnonla-ui/src";
-
-[data-openui-devtools-auto-mount] {
-  display: none !important;
-}
 
 .nonla-ui.light {
   --nonla-bg: #f5f5f5; /* neutral-100 */
@@ -48,87 +42,13 @@ body,
   padding-left: 16px;
 }
 
-/* Nonla Bot column stays outside modals. The modal shifts into the space that is left. */
-html {
-  --nonla-bot-inset: 0px;
-}
-
-.nonla-bot-slot {
-  position: relative;
-  z-index: calc(var(--nonla-z-modal) + 2);
-  pointer-events: auto;
-}
-
-.nonla-modal-overlay {
-  right: var(--nonla-bot-inset);
-}
-
-.nonla-modal-content {
-  left: calc(50% - (var(--nonla-bot-inset) / 2));
-  max-width: calc(100vw - 32px - var(--nonla-bot-inset));
-}
-
-/* Instruct editor fills the area left of Nonla Bot, with 16px on every side. */
-.nonla-modal-content.nonla-instruct-modal {
-  top: 16px;
-  right: calc(16px + var(--nonla-bot-inset));
-  bottom: 16px;
-  left: 16px;
-  width: auto;
-  max-width: none;
-  max-height: none;
-  transform: none;
-}
-
-/* Preview + live click-to-edit only — hide Edit / Diff chrome. */
-.nonla-instruct-editor > .flex.h-10 {
-  display: none;
-}
-
-.nonla-instruct-editor :is(h2) {
-  margin-top: var(--md-h4-mt, 16px);
-  margin-bottom: var(--md-h2-mb, 8px);
-  font-size: var(--md-h4-size, 20px);
-  line-height: var(--md-h4-leading, 26px);
-  font-weight: var(--md-h2-weight, 600);
-}
-
-.nonla-instruct-modal[data-state="open"] {
-  animation: nonla-instruct-modal-in var(--nonla-dur) var(--nonla-ease-out);
-}
-
-.nonla-instruct-modal[data-state="closed"] {
-  animation: nonla-instruct-modal-out var(--nonla-dur-fast) var(--nonla-ease-in) forwards;
-}
-
-@keyframes nonla-instruct-modal-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes nonla-instruct-modal-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
 /* React Flow: sit on the page canvas */
-.schema-flow .react-flow,
-.agent-flow .react-flow {
+.schema-flow .react-flow {
   background: transparent;
 }
 
 /* Anchor the edge on the node border. Default handles shift half their size outward. */
 .schema-flow .react-flow__handle-left,
-.schema-flow .react-flow__handle-right,
-.agent-flow .react-flow__handle-left,
-.agent-flow .react-flow__handle-right {
+.schema-flow .react-flow__handle-right {
   transform: translate(0, -50%);
 }

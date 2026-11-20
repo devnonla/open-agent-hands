@@ -5,15 +5,16 @@ import { apiClient, clearAuthToken, getRefreshToken } from "src/common/api";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
 import { useAppSelector } from "src/store/store";
+import { AppearanceSection } from "./AppearanceSection";
 import { BasicInfoSection } from "./BasicInfoSection";
 import { IdentityCard } from "./IdentityCard";
 import { SecuritySection } from "./SecuritySection";
 
-const PROFILE_TABS = ["general", "security"] as const;
+const PROFILE_TABS = ["general", "appearance", "security"] as const;
 type ProfileTabKey = (typeof PROFILE_TABS)[number];
 
 function isProfileTab(value: string | null): value is ProfileTabKey {
-  return value === "general" || value === "security";
+  return value === "general" || value === "appearance" || value === "security";
 }
 
 export default function ProfilePage() {
@@ -40,7 +41,7 @@ export default function ProfilePage() {
 
   return (
     <PageShell className="h-full min-h-0 overflow-y-auto">
-      <PageHeader title="Profile" description="Manage your avatar, account info, and password." />
+      <PageHeader title="Profile" description="Manage your avatar, account info, theme and password." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[300px_1fr]">
         <div className="lg:sticky lg:top-0">
@@ -53,6 +54,7 @@ export default function ProfilePage() {
             onChange={handleTabChange}
             items={[
               { key: "general", label: "General", children: <BasicInfoSection user={user} avatar={avatar} /> },
+              { key: "appearance", label: "Appearance", children: <AppearanceSection /> },
               { key: "security", label: "Security", children: <SecuritySection /> },
             ]}
           />

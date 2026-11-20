@@ -1,9 +1,10 @@
 /**
  * Auth slice — stores current authenticated user info.
- * Fetches /api/auth/me on app init to populate user data (including role).
+ * Fetches /api/auth/me on app init to populate user data.
  */
 
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { type PayloadAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { getColorPreference, setColorPreference } from "devnonla-ui";
 import { apiClient } from "src/common/api";
 import type { User } from "src/common/types";
 
@@ -23,6 +24,7 @@ const initialState: IAuthState = {
 
 export const fetchCurrentUser = createAsyncThunk("auth/fetchCurrentUser", async () => {
   const user = await apiClient.get<User>("/api/auth/me");
+  if (user.theme && user.theme !== getColorPreference()) setColorPreference(user.theme);
   return user;
 });
 
@@ -32,6 +34,9 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    setUserTheme(state, action: PayloadAction<User["theme"]>) {
+      if (state.user) state.user.theme = action.payload;
+    },
     clearCurrentUser(state) {
       state.user = null;
       state.loaded = false;
@@ -50,6 +55,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearCurrentUser } = authSlice.actions;
+export const { clearCurrentUser, setUserTheme } = authSlice.actions;
 export const authReducer = authSlice.reducer;
 export default authReducer;

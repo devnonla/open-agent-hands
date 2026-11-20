@@ -20,7 +20,7 @@ async function withInstallLock<T>(key: string, fn: () => Promise<T>): Promise<T>
 async function runBunInTree(cwd: string, args: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
   const captured = await spawnCaptured([process.execPath, ...args], {
     cwd,
-    env: { ...process.env, BUN_INSTALL_FROZEN_LOCKFILE: "0" },
+    env: { ...process.env, BUN_BE_BUN: "1", BUN_INSTALL_FROZEN_LOCKFILE: "0" },
   });
 
   const timer = setTimeout(() => captured.kill("SIGKILL"), INSTALL_TIMEOUT_MS);

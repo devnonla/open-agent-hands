@@ -3,27 +3,19 @@ import { useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
-import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
-import { useAppDispatch } from "src/store/store";
 
 import { ApiKeysPage } from "./api-keys/ApiKeysPage";
 import { SETTINGS_TABS, type SettingsTab } from "./common/constants";
 import { GeneralPage } from "./general/GeneralPage";
-import { ProvidersPage } from "./providers/ProvidersPage";
-import { UsersPage } from "./users/UsersPage";
 
 const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
-  providers: ProvidersPage,
   "api-keys": ApiKeysPage,
-  users: UsersPage,
 };
 
 const TAB_DESCRIPTION: Record<SettingsTab, string> = {
   general: "Workspace-wide preferences.",
-  providers: "Connect model providers. Each one is a card with its own key and models.",
-  "api-keys": "Create keys to call your agents and datatables from outside.",
-  users: "Manage who can sign in to this workspace.",
+  "api-keys": "Create keys to access datatables and KV over HTTP.",
 };
 
 function isSettingsTab(value: string): value is SettingsTab {
@@ -38,7 +30,6 @@ function useActiveTab(): SettingsTab | null {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { pathname } = useLocation();
   const activeTab = useActiveTab();
 
@@ -47,12 +38,6 @@ export default function SettingsPage() {
       navigate("/settings/general", { replace: true });
     }
   }, [pathname, navigate]);
-
-  useEffect(() => {
-    if (activeTab === "providers") {
-      void dispatch(fetchLlmProviders());
-    }
-  }, [activeTab, dispatch]);
 
   if (!activeTab) {
     return <Navigate to="/settings/general" replace />;

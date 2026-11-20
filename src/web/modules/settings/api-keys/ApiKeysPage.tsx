@@ -1,9 +1,9 @@
-import { Button, Icon, Popconfirm, Table, Tag, Tooltip, message } from "devnonla-ui";
+import { Button, Icon, Popconfirm, Table, Tag, message } from "devnonla-ui";
 import type { ColumnsType } from "devnonla-ui";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
-import type { AgentListItem, ApiKey, DatatableProject, KvStoreEntry } from "src/common/types";
+import type { ApiKey, DatatableProject, KvStoreEntry } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { ApiKeyFormDialog } from "./ApiKeyFormDialog";
 import { CreatedKeyDialog } from "./CreatedKeyDialog";
@@ -15,9 +15,7 @@ function scopeLabel(unrestricted: boolean, count: number, singular: string, plur
 }
 
 function AccessTags({ row }: { row: ApiKey }) {
-  const tags = [scopeLabel(row.agentsUnrestricted, row.agentIds.length, "agent", "agents"), scopeLabel(row.datatablesUnrestricted, (row.datatableProjectIds ?? []).length, "datatable", "datatables"), scopeLabel(row.kvUnrestricted, (row.kvEntryIds ?? []).length, "KV key", "KV keys")].filter(
-    (label): label is string => !!label,
-  );
+  const tags = [scopeLabel(row.datatablesUnrestricted, (row.datatableProjectIds ?? []).length, "datatable", "datatables"), scopeLabel(row.kvUnrestricted, (row.kvEntryIds ?? []).length, "KV key", "KV keys")].filter((label): label is string => !!label);
 
   if (tags.length === 0) return <span className="text-xs text-muted-foreground">None</span>;
   return (
@@ -33,26 +31,18 @@ function AccessTags({ row }: { row: ApiKey }) {
 
 export function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [datatableProjects, setDatatableProjects] = useState<DatatableProject[]>([]);
   const [kvEntries, setKvEntries] = useState<KvStoreEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editKey, setEditKey] = useState<ApiKey | null>(null);
   const [created, setCreated] = useState<ApiKey | null>(null);
-  const [docsKey, setDocsKey] = useState<ApiKey | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [keyResult, agentResult, projectResult, kvResult] = await Promise.all([
-        apiClient.get<{ items: ApiKey[] }>("/api/api-keys"),
-        apiClient.get<{ items: AgentListItem[] }>("/api/agents", { page: 1, limit: 200, sorts: "name" }),
-        apiClient.get<DatatableProject[]>("/api/datatables/projects"),
-        apiClient.get<{ items: KvStoreEntry[] }>("/api/kvstore", { sorts: "key" }),
-      ]);
+      const [keyResult, projectResult, kvResult] = await Promise.all([apiClient.get<{ items: ApiKey[] }>("/api/api-keys"), apiClient.get<DatatableProject[]>("/api/datatables/projects"), apiClient.get<{ items: KvStoreEntry[] }>("/api/kvstore", { sorts: "key" })]);
       setKeys(keyResult.items);
-      setAgents(agentResult.items);
       setDatatableProjects(projectResult);
       setKvEntries(kvResult.items);
     } catch {
@@ -109,13 +99,10 @@ export function ApiKeysPage() {
     {
       title: "",
       key: "actions",
-      width: 116,
+      width: 84,
       align: "right",
       render: (_, row) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Tooltip title="LLM Docs">
-            <Button type="text" size="small" icon={<Icon name="document" />} onClick={() => setDocsKey(withoutSecret(row))} aria-label={`LLM Docs for ${row.name}`} className="inline-flex items-center justify-center size-7! px-0!" />
-          </Tooltip>
           <Button type="text" size="small" icon={<Pencil size={16} />} onClick={() => setEditKey(row)} aria-label={`Edit ${row.name}`} className="inline-flex items-center justify-center size-7! px-0!" />
           <Popconfirm title="Delete this key?" okText="Delete" okType="danger" onConfirm={() => void handleDelete(row.id)}>
             <Button type="text" size="small" icon={<Trash2 size={16} />} aria-label={`Delete ${row.name}`} className="inline-flex items-center justify-center size-7! px-0!" />
@@ -150,7 +137,7 @@ export function ApiKeysPage() {
               </div>
               <div>
                 <div className="text-base font-medium text-foreground">No API keys yet</div>
-                <div className="mt-1 text-sm text-muted-foreground">Create a key to access agents, datatables, and KV over HTTP.</div>
+                <div className="mt-1 text-sm text-muted-foreground">Create a key to access datatables and KV over HTTP.</div>
               </div>
               <Button type="primary" size="small" icon={<Plus size={12} />} onClick={() => setShowCreate(true)}>
                 New API key
@@ -161,16 +148,13 @@ export function ApiKeysPage() {
       />
 
       <RenderIf condition={showCreate}>
-        <ApiKeyFormDialog agents={agents} datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setShowCreate(false)} onCreated={handleCreated} onUpdated={handleUpdated} />
+        <ApiKeyFormDialog datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setShowCreate(false)} onCreated={handleCreated} onUpdated={handleUpdated} />
       </RenderIf>
       <RenderIf condition={!!editKey}>
-        <ApiKeyFormDialog edit={editKey} agents={agents} datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setEditKey(null)} onCreated={handleCreated} onUpdated={handleUpdated} />
+        <ApiKeyFormDialog edit={editKey} datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setEditKey(null)} onCreated={handleCreated} onUpdated={handleUpdated} />
       </RenderIf>
       <RenderIf condition={!!created?.key}>
-        <CreatedKeyDialog created={created!} agents={agents} datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setCreated(null)} />
-      </RenderIf>
-      <RenderIf condition={!!docsKey}>
-        <CreatedKeyDialog created={docsKey!} agents={agents} datatableProjects={datatableProjects} kvEntries={kvEntries} onClose={() => setDocsKey(null)} />
+        <CreatedKeyDialog created={created!} onClose={() => setCreated(null)} />
       </RenderIf>
     </div>
   );

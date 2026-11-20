@@ -1,4 +1,3 @@
-import { getDbDialect } from "../../common/db/client.js";
 import type { ColumnType, DatatableColumn } from "../../common/db/schema.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 
@@ -34,12 +33,6 @@ export function parseFiniteNumber(value: unknown): number | null {
 }
 
 function extractExpr(key: string, col?: DatatableColumn): string {
-  if (getDbDialect() === "postgres") {
-    const path = `(data::jsonb->>'${key}')`;
-    if (col?.type === "number") return `(${path})::numeric`;
-    if (col?.type === "boolean") return `(${path})::boolean`;
-    return path;
-  }
   const extracted = `json_extract(data, '${jsonPath(key)}')`;
   if (col?.type === "number") return `CAST(${extracted} AS REAL)`;
   return extracted;
@@ -99,11 +92,7 @@ function pushOp(parts: string[], params: unknown[], key: string, op: string, raw
 
   if (op === "$contains") {
     if (col.type === "json") {
-      if (getDbDialect() === "postgres") {
-        parts.push(`EXISTS (SELECT 1 FROM jsonb_array_elements_text(data::jsonb->'${key}') AS t(value) WHERE t.value = ?)`);
-      } else {
-        parts.push(`EXISTS (SELECT 1 FROM json_each(${expr}) WHERE json_each.value = ?)`);
-      }
+      parts.push(`EXISTS (SELECT 1 FROM json_each(${expr}) WHERE json_each.value = ?)`);
       params.push(typeof rawValue === "string" || typeof rawValue === "number" || typeof rawValue === "boolean" ? rawValue : JSON.stringify(rawValue));
       return;
     }

@@ -16,7 +16,7 @@ describe("packageNameFromSpecifier", () => {
     expect(packageNameFromSpecifier("fs")).toBeNull();
     expect(packageNameFromSpecifier("bun:sqlite")).toBeNull();
     expect(packageNameFromSpecifier("nonlaagents")).toBeNull();
-    expect(packageNameFromSpecifier("@nonla-agents/runtime")).toBeNull();
+    expect(packageNameFromSpecifier("@agenthands/runtime")).toBeNull();
   });
 
   test("rejects interpolations and placeholders bun add cannot parse", () => {

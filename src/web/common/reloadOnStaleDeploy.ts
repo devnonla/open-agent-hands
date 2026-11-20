@@ -4,7 +4,7 @@
  * Reload once when the server buildId drifts or a preload fails.
  */
 
-const RELOAD_FLAG = "nonla-agents:stale-reload";
+const RELOAD_FLAG = "agenthands:stale-reload";
 
 function reloadOnce(reason: string): void {
   try {

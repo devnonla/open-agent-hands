@@ -1,5 +1,6 @@
+import { currentWorkspaceId, runInWorkspace } from "../../common/workspace/workspace-context.js";
+import { inWorkspace } from "../../common/workspace/scope.js";
 import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
-import { OMITTED_WRITE_MESSAGE, isOmittedSource } from "../../common/ai/apply-exact-replace.js";
 import { type Job, type JobRun, type JobRunTrigger, type NewJob, type NewJobRun, getDb, jobRuns, jobs } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { qall, qone, qrun } from "../../common/db/query.js";
@@ -42,10 +43,10 @@ export function toPublicJob(job: Job): Job {
 }
 
 const DEFAULT_TIMEOUT_MS = 300_000;
-const DEFAULT_CODE = `import nonlaagents from "@nonla-agents/runtime";
+const DEFAULT_CODE = `import agenthands from "@agenthands/runtime";
 
-await nonlaagents.step("Main", async () => {
-  nonlaagents.log.info("Job started");
+await agenthands.step("Main", async () => {
+  agenthands.log.info("Job started");
 });
 `;
 
@@ -65,12 +66,17 @@ function resolveSchedule(cron: string): { enabled: boolean; nextRunAt: Date | nu
 }
 
 export async function listJobs(query?: RawQuery) {
-  const result = await listQuery({ table: jobs, searchColumns: ["name", "description"] }, query);
+  const result = await listQuery({ table: jobs, where: inWorkspace(jobs.workspaceId), searchColumns: ["name", "description"] }, query);
   return { ...result, items: result.items.map(toPublicJob) };
 }
 
 export async function getJob(id: string): Promise<Job | undefined> {
-  return await qone(getDb().select().from(jobs).where(eq(jobs.id, id)));
+  return await qone(
+    getDb()
+      .select()
+      .from(jobs)
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
 }
 
 export async function createJob(body: {
@@ -88,9 +94,9 @@ export async function createJob(body: {
   const timeoutMs = typeof body.timeoutMs === "number" && body.timeoutMs > 0 ? Math.floor(body.timeoutMs) : DEFAULT_TIMEOUT_MS;
   const now = new Date();
   const code = typeof body.code === "string" ? body.code : DEFAULT_CODE;
-  if (isOmittedSource(code)) throw new BadRequestException(OMITTED_WRITE_MESSAGE);
 
   const entry: NewJob = {
+    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     name,
     description: body.description?.trim() || null,
@@ -138,7 +144,6 @@ export async function updateJob(
     patch.description = body.description?.trim() || null;
   }
   if (typeof body.code === "string") {
-    if (isOmittedSource(body.code)) throw new BadRequestException(OMITTED_WRITE_MESSAGE);
     patch.code = body.code;
     patch.draftCode = body.code;
   }
@@ -166,7 +171,12 @@ export async function updateJob(
     }
   }
 
-  await qrun(getDb().update(jobs).set(patch).where(eq(jobs.id, id)));
+  await qrun(
+    getDb()
+      .update(jobs)
+      .set(patch)
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
   const updated = toPublicJob((await getJob(id))!);
   wsHub.emit("jobs:updated", updated);
   wakeScheduler();
@@ -176,7 +186,11 @@ export async function updateJob(
 export async function deleteJob(id: string) {
   const existing = await getJob(id);
   if (!existing) throw new BadRequestException("Job not found");
-  await qrun(getDb().delete(jobs).where(eq(jobs.id, id)));
+  await qrun(
+    getDb()
+      .delete(jobs)
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
   wsHub.emit("jobs:deleted", { id });
   wakeScheduler();
 }
@@ -197,6 +211,10 @@ export async function listJobRuns(jobId: string, query?: RawQuery) {
   return { items: rows.map(toPublicJobRun), total, page, limit };
 }
 
+async function getJobAnyWorkspace(id: string): Promise<Job | undefined> {
+  return await qone(getDb().select().from(jobs).where(eq(jobs.id, id)));
+}
+
 export async function getJobRun(runId: string): Promise<JobRun | undefined> {
   return await qone(getDb().select().from(jobRuns).where(eq(jobRuns.id, runId)));
 }
@@ -204,11 +222,21 @@ export async function getJobRun(runId: string): Promise<JobRun | undefined> {
 /** Recalculate next_run_at for all enabled jobs (e.g. timezone change). */
 export async function recalculateAllJobSchedules() {
   const db = getDb();
-  const enabledJobs = await qall(db.select().from(jobs).where(eq(jobs.enabled, true)));
+  const enabledJobs = await qall(
+    db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.enabled, true)),
+  );
   const now = new Date();
   for (const job of enabledJobs) {
     const next = cronNextDateMulti(job.cron, now);
-    await qrun(db.update(jobs).set({ nextRunAt: next, updatedAt: now }).where(eq(jobs.id, job.id)));
+    await qrun(
+      db
+        .update(jobs)
+        .set({ nextRunAt: next, updatedAt: now })
+        .where(eq(jobs.id, job.id)),
+    );
   }
   wakeScheduler();
 }
@@ -318,7 +346,7 @@ export async function finishJobRun(opts: {
 }) {
   const db = getDb();
   const now = new Date();
-  const job = await getJob(opts.jobId);
+  const job = await getJobAnyWorkspace(opts.jobId);
   const existing = await getJobRun(opts.runId);
   const baseEntries = opts.logs !== undefined ? (typeof opts.logs === "string" ? parseJobLogs(opts.logs) : opts.logs) : parseJobLogs(existing?.logs);
   const startedMs = existing?.startedAt ? new Date(existing.startedAt).getTime() : now.getTime();
@@ -365,10 +393,14 @@ export async function finishJobRun(opts: {
       .where(eq(jobs.id, opts.jobId)),
   );
 
-  const updatedJob = await getJob(opts.jobId);
+  const updatedJob = await getJobAnyWorkspace(opts.jobId);
   const updatedRun = await getJobRun(opts.runId);
-  if (updatedJob) wsHub.emit("jobs:updated", toPublicJob(updatedJob));
-  if (updatedRun) wsHub.emit("job_runs:updated", toPublicJobRun(updatedRun));
+  if (updatedJob) {
+    await runInWorkspace(updatedJob.workspaceId, async () => {
+      wsHub.emit("jobs:updated", toPublicJob(updatedJob));
+      if (updatedRun) wsHub.emit("job_runs:updated", toPublicJobRun(updatedRun));
+    });
+  }
   wakeScheduler();
 }
 
@@ -401,14 +433,19 @@ export async function healOrphanedRuns(now: Date = new Date()) {
           .where(eq(jobRuns.id, run.id)),
       );
       const orphan = await getJobRun(run.id);
-      if (orphan) wsHub.emit("job_runs:updated", toPublicJobRun(orphan));
+      if (orphan) runInWorkspace(job.workspaceId, () => wsHub.emit("job_runs:updated", toPublicJobRun(orphan)));
     }
-    await qrun(db.update(jobs).set({ leaseOwner: null, leaseUntil: null, updatedAt: now }).where(eq(jobs.id, job.id)));
+    await qrun(
+      db
+        .update(jobs)
+        .set({ leaseOwner: null, leaseUntil: null, updatedAt: now })
+        .where(eq(jobs.id, job.id)),
+    );
   }
 
   const stuckRuns = await qall(db.select().from(jobRuns).where(eq(jobRuns.status, "running")));
   for (const run of stuckRuns) {
-    const job = await getJob(run.jobId);
+    const job = await getJobAnyWorkspace(run.jobId);
     if (!job) continue;
     const leaseUntil = asDate(job.leaseUntil);
     if (leaseUntil && leaseUntil.getTime() > now.getTime()) continue;
@@ -422,18 +459,28 @@ export async function healOrphanedRuns(now: Date = new Date()) {
         })
         .where(eq(jobRuns.id, run.id)),
     );
-    await qrun(db.update(jobs).set({ leaseOwner: null, leaseUntil: null, updatedAt: now }).where(eq(jobs.id, job.id)));
+    await qrun(
+      db
+        .update(jobs)
+        .set({ leaseOwner: null, leaseUntil: null, updatedAt: now })
+        .where(eq(jobs.id, job.id)),
+    );
     const orphan = await getJobRun(run.id);
-    if (orphan) wsHub.emit("job_runs:updated", toPublicJobRun(orphan));
-    if (job.enabled) wsHub.emit("jobs:updated", toPublicJob((await getJob(job.id))!));
+    const refreshed = await getJobAnyWorkspace(job.id);
+    runInWorkspace(job.workspaceId, () => {
+      if (orphan) wsHub.emit("job_runs:updated", toPublicJobRun(orphan));
+      if (job.enabled && refreshed) wsHub.emit("jobs:updated", toPublicJob(refreshed));
+    });
   }
 }
 
 export async function updateDraftCode(id: string, draftCode: string): Promise<void> {
-  if (isOmittedSource(draftCode)) {
-    throw new BadRequestException(OMITTED_WRITE_MESSAGE);
-  }
-  await qrun(getDb().update(jobs).set({ draftCode, updatedAt: new Date() }).where(eq(jobs.id, id)));
+  await qrun(
+    getDb()
+      .update(jobs)
+      .set({ draftCode, updatedAt: new Date() })
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
   wsHub.emit("jobs:updated", { id, draftCode });
 }
 
@@ -447,13 +494,23 @@ export async function approveJobDraft(id: string): Promise<{ published: boolean 
 }
 
 export async function getDraftCode(id: string): Promise<string | null> {
-  const row = await qone(getDb().select({ draftCode: jobs.draftCode, code: jobs.code }).from(jobs).where(eq(jobs.id, id)));
+  const row = await qone(
+    getDb()
+      .select({ draftCode: jobs.draftCode, code: jobs.code })
+      .from(jobs)
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
   if (!row) return null;
   return row.draftCode ?? row.code ?? null;
 }
 
 export async function getJobCode(id: string): Promise<string | null> {
-  const row = await qone(getDb().select({ code: jobs.code }).from(jobs).where(eq(jobs.id, id)));
+  const row = await qone(
+    getDb()
+      .select({ code: jobs.code })
+      .from(jobs)
+      .where(and(inWorkspace(jobs.workspaceId), eq(jobs.id, id))),
+  );
   if (!row) return null;
   return row.code ?? "";
 }

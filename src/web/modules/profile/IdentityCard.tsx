@@ -80,9 +80,6 @@ export function IdentityCard({ user, avatar, onAvatarChange, onLogout }: Identit
       </div>
 
       <div className="mx-6 mt-5 divide-y divide-border-subtle border-t border-border-subtle">
-        <InfoRow label="Role">
-          <span className="capitalize">{user.role}</span>
-        </InfoRow>
         <InfoRow label="Status">
           <span className="inline-flex items-center gap-1.5">
             <span className={cn("size-1.5 rounded-full", user.isActive ? "bg-emerald-500" : "bg-muted-foreground/40")} />

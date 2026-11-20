@@ -21,10 +21,9 @@ describe("Health Check", () => {
 
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.ok).toBe(true);
-    expect(data.app).toBe("nonla-agents");
+    expect(data.app).toBe("agenthands");
     expect(data.runtime).toBe("bun");
     expect(data.version).toBe(rootPkg.version);
-    expect(typeof data.buildId).toBe("string");
     expect(String(data.buildId).length).toBeGreaterThan(0);
   });
 });

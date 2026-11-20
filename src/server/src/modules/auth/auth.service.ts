@@ -38,7 +38,6 @@ async function issueTokenPair(user: User): Promise<{ token: string; refreshToken
   const payload: JwtPayload = {
     sub: user.id,
     username: user.username,
-    role: user.role,
   };
   const token = await signToken(payload);
   const refreshToken = createRefreshTokenRaw();
@@ -129,7 +128,6 @@ export async function setupFirstAdmin(body: {
       username,
       name,
       passwordHash,
-      role: "admin",
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -279,8 +277,11 @@ export async function changePassword(userId: string, body: { oldPassword: string
 
 // ─── Update Profile ───────────────────────────────────────────────────────────
 
-export async function updateProfile(userId: string, body: { name?: string; avatar?: string }): Promise<SafeUser> {
-  const { name, avatar } = body;
+const THEMES = new Set(["system", "light", "dark"]);
+
+export async function updateProfile(userId: string, body: { name?: string; avatar?: string; theme?: string | null }): Promise<SafeUser> {
+  const { name, avatar, theme } = body;
+  if (theme !== undefined && theme !== null && !THEMES.has(theme)) throw new BadRequestException("theme must be system, light or dark");
   const db = getDb();
 
   await qrun(
@@ -289,6 +290,7 @@ export async function updateProfile(userId: string, body: { name?: string; avata
       .set({
         ...(name !== undefined ? { name } : {}),
         ...(avatar !== undefined ? { avatar } : {}),
+        ...(theme !== undefined ? { theme } : {}),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId)),

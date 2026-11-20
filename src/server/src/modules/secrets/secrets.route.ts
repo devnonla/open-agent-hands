@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
-import { requireRole } from "../../common/middleware/auth.middleware.js";
+import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import { createSecret, deleteSecret, getSecretMeta, getSecretValue, listSecrets, updateSecret } from "./secrets.service.js";
 
 const app = new Hono();
 
-app.use("*", requireRole("admin"));
+app.use("*", requireAuth);
 
 app.get("/", async (c) => c.json(await listSecrets(c.req.query())));
 

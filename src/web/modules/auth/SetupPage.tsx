@@ -5,13 +5,14 @@
  * Creates the first admin account + sets system timezone.
  */
 
-import { Button, EFormItemType, Logo, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
+import { Button, EFormItemType, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import meadowWallpaper from "src/assets/bg.jpg";
 import { apiClient, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
+import { AppMark } from "src/components/AppLogo";
 interface TimezoneItem {
   tz: string;
   offset: string;
@@ -156,7 +157,7 @@ export default function SetupPage() {
       <div className="relative z-10 flex h-full items-center justify-center overflow-y-auto p-6">
         <div className="relative w-full max-w-110 mx-4 overflow-hidden rounded-md border border-border bg-card shadow-(--elevated-shadow)">
           <div className="flex items-center gap-2 h-8 px-3 bg-background border-b border-border/35">
-            <Logo variant="icon" size={16} />
+            <AppMark size={16} />
             <span className="text-[13px] font-semibold text-foreground">Initial Setup</span>
           </div>
           <div className="px-6 pb-6 pt-6">

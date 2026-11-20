@@ -176,13 +176,13 @@ export default function KvStorePage() {
       <PageHeader
         title="KV Store"
         icon="kv-store"
-        description="Plain key-value entries agents and tools can read. Use Secrets for credentials."
+        description="Plain key-value entries tools can read. Use Secrets for credentials."
         className="mb-4 shrink-0"
         actions={
           <>
             <SearchInput defaultValue={filterSearch} onChange={handleSearch} placeholder="Search keys..." className="w-56" />
             {selectedRowKeys.length > 0 ? (
-              <Popconfirm title={selectedRowKeys.length === 1 ? "Delete 1 entry?" : `Delete ${selectedRowKeys.length} entries?`} description="Tools using these keys will get null from nonlaagents.kv.get." okText="Delete" okType="danger" onConfirm={handleDeleteSelected} styles={{ root: { width: 280 } }}>
+              <Popconfirm title={selectedRowKeys.length === 1 ? "Delete 1 entry?" : `Delete ${selectedRowKeys.length} entries?`} description="Tools using these keys will get null from agenthands.kv.get." okText="Delete" okType="danger" onConfirm={handleDeleteSelected} styles={{ root: { width: 280 } }}>
                 <Button danger icon={<Trash2 size={16} />}>
                   Delete ({selectedRowKeys.length})
                 </Button>

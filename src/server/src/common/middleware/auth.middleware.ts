@@ -1,10 +1,9 @@
 /**
- * Auth middleware — JWT verification + role-based access control.
+ * Auth middleware — JWT verification.
  *
  * Usage in routes:
  *   app.use("*", resolveAuth);          // optional: populate c.get("user")
  *   app.use("*", requireAuth);          // 401 if not authenticated
- *   app.use("*", requireRole("admin")); // 403 if role not allowed
  */
 
 import { eq } from "drizzle-orm";
@@ -13,7 +12,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { getDb, users } from "../db/client.js";
 import { qone, qrun } from "../db/query.js";
 import { appSettings } from "../db/schema.js";
-import { ForbiddenException, UnauthorizedException } from "../exceptions/http.exception.js";
+import { UnauthorizedException } from "../exceptions/http.exception.js";
 
 // ─── JWT Secret ───────────────────────────────────────────────────────────────
 
@@ -50,7 +49,6 @@ function getJwtSecret(): Uint8Array {
 export interface JwtPayload {
   sub: string;
   username: string;
-  role: string;
 }
 
 export async function signToken(payload: JwtPayload): Promise<string> {
@@ -154,21 +152,4 @@ export async function requireAuth(c: Context, next: Next) {
     throw new UnauthorizedException("Authentication required");
   }
   await next();
-}
-
-/**
- * Require role — 403 if user's role is not in allowed list.
- * Must be used AFTER requireAuth.
- */
-export function requireRole(...roles: string[]) {
-  return async (c: Context, next: Next) => {
-    const user = (c as any).get("user") as { role: string } | undefined;
-    if (!user) {
-      throw new UnauthorizedException("Authentication required");
-    }
-    if (!roles.includes(user.role)) {
-      throw new ForbiddenException("Insufficient permissions");
-    }
-    await next();
-  };
 }

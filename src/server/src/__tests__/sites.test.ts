@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import type { Hono } from "hono";
 import { tmpDir } from "../common/utils/data-dir.js";
-import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
+import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
 
 describe("Sites API", () => {
   let app: Hono;
@@ -13,7 +13,7 @@ describe("Sites API", () => {
 
   beforeAll(async () => {
     prevDataDir = process.env.DATA_DIR;
-    dataDir = `${tmpDir()}/nonla-agents-sites-${crypto.randomUUID()}`;
+    dataDir = `${tmpDir()}/agenthands-sites-${crypto.randomUUID()}`;
     process.env.DATA_DIR = dataDir;
 
     const t = await createTestApp();
@@ -259,72 +259,12 @@ export default function App() {
 
     const { unlinkSync: unlink } = await import("node:fs");
     const { getTreeDir } = await import("../modules/sites/sites-fs.js");
-    unlink(`${getTreeDir(site.id, "draft")}/styles.css`);
+    unlink(`${inDefaultWorkspace(() => getTreeDir(site.id, "draft"))}/styles.css`);
 
     const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
     expect(previewRes.status).toBe(200);
     const preview = (await previewRes.json()) as { html: string };
     expect(preview.html).toContain('id="root"');
-
-    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
-  }, 180_000);
-
-  test("preview works when styles.css is a compacted omitted placeholder", async () => {
-    const createRes = await authRequest(app, token, "POST", "/api/sites", {
-      name: "Omitted CSS",
-      slug: "omitted-css",
-    });
-    expect(createRes.status).toBe(201);
-    const site = (await createRes.json()) as { id: string };
-
-    const { writeFileSync } = await import("node:fs");
-    const { EDIT_PAYLOAD_OMITTED } = await import("../common/ai/apply-exact-replace.js");
-    const { getTreeDir } = await import("../modules/sites/sites-fs.js");
-    writeFileSync(`${getTreeDir(site.id, "draft")}/styles.css`, EDIT_PAYLOAD_OMITTED);
-
-    const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
-    expect(previewRes.status).toBe(200);
-    const preview = (await previewRes.json()) as { html: string };
-    expect(preview.html).toContain('id="root"');
-
-    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
-  }, 180_000);
-
-  test("preview fails clearly when app.tsx is a compacted omitted placeholder", async () => {
-    const createRes = await authRequest(app, token, "POST", "/api/sites", {
-      name: "Omitted App",
-      slug: "omitted-app",
-    });
-    expect(createRes.status).toBe(201);
-    const site = (await createRes.json()) as { id: string };
-
-    const { writeFileSync } = await import("node:fs");
-    const { EDIT_PAYLOAD_OMITTED } = await import("../common/ai/apply-exact-replace.js");
-    const { getTreeDir } = await import("../modules/sites/sites-fs.js");
-    writeFileSync(`${getTreeDir(site.id, "draft")}/app.tsx`, EDIT_PAYLOAD_OMITTED);
-
-    const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
-    expect(previewRes.status).toBe(422);
-    const preview = (await previewRes.json()) as { message: string };
-    expect(preview.message).toContain("app.tsx");
-    expect(preview.message).toContain("compacted edit placeholder");
-
-    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
-  }, 180_000);
-
-  test("PUT omitted placeholder is rejected", async () => {
-    const createRes = await authRequest(app, token, "POST", "/api/sites", {
-      name: "CSS in app",
-      slug: "css-in-app",
-    });
-    expect(createRes.status).toBe(201);
-    const site = (await createRes.json()) as { id: string };
-
-    const omitted = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/styles.css`, {
-      content: "[omitted — see latest tool result / system draft]",
-      tree: "draft",
-    });
-    expect(omitted.status).toBe(400);
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);
@@ -429,26 +369,6 @@ export default function App() {
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 30_000);
 
-  test("collectSiteEditorDiagnostics reports TS and JSON errors from draft files", async () => {
-    const { collectSiteEditorDiagnostics } = await import("../modules/sites/common/site-editor-diagnostics.js");
-    const { removeSiteDir, writeScaffold, writeSourceFile } = await import("../modules/sites/sites-fs.js");
-    const id = "diag-draft-site";
-    writeScaffold(id, "diag-draft");
-    try {
-      expect(collectSiteEditorDiagnostics(id)).toEqual([]);
-
-      writeSourceFile(id, "draft", "app.tsx", "export default function App() {\n  return <div>{missingIdent}</div>;\n}\n");
-      const tsErrors = collectSiteEditorDiagnostics(id);
-      expect(tsErrors.some((d) => d.file === "app.tsx" && /missingIdent/.test(d.message))).toBe(true);
-
-      writeSourceFile(id, "draft", "package.json", '{ "name": "broken", ');
-      const jsonErrors = collectSiteEditorDiagnostics(id);
-      expect(jsonErrors.some((d) => d.file === "package.json")).toBe(true);
-    } finally {
-      removeSiteDir(id);
-    }
-  });
-
   test("POST /api/sites/:id/approve — single file leaves other draft changes", async () => {
     const createRes = await authRequest(app, token, "POST", "/api/sites", {
       name: "Partial",
@@ -527,7 +447,7 @@ export default function App() {
     const putBody = (await putRes.json()) as { depsInstalled: boolean };
     expect(putBody.depsInstalled).toBe(true);
 
-    const draftDir = `${dataDir}/sites/${site.id}/draft`;
+    const draftDir = `${dataDir}/workspaces/default/sites/${site.id}/draft`;
     expect(existsSync(`${draftDir}/node_modules/nanoid/package.json`)).toBe(true);
     const pkg = JSON.parse(readFileSync(`${draftDir}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
     expect(pkg.dependencies?.nanoid).toBeTruthy();
@@ -540,7 +460,7 @@ export default function App() {
 
     const approveRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "app.tsx" });
     expect(approveRes.status).toBe(200);
-    const prodPkg = JSON.parse(readFileSync(`${dataDir}/sites/${site.id}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
+    const prodPkg = JSON.parse(readFileSync(`${dataDir}/workspaces/default/sites/${site.id}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
     expect(prodPkg.dependencies?.nanoid).toBeTruthy();
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);

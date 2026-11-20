@@ -1,12 +1,12 @@
 name: 🚀 Feature Request
-description: Suggest an idea or a new feature for Nonla Agents
+description: Suggest an idea or a new feature for Agent Hands
 title: "[FEATURE] "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Have an idea on how to make Nonla Agents better? Please fill out the form below.
+        Have an idea on how to make Agent Hands better? Please fill out the form below.
   - type: textarea
     id: problem
     attributes:

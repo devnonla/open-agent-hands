@@ -1,9 +1,9 @@
 import { Dropdown, Icon, type MenuProps, Segmented } from "devnonla-ui";
 import { Ellipsis, Pencil, X } from "lucide-react";
+import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
 import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
-import { AgentsContentHeader, ContentBreadcrumb } from "src/modules/agents/components/ContentBreadcrumb";
 
 export type SiteViewMode = "preview" | "editor";
 
@@ -65,7 +65,7 @@ export function SiteEditorHeader({ title, draftDirty, viewMode, onViewModeChange
   ];
 
   return (
-    <AgentsContentHeader
+    <ContentHeader
       left={
         <div className="flex min-w-0 items-center gap-2">
           <WindowHeaderBackButton to="/sites" label="Back to sites" />

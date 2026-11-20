@@ -3,8 +3,8 @@ import { Dropdown, Modal } from "devnonla-ui";
 import { Ellipsis, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "src/common/lib/cn";
+import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { FeatureIcon } from "src/components/FeatureIcon";
-import { AgentsContentHeader, ContentBreadcrumb } from "src/modules/agents/components/ContentBreadcrumb";
 
 interface EditToolHeaderProps {
   label: string;
@@ -47,7 +47,7 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, on
   ];
 
   return (
-    <AgentsContentHeader
+    <ContentHeader
       left={<ContentBreadcrumb items={[{ label: "Tools", to: "/tools", icon: <FeatureIcon name="tools" size={16} variant="sticker" /> }, { label: label || "Untitled Tool" }]} />}
       right={
         <div className="flex items-center gap-1.5">
