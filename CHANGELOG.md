@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-11-20
+
+### Added
+
+- **Desktop app for macOS** (`bun run build:desktop`). It is a light Tauri wrapper that bundles the binary, starts the server on 8429 and shows the dashboard in a window. A menu bar icon offers Open, Open in Browser, Start at Login and Quit.
+- **The one-line install sets up the Mac app.** On macOS, `install.sh` installs `Open Agent Hands.app`, links `agenthands` to the binary inside it and opens it. It falls back to the plain binary when a release has no app. Release builds `OpenAgentHands-darwin-{arm64,x64}.app.tar.gz` on a macOS runner.
+
+### Changed
+
+- **Dev runs beside the installed binary.** `bun run dev` uses API 18429 and UI 18430 with its own data in `~/.open-agent-hands-dev`. The binary keeps port 8429 and `~/.open-agent-hands`.
+- **Jobs are watched, not configured.** The job page has Overview, Activities and Code tabs. Overview shows each cron in plain words, the next three runs, and a pause switch. The schedule editor and the settings form are gone, and agents set the schedule with `update_job`.
+- **Pause keeps the schedule.** A paused job keeps its cron. It stays paused when an agent changes the cron, until someone resumes it or an agent passes `enabled=true`. Job results include `status` (`scheduled`, `paused` or `manual`) and `nextRuns`.
+- **Datatables and hosted MCP servers.** The "New project", "Add table", "Edit tools" and "Pick tools" controls are removed. Empty states name the Core MCP tool to ask for instead. Rows stay editable.
+- **Docs for two readers.** The README is now for people who use the app: install, connect, day to day, update, uninstall and troubleshooting. CONTRIBUTING.md covers developing, building and releasing a fork.
+- **Release notes come from CHANGELOG.md.** The release workflow fails if the tag has no changelog section.
+
 ## [0.1.0] - 2026-11-20
 
 Open Agent Hands is a local server where AI coding agents (Claude Code, Codex) build and run tools, hosted MCP servers, sites, jobs, KV, secrets and datatables over MCP. People mostly watch and correct through the web UI. It started as a fork of Nonla Agents, with the in-app LLM agents removed.

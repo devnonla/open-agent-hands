@@ -1,6 +1,6 @@
 {
   "name": "agenthands",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Agent Hands — local server for tools, MCP, KV and datatables that Claude Code / Codex connect to.",
   "license": "MIT",
@@ -13,8 +13,8 @@
     "src/web"
   ],
   "scripts": {
-    "dev:server": "bun --watch src/server/src/index.ts --port 8429",
-    "dev:web": "cd src/web && bun run dev",
+    "dev:server": "bun --watch src/server/src/index.ts --port 18429 --data-dir $HOME/.open-agent-hands-dev",
+    "dev:web": "cd src/web && API_PORT=18429 bun run dev",
     "dev": "concurrently --names \"server,web\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"bun run dev:server\" \"bun run dev:web\"",
     "start": "bun src/server/src/index.ts",
     "build:web": "cd src/web && bun run build",
@@ -29,7 +29,8 @@
     "test": "bun test src/server/src/__tests__/",
     "test:watch": "bun test --watch src/server/src/__tests__/",
     "build:binary": "bun scripts/build-binary.ts --skip-web",
-    "build:binary:all": "bun run build:web && bun scripts/build-binary.ts --skip-web --all"
+    "build:binary:all": "bun run build:web && bun scripts/build-binary.ts --skip-web --all",
+    "build:desktop": "bun scripts/build-desktop.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
