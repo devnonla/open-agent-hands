@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-21
+
 ### Fixed
 
 - **The Mac app now tells you when an update is out.** The window comes forward with the update prompt, and the menu bar item changes to **Install Update X.Y.Z…** with a tooltip, so a missed prompt is no longer lost. Choosing Later keeps that item until you install.

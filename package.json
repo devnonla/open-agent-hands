@@ -1,6 +1,6 @@
 {
   "name": "agenthands",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "Agent Hands — local server for tools, MCP, KV and datatables that Claude Code / Codex connect to.",
   "license": "MIT",
