@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Mac app now tells you when an update is out.** The window comes forward with the update prompt, and the menu bar item changes to **Install Update X.Y.Z…** with a tooltip, so a missed prompt is no longer lost. Choosing Later keeps that item until you install.
+- **You can see an update happening.** Checking shows "Checking for Updates…" in the menu. Installing shows the download percentage in the menu and in a bar at the bottom of the window, then "Installing…" before the app restarts. If it fails, a message says so and your current version keeps working. Update activity is written to `~/.open-agent-hands/logs/desktop.log`.
+
 ## [0.4.1] - 2026-11-20
 
 ### Added

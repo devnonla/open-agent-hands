@@ -29,6 +29,8 @@ struct Server(Mutex<Option<Child>>);
 struct Updates {
     busy: Mutex<bool>,
     skipped: Mutex<Option<String>>,
+    pending: Mutex<Option<String>>,
+    item: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
 fn updater_config() -> Option<(&'static str, &'static str)> {
@@ -189,6 +191,54 @@ fn ask(app: &AppHandle, text: String, ok: &str, cancel: &str) -> bool {
         .blocking_show()
 }
 
+fn log_update(text: &str) {
+    let path = data_dir().join("logs").join("desktop.log");
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let _ = writeln!(file, "[{now}] update: {text}");
+    }
+}
+
+fn set_update_item(app: &AppHandle, text: &str, enabled: bool) {
+    if let Some(item) = app.state::<Updates>().item.lock().unwrap().as_ref() {
+        let _ = item.set_text(text);
+        let _ = item.set_enabled(enabled);
+    }
+}
+
+fn reset_update_item(app: &AppHandle) {
+    let pending = app.state::<Updates>().pending.lock().unwrap().clone();
+    let tooltip = match &pending {
+        Some(version) => format!("Open Agent Hands - update {version} available"),
+        None => "Open Agent Hands".to_string(),
+    };
+    match pending {
+        Some(version) => set_update_item(app, &format!("Install Update {version}…"), true),
+        None => set_update_item(app, "Check for Updates…", true),
+    }
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
+}
+
+fn show_progress(app: &AppHandle, text: &str, percent: u32) {
+    let Some(window) = app.get_webview_window(MAIN) else { return };
+    let text = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(function(){{var e=document.getElementById('__ah_update');if(!e){{e=document.createElement('div');e.id='__ah_update';e.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;background:#18181b;color:#fff;padding:12px 16px;border-radius:10px;font:13px -apple-system,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);min-width:280px';e.innerHTML='<div id="__ah_update_text"></div><div style="height:4px;background:#3f3f46;border-radius:2px;margin-top:8px;overflow:hidden"><div id="__ah_update_bar" style="height:100%;width:0;background:#8b5cf6;transition:width .2s"></div></div>';(document.body||document.documentElement).appendChild(e);}}document.getElementById('__ah_update_text').textContent={text};document.getElementById('__ah_update_bar').style.width='{percent}%';}})();"#
+    );
+    let _ = window.eval(&script);
+}
+
+fn hide_progress(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN) {
+        let _ = window.eval("var e=document.getElementById('__ah_update');if(e)e.remove();");
+    }
+}
+
 async fn check_for_update(app: AppHandle, manual: bool) {
     let Some((_, endpoint)) = updater_config() else { return };
     {
@@ -199,19 +249,25 @@ async fn check_for_update(app: AppHandle, manual: bool) {
         }
         *busy = true;
     }
+    if manual {
+        set_update_item(&app, "Checking for Updates…", false);
+    }
     let result = run_update_check(&app, endpoint, manual).await;
     *app.state::<Updates>().busy.lock().unwrap() = false;
     if let Err(err) = result {
+        log_update(&format!("check failed: {err}"));
         if manual {
             message(&app, MessageDialogKind::Error, format!("Could not check for updates: {err}"));
         }
     }
+    reset_update_item(&app);
 }
 
 async fn run_update_check(app: &AppHandle, endpoint: &str, manual: bool) -> Result<(), String> {
     let url = endpoint.parse().map_err(|e| format!("{e}"))?;
     let updater = app.updater_builder().endpoints(vec![url]).map_err(|e| e.to_string())?.build().map_err(|e| e.to_string())?;
     let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        *app.state::<Updates>().pending.lock().unwrap() = None;
         if manual {
             let current = app.package_info().version.to_string();
             message(app, MessageDialogKind::Info, format!("You're up to date. Open Agent Hands {current} is the latest version."));
@@ -219,11 +275,16 @@ async fn run_update_check(app: &AppHandle, endpoint: &str, manual: bool) -> Resu
         return Ok(());
     };
 
+    log_update(&format!("{} is available (running {})", update.version, update.current_version));
+    *app.state::<Updates>().pending.lock().unwrap() = Some(update.version.clone());
+    reset_update_item(app);
+
     let skipped = app.state::<Updates>().skipped.lock().unwrap().clone();
     if !manual && skipped.as_deref() == Some(update.version.as_str()) {
         return Ok(());
     }
 
+    show_main(app);
     let mut text = format!("Open Agent Hands {} is available. You have {}.", update.version, update.current_version);
     if let Some(notes) = update.body.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
         let notes: String = notes.chars().take(600).collect();
@@ -235,7 +296,40 @@ async fn run_update_check(app: &AppHandle, endpoint: &str, manual: bool) -> Resu
         return Ok(());
     }
 
-    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    let version = update.version.clone();
+    show_main(app);
+    set_update_item(app, "Downloading update… 0%", false);
+    show_progress(app, &format!("Downloading Open Agent Hands {version}… 0%"), 0);
+
+    let mut downloaded: u64 = 0;
+    let mut last_percent: u32 = 101;
+    let installed = update
+        .download_and_install(
+            |chunk, total| {
+                downloaded += chunk as u64;
+                let Some(total) = total.filter(|t| *t > 0) else { return };
+                let percent = ((downloaded * 100) / total).min(100) as u32;
+                if percent != last_percent {
+                    last_percent = percent;
+                    set_update_item(app, &format!("Downloading update… {percent}%"), false);
+                    show_progress(app, &format!("Downloading Open Agent Hands {version}… {percent}%"), percent);
+                }
+            },
+            || {
+                set_update_item(app, "Installing update…", false);
+                show_progress(app, "Installing. The app restarts in a moment.", 100);
+            },
+        )
+        .await;
+
+    if let Err(err) = installed {
+        hide_progress(app);
+        log_update(&format!("install failed: {err}"));
+        message(app, MessageDialogKind::Error, format!("The update could not be installed: {err}\n\nYour current version keeps working. Try again from the menu bar."));
+        return Ok(());
+    }
+
+    log_update(&format!("installed {version}, restarting"));
     stop_server(app);
     app.restart();
 }
@@ -267,6 +361,10 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let menu = Menu::with_items(handle, &[&open, &browser, &separator()?, &autostart, &separator()?, &quit])?;
     if updater_config().is_some() {
         menu.insert(&updates, 3)?;
+    }
+
+    if updater_config().is_some() {
+        *handle.state::<Updates>().item.lock().unwrap() = Some(updates.clone());
     }
 
     let toggle = autostart.clone();
