@@ -3,7 +3,7 @@
 A site is a small React app with a backend. There is no draft or review step: every `write_site_file` changes the live site at once. Check each change with `preview_site`, then publish it.
 
 ## Files
-`create_site(name, slug)` creates starter files. Read them with `get_site_files` and change them, rather than starting from nothing. The slug is lowercase letters, digits and hyphens, up to 80 characters, and globally unique. The site is served at `/public/sites/<slug>`.
+`create_site(name, slug)` creates starter files. Read them with `get_site_files` and change them, rather than starting from nothing. The slug is lowercase letters, digits and hyphens, up to 80 characters, and globally unique. The site is served at `/public/sites/<slug>`; `create_site` and `publish_site` return its full `url`.
 
 - `app.tsx`: `export default function App()`. React is available. Import data helpers from `"./site-api.js"`:
   - `loadSiteData(query?)` calls the backend GET and returns its value. `query` is an object that becomes query-string params.

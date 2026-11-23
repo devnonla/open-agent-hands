@@ -45,7 +45,7 @@ Files in spaces. See [storage.md](storage.md).
 - `.list(prefix?)` returns `{ key, size, contentType, updatedAt, publicUrl }[]`, up to 1000, sorted by key.
 - `.delete(key)` returns `{ deleted }`.
 - `agenthands.storage.list_spaces()` returns `{ name, description, public, fileCount, totalBytes }[]`.
-- No size limit. `publicUrl` is the file's unguessable public link when the space is public, else `null`.
+- No size limit. `publicUrl` is the file's unguessable full public link when the space is public, else `null`. Code that hands out links needs the space made first with `storage_create_space(public=true)`, because `put` into a missing space makes it private.
 
 ```ts
 const reports = agenthands.storage.space("reports");

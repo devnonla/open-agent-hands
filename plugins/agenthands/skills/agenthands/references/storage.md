@@ -14,7 +14,7 @@ Files for tools, jobs and sites: generated reports, exports, images, downloads t
 - `storage_get_file(space, key, encoding?)` returns the file with `content`. Text types come back as utf8, others as base64. Files over 5 MB are refused; read them in code.
 - `storage_delete_file(space, key)`.
 - There is no size limit; uploads stream to disk. For big files use `url` here, or write them from code with a stream or `Bun.file(path)`.
-- In a public space each file has its own link, `publicUrl`: `/public/storage/<random token>/<file name>`. The token is random per file, so links cannot be guessed from the space or key, and nothing lists them. Search engines are told not to index them. Give the user the `publicUrl` exactly; never build a link from the space and key.
+- In a public space each file has its own full link, `publicUrl`: `<public URL>/public/storage/<random token>/<file name>`. The public URL is set in Settings → General; until then it is the local listen address. The token is random per file, so links cannot be guessed from the space or key, and nothing lists them. Search engines are told not to index them. Give the user the `publicUrl` exactly; never build a link from the space and key.
 - `storage_reset_public_link(space, key)` gives a file a new link when the old one was shared too widely. The old link stops working at once.
 - Private files are only reachable through the tools, code, or the web UI.
 - In code: `agenthands.storage.space("reports").put(key, data)`, `.get(key)`, `.getText(key)`, `.getJson(key)`, `.list(prefix?)`, `.delete(key)`. See [runtime.md](runtime.md).
