@@ -261,7 +261,7 @@ const agenthands = {
     const retries = Math.min(MAX_STEP_RETRIES, Math.max(0, Math.floor(opts.retries ?? 0)));
     const baseBackoff = Math.max(0, opts.backoffMs ?? DEFAULT_STEP_BACKOFF_MS);
     const startedAt = Date.now();
-    emit({ kind: "step", name: label, phase: "start" });
+    emit({ kind: "step", name: label, phase: "start", ts: startedAt });
     for (let attempt = 1; ; attempt++) {
       try {
         const result = await fn();

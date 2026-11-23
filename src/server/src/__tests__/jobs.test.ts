@@ -266,7 +266,9 @@ agenthands.output({ doubled, jobName: agenthands.run.jobName });
     expect(context?.data).toEqual({ trigger: "manual", attempt: 1, last: null });
     const step = done.logs.find((e) => e.kind === "step" && e.duration != null);
     const stepStart = done.logs.find((e) => e.kind === "step" && e.duration == null);
-    expect(step && stepStart && Math.abs(step.t - stepStart.t)).toBeLessThanOrEqual(5);
+    expect(step).toBeDefined();
+    expect(stepStart).toBeDefined();
+    expect(step?.t).toBe(stepStart?.t as number);
 
     const second = await authRequest(app, token, "POST", `/api/jobs/${job.id}/run`, { input: { n: 1 } });
     const again = toPublic(await waitForRun(((await second.json()) as { id: string }).id));
