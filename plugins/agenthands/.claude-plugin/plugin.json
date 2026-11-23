@@ -1,6 +1,6 @@
 {
   "name": "agenthands",
-  "description": "Skills for working with an Agent Hands server through its Core MCP: tools, jobs, sites, datatables, hosted MCP servers, KV, secrets and workspaces.",
+  "description": "Skills for working with an Agent Hands server through its Core MCP: tools, jobs, sites, datatables, hosted MCP servers, KV, secrets and storage.",
   "version": "0.4.1",
   "author": {
     "name": "Agent Hands"

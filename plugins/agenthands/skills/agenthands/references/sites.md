@@ -1,6 +1,6 @@
 # Sites
 
-A site is a small React app with a backend. You edit a draft, check it with `preview_site`, promote it with `approve_site`, then publish it.
+A site is a small React app with a backend. There is no draft or review step: every `write_site_file` changes the live site at once. Check each change with `preview_site`, then publish it.
 
 ## Files
 `create_site(name, slug)` creates starter files. Read them with `get_site_files` and change them, rather than starting from nothing. The slug is lowercase letters, digits and hyphens, up to 80 characters, and globally unique. The site is served at `/public/sites/<slug>`.
@@ -30,10 +30,9 @@ export async function handle({ request, params, query, agenthands }) {
 
 ## Workflow
 1. `create_site`, then `get_site_files`.
-2. `write_site_file` for each of `app.tsx`, `backend.ts`, `styles.css`. Each call writes the full file.
-3. `preview_site` bundles the draft and runs the backend GET. It returns the data or the build error. Fix errors and preview again. It does not exercise POST actions, so reason through those carefully.
-4. `approve_site` copies the draft to production. Until then visitors see the old version. `get_site_files tree=prod` shows what is live.
-5. `publish_site(site, published=true, password?)` makes it public. A password asks visitors to enter it. `password=""` removes it. `published=false` takes the site down.
-6. Tell the user the URL.
+2. `write_site_file` for each of `app.tsx`, `backend.ts`, `styles.css`. Each call writes the full file and is live right away.
+3. `preview_site` bundles the site and runs the backend GET. It returns the data or the build error. Fix errors at once, since a published site already serves the change. It does not exercise POST actions, so reason through those carefully.
+4. `publish_site(site, published=true, password?)` makes it public. A password asks visitors to enter it. `password=""` removes it. `published=false` takes the site down.
+5. Tell the user the URL.
 
 Everything you write is read-only for people in the UI, who can only watch and unpublish.
