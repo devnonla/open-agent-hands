@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { isSandboxAvailable, isSandboxEnabled, sandboxBackendName } from "../../common/sandbox/index.js";
+import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import { loadSettingsByKeys, saveSettings } from "./settings.service.js";
+import { getUpdateInfo } from "./update-check.js";
 import rawTimezones from "./timezones.json" with { type: "json" };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -59,6 +61,8 @@ app.patch("/", async (c) => {
 });
 
 app.get("/sandbox", async (c) => c.json({ enabled: await isSandboxEnabled(), available: await isSandboxAvailable(), backend: sandboxBackendName(), platform: process.platform }));
+
+app.get("/update", requireAuth, async (c) => c.json(await getUpdateInfo()));
 
 // GET /api/settings/timezones
 app.get("/timezones", async (c) => c.json(TIMEZONE_LIST));
