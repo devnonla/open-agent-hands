@@ -5,9 +5,10 @@ description: Cut a release of Open Agent Hands (binaries, install.sh and the mac
 
 # Release Open Agent Hands
 
-A release is a `vX.Y.Z` tag on `main`. Pushing it runs `.github/workflows/release.yml`, which does two things:
+A release is a `vX.Y.Z` tag on `main`. Pushing it runs `.github/workflows/release.yml`, which does three things:
 
 - **`release` (ubuntu):** builds `agenthands-{darwin,linux}-{arm64,x64}` and uploads them with `install.sh`. This job creates the GitHub release.
+- **`docker` (ubuntu):** wraps the two linux binaries in the `release` target of `Dockerfile`, smoke-tests the amd64 image, and pushes `ghcr.io/devnonla/open-agent-hands` for `linux/amd64` and `linux/arm64` with tags `X.Y.Z`, `X.Y` and `latest`. Docker users update with `docker compose pull`, so a broken image reaches them on their next pull.
 - **`desktop` (macos-14):** builds `OpenAgentHands-darwin-{arm64,x64}.app.tar.gz` and adds them to the same release.
 
 People install with `curl -fsSL …/releases/latest/download/install.sh | sh`, so a broken release reaches users immediately. **Run every step in order. Stop and report on the first failure. Never skip a gate to "save time".**
@@ -109,7 +110,7 @@ gh workflow run Release --ref main
 gh run watch "$(gh run list --workflow Release --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 ```
 
-Both jobs must pass. In this mode the `desktop` job checks the signatures and architectures of both bundles and keeps the archives, their `.sig` files and `latest.json` as a `macos-app` artifact instead of uploading them. The log must show `Updater on:` for both builds. Do not tag until the dry run is green.
+All three jobs must pass. In this mode the `docker` job builds both platforms and smoke-tests amd64 but pushes nothing, and the `desktop` job checks the signatures and architectures of both bundles and keeps the archives, their `.sig` files and `latest.json` as a `macos-app` artifact instead of uploading them. The log must show `Updater on:` for both builds. Do not tag until the dry run is green.
 
 ## 6. Tag and watch the release
 
@@ -152,6 +153,15 @@ Then download `OpenAgentHands-darwin-<arch>.app.tar.gz` into scratch, extract it
 
 Check the updater manifest: `curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download/latest.json` must show the new `version`, and both `platforms` URLs must point at this release's archives.
 
+Check the Docker image:
+
+```bash
+docker buildx imagetools inspect ghcr.io/devnonla/open-agent-hands:X.Y.Z   # lists linux/amd64 and linux/arm64
+docker run --rm ghcr.io/devnonla/open-agent-hands:X.Y.Z agenthands --version
+```
+
+`latest` must point at the same digest. The pull must work without `docker login`. If it asks for auth, the package is private: the maintainer sets it to Public once under the package's settings on GitHub.
+
 Finally confirm `gh release list --limit 3` marks it as Latest. The README's release badge follows that.
 
 ## 8. Report
@@ -160,7 +170,7 @@ Tell the user:
 
 - the version and the release URL;
 - each gate and its result;
-- the asset list;
+- the asset list and the Docker image tags;
 - what the post-release check showed;
 - anything skipped and why.
 

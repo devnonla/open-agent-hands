@@ -37,6 +37,13 @@ jobs:
           path: dist/agenthands-darwin-*
           retention-days: 1
 
+      - name: Share Linux binaries with the Docker job
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: dist/agenthands-linux-*
+          retention-days: 1
+
       - name: Release notes from CHANGELOG
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -53,6 +60,80 @@ jobs:
           files: |
             dist/agenthands-*
             scripts/install.sh
+
+  docker:
+    name: Build Docker image
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binaries
+          path: dist
+
+      - name: Docker build context
+        run: |
+          mkdir -p dist/docker
+          cp dist/agenthands-linux-x64 dist/docker/agenthands-amd64
+          cp dist/agenthands-linux-arm64 dist/docker/agenthands-arm64
+          ls -la dist/docker
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=dry-run,enable=${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke-test the amd64 image
+        run: |
+          docker buildx build --load --platform linux/amd64 --target release -f Dockerfile -t agenthands:smoke dist/docker
+          docker run --rm agenthands:smoke agenthands --version
+          docker run -d --name ah -p 8429:8429 agenthands:smoke
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8429/api/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8429/api/health | grep -q '"app":"agenthands"'
+          docker rm -f ah
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: dist/docker
+          file: Dockerfile
+          target: release
+          platforms: linux/amd64,linux/arm64
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   desktop:
     name: Build macOS app

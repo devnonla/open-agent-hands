@@ -1,6 +1,6 @@
 services:
   agenthands:
-    build: .
+    image: ghcr.io/devnonla/open-agent-hands:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:8429:8429"
