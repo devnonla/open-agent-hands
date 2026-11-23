@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-23
+
+### Added
+
+- **Public URL.** Set the address people use to reach Agent Hands. Links to public storage files and published sites start with it, so tools, jobs, sites and agents get full links they can hand out. New installs set it at `/setup`. Existing installs ask once after sign-in, filled in with the address you opened the app from. Change it later in **Settings → General**.
+
+### Changed
+
+- `publicUrl` from storage (Core MCP, `agenthands.storage` in tools, jobs and sites) and the `url` from `create_site` and `publish_site` are full links, not paths.
+
 ## [0.5.0] - 2026-11-23
 
 **Workspaces are gone.** Everything now lives in one shared space. Your data is merged when you upgrade, and names that clash get the old workspace name added (see Removed). Back up `~/.open-agent-hands` (or the Docker volume) first: you can't go back to 0.4 after the upgrade.
