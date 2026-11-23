@@ -1,11 +1,9 @@
-import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
-import { inWorkspace } from "../../common/workspace/scope.js";
 /**
  * my-mcp-servers.service.ts — CRUD for MCP servers we host (Cursor / Claude Code).
  */
 
 import { and, eq, inArray } from "drizzle-orm";
-import { agentTools, getDb, myMcpServerTools, myMcpServers } from "../../common/db/client.js";
+import { agentTools, getDb, myMcpServerTools, myMcpServers, toolFolders } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { qall, qone, qrun } from "../../common/db/query.js";
 import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
@@ -31,6 +29,8 @@ export type MyMcpServerToolInfo = {
   name: string;
   label: string;
   description: string;
+  folderName: string | null;
+  icon: string | null;
 };
 
 export type MyMcpServerDetail = MyMcpServerListItem;
@@ -65,7 +65,7 @@ async function assertCustomToolIds(ids: string[]): Promise<string[]> {
       throw new BadRequestException("Only custom tools can be assigned");
     }
   }
-  const found = await qall(getDb().select({ id: agentTools.id }).from(agentTools).where(and(inWorkspace(agentTools.workspaceId), inArray(agentTools.id, unique))));
+  const found = await qall(getDb().select({ id: agentTools.id }).from(agentTools).where(inArray(agentTools.id, unique)));
   if (found.length !== unique.length) {
     throw new BadRequestException("One or more tools were not found");
   }
@@ -110,9 +110,12 @@ async function loadAssignedToolsMap(serverIds: string[]): Promise<Map<string, My
         name: agentTools.name,
         label: agentTools.label,
         description: agentTools.description,
+        folderName: toolFolders.name,
+        icon: agentTools.icon,
       })
       .from(myMcpServerTools)
       .innerJoin(agentTools, eq(myMcpServerTools.toolId, agentTools.id))
+      .leftJoin(toolFolders, eq(agentTools.folderId, toolFolders.id))
       .where(inArray(myMcpServerTools.serverId, serverIds)),
   );
   for (const { serverId, ...tool } of rows) {
@@ -125,7 +128,7 @@ async function loadAssignedToolsMap(serverIds: string[]): Promise<Map<string, My
 }
 
 export async function listMyMcpServers(query: RawQuery = {}) {
-  const result = await listQuery({ table: myMcpServers, where: inWorkspace(myMcpServers.workspaceId), searchColumns: ["name", "description"] }, query);
+  const result = await listQuery({ table: myMcpServers, searchColumns: ["name", "description"] }, query);
   const items = result.items as (typeof myMcpServers.$inferSelect)[];
   const toolsMap = await loadAssignedToolsMap(items.map((row) => row.id));
   return {
@@ -139,7 +142,7 @@ export async function getMyMcpServer(id: string): Promise<MyMcpServerDetail> {
     getDb()
       .select()
       .from(myMcpServers)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   if (!row) throw new NotFoundException("MCP server not found");
   return toListItem(row, await loadAssignedTools(id));
@@ -152,7 +155,6 @@ export async function createMyMcpServer(body: MyMcpServerWriteBody): Promise<MyM
   const raw = generateRawKey();
   const now = new Date();
   const row = {
-    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     name,
     description: body.description?.trim() || null,
@@ -175,7 +177,7 @@ export async function updateMyMcpServer(id: string, body: MyMcpServerWriteBody):
     getDb()
       .select()
       .from(myMcpServers)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   if (!existing) throw new NotFoundException("MCP server not found");
 
@@ -192,7 +194,7 @@ export async function updateMyMcpServer(id: string, body: MyMcpServerWriteBody):
     getDb()
       .update(myMcpServers)
       .set(patch)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
 
   if (body.toolIds !== undefined) {
@@ -204,7 +206,7 @@ export async function updateMyMcpServer(id: string, body: MyMcpServerWriteBody):
       getDb()
         .select()
         .from(myMcpServers)
-        .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+        .where(eq(myMcpServers.id, id)),
     )) ?? existing;
   const item = toListItem(updated, await loadAssignedTools(id));
   wsHub.emit("my-mcp-servers:updated", item);
@@ -216,7 +218,7 @@ export async function rotateMyMcpServerKey(id: string): Promise<MyMcpServerListI
     getDb()
       .select()
       .from(myMcpServers)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   if (!existing) throw new NotFoundException("MCP server not found");
   const raw = generateRawKey();
@@ -228,14 +230,14 @@ export async function rotateMyMcpServerKey(id: string): Promise<MyMcpServerListI
         keyHash: hashMcpKey(raw),
         updatedAt: new Date(),
       })
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   const updated =
     (await qone(
       getDb()
         .select()
         .from(myMcpServers)
-        .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+        .where(eq(myMcpServers.id, id)),
     )) ?? existing;
   const item = toListItem(updated, await loadAssignedTools(id));
   wsHub.emit("my-mcp-servers:updated", item);
@@ -247,13 +249,13 @@ export async function deleteMyMcpServer(id: string) {
     getDb()
       .select()
       .from(myMcpServers)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   if (!existing) throw new NotFoundException("MCP server not found");
   await qrun(
     getDb()
       .delete(myMcpServers)
-      .where(and(inWorkspace(myMcpServers.workspaceId), eq(myMcpServers.id, id))),
+      .where(eq(myMcpServers.id, id)),
   );
   wsHub.emit("my-mcp-servers:deleted", { id });
 }

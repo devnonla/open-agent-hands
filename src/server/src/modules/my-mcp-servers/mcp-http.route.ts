@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { ForbiddenException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { type McpServerHandler, handleMcpRequest, methodNotAllowed, readBearer, textResult } from "../../common/mcp/json-rpc.js";
-import { runInWorkspace } from "../../common/workspace/workspace-context.js";
 import { executeTool } from "../tools/common/tool-runner.js";
 import { authenticateMyMcpServer, getAssignedToolForCall, listLiveMcpTools } from "./my-mcp-servers.service.js";
 
@@ -39,7 +38,7 @@ app.post("/:id", async (c) => {
   if (auth === "unauthorized") throw new UnauthorizedException("Invalid token");
   if (auth === "inactive") throw new ForbiddenException("MCP server is inactive");
 
-  return runInWorkspace(auth.workspaceId, () => handleMcpRequest(c.req.raw, hostedServer(auth.id, auth.name)));
+  return handleMcpRequest(c.req.raw, hostedServer(auth.id, auth.name));
 });
 
 export default app;

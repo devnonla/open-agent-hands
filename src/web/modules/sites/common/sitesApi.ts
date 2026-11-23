@@ -14,7 +14,7 @@ export const sitesApi = {
 
   getFiles: (id: string, tree: "draft" | "prod" = "draft") => apiClient.get<SiteFilesResponse>(`/api/sites/${id}/files`, { tree }),
 
-  putFile: (id: string, file: string, content: string, tree: "draft" | "prod" = "draft") => apiClient.put<{ ok: boolean; draftDirty: boolean; site: Site; depsInstalled?: boolean }>(`/api/sites/${id}/files/${encodeURIComponent(file)}`, { content, tree }),
+  putFile: (id: string, file: string, content: string) => apiClient.put<{ ok: boolean; site: Site; depsInstalled?: boolean }>(`/api/sites/${id}/files/${encodeURIComponent(file)}`, { content }),
 
   install: (id: string, tree: "draft" | "prod" = "draft") => apiClient.post<Site>(`/api/sites/${id}/install`, { tree }),
 
@@ -50,8 +50,4 @@ export const sitesApi = {
       excerpt: string;
       matchMethod: "anchor" | "fuzzy" | "none";
     }>(`/api/sites/${id}/resolve-selection`, body),
-
-  approve: (id: string, file?: string) => apiClient.post<Site>(`/api/sites/${id}/approve`, file ? { file } : {}),
-
-  discard: (id: string, file?: string) => apiClient.post<Site>(`/api/sites/${id}/discard`, file ? { file } : {}),
 };

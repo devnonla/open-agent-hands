@@ -3,22 +3,13 @@ import { useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
-
 import { ApiKeysPage } from "./api-keys/ApiKeysPage";
 import { SETTINGS_TABS, type SettingsTab } from "./common/constants";
 import { GeneralPage } from "./general/GeneralPage";
-import { WorkspacePage } from "./workspace/WorkspacePage";
 
 const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
-  workspace: WorkspacePage,
   "api-keys": ApiKeysPage,
-};
-
-const TAB_DESCRIPTION: Record<SettingsTab, string> = {
-  general: "Workspace-wide preferences.",
-  workspace: "Name and description of the current workspace.",
-  "api-keys": "Create keys to access datatables and KV over HTTP.",
 };
 
 function isSettingsTab(value: string): value is SettingsTab {
@@ -37,29 +28,23 @@ export default function SettingsPage() {
   const activeTab = useActiveTab();
 
   useEffect(() => {
-    if (pathname === "/settings" || pathname === "/settings/") {
-      navigate("/settings/general", { replace: true });
-    }
+    if (pathname === "/settings" || pathname === "/settings/") navigate("/settings/general", { replace: true });
   }, [pathname, navigate]);
 
-  if (!activeTab) {
-    return <Navigate to="/settings/general" replace />;
-  }
+  if (!activeTab) return <Navigate to="/settings/general" replace />;
+
+  const tab = SETTINGS_TABS.find((t) => t.key === activeTab) ?? SETTINGS_TABS[0];
+  const Panel = TAB_COMPONENTS[tab.key];
 
   return (
-    <PageShell className="h-full min-h-0 overflow-y-auto">
-      <PageHeader title="Settings" icon="settings" description={TAB_DESCRIPTION[activeTab]} className="mb-6" />
-      <Tabs
-        aria-label="Settings sections"
-        activeKey={activeTab}
-        onChange={(key) => {
-          if (isSettingsTab(key)) navigate(`/settings/${key}`);
-        }}
-        items={SETTINGS_TABS.map((tab) => {
-          const Panel = TAB_COMPONENTS[tab.key];
-          return { key: tab.key, label: tab.label, children: tab.key === activeTab ? <Panel /> : null };
-        })}
-      />
+    <PageShell
+      className="h-full min-h-0 overflow-y-auto"
+      header={<PageHeader title="Settings" icon="settings" className="mb-0 pb-0" bordered={false} />}
+      tabs={<Tabs aria-label="Settings sections" activeKey={tab.key} onChange={(key) => navigate(`/settings/${key}`)} items={SETTINGS_TABS.map((item) => ({ key: item.key, label: item.label, icon: item.icon }))} />}
+    >
+      <section className="flex min-w-0 max-w-3xl flex-col gap-6 pt-1">
+        <Panel />
+      </section>
     </PageShell>
   );
 }

@@ -1,17 +1,18 @@
-export const CORE_MCP_INSTRUCTIONS = `Agent Hands core server. Manages every workspace: tools, hosted MCP servers, KV, secrets, datatables, sites and jobs.
-Every resource tool takes an optional "workspace" argument (workspace id or name). It defaults to "default". Call list_workspaces first when unsure.
+export const CORE_MCP_INSTRUCTIONS = `Agent Hands core server. Manages tools, hosted MCP servers, KV, secrets, datatables, storage, sites and jobs.
 Before writing tool, job or site code, call get_guide with the matching topic.`;
 
 const RUNTIME = `## Runtime SDK (tools, jobs, site backends)
 
 import agenthands from "@agenthands/runtime";
 
-All calls are async and scoped to the workspace that owns the tool/job/site.
+All calls are async.
 - agenthands.kv.get(KEY, default?) -> string | default
 - agenthands.kv.set(KEY, value: string)
 - agenthands.kv.list() -> { key, value }[]
 - agenthands.kv.delete(KEY)
-  KV keys match [A-Z][A-Z0-9_]*.
+- agenthands.kv.project(name) -> the same get/set/list/delete, scoped to one KV project. set creates the project if it does not exist; get on a missing project returns the default.
+  Every key belongs to one project. Plain agenthands.kv.* uses the project named "default", which always exists and cannot be deleted. Give each tool, job or site its own project so keys do not clash.
+  KV keys match [A-Z][A-Z0-9_]*. Project names match [a-z0-9][a-z0-9_-]*.
 - agenthands.secrets.get(KEY, default?) -> decrypted string | default
 - agenthands.secrets.list() -> key names
 - agenthands.datatable.list_projects()
@@ -22,7 +23,14 @@ All calls are async and scoped to the workspace that owns the tool/job/site.
 - agenthands.datatable.delete(project, table, rowIds[])
   where: object = AND of fields, array of objects = OR of groups.
   Field value is a literal (equality) or { $eq | $neq | $gt | $gte | $lt | $lte | $in | $nin | $contains | $exists: value }.
-  order_by: [{ key: "column", dir: "asc" | "desc" }].`;
+  order_by: [{ key: "column", dir: "asc" | "desc" }].
+- agenthands.storage.space(name) -> files in one storage space:
+  - put(key, data: string | Uint8Array | ArrayBuffer | Blob | ReadableStream, { contentType? }) -> { key, size, contentType, updatedAt, publicUrl }. Creates the space (private) if missing and replaces a file with the same key.
+  - get(key) -> Uint8Array | null; getText(key) -> string | null; getJson(key) -> parsed JSON | null; stream(key) -> ReadableStream | null
+  - list(prefix?) -> { key, size, contentType, updatedAt, publicUrl }[] (up to 1000, sorted by key)
+  - delete(key) -> { deleted: boolean }
+- agenthands.storage.list_spaces()
+  Keys are paths like "reports/2026-11.csv". There is no size limit: bodies stream to disk, so pass Bun.file(path) or a ReadableStream for big files and read them back with stream(key). publicUrl is the file's own unguessable link (/public/storage/<random token>/<file name>) when the space is public, else null. Always hand out publicUrl as is; never build a link from space and key.`;
 
 const TOOLS = `## Tools
 
@@ -38,30 +46,50 @@ export default async function main(input: { city: string; days?: number; tags?: 
   return { ok: res.ok, data: await res.json() };
 }
 
-- The snake_case tool name comes from @name. It must be unique within the workspace.
+- The snake_case tool name comes from @name. It must be unique.
 - Param types: string, number, boolean, object, string[], number[], enum like "a"|"b".
 - Return any JSON-serializable value. Throw to report an error.
 - npm packages are installed automatically from import specifiers. If the npm name differs from the import path, add a trailing comment: import x from "x/sub" // bun: real-package
 - Use run_tool with "code" to test a draft before saving it with update_tool.
+- Optional icon: pass "icon" to create_tool or update_tool as one inline SVG string (update_tool with only icon keeps the code; icon="" removes it). It is shown as-is, no background or tint, at 18px in lists and 28px in cards, so use few bold shapes. currentColor becomes the grey UI text color; set explicit fill/stroke colors for a colored icon. Needs a square viewBox, under 8000 characters, plain SVG elements only (gradients, clipPath and mask are fine; no <script>, <style>, <image>, <foreignObject>, on* handlers or external href). Without a valid icon the UI shows the default Tools icon.
 - To expose tools to an MCP client, create a hosted MCP server with create_mcp_server and assign the tools.
 
 ${RUNTIME}`;
 
 const JOBS = `## Jobs
 
-A job is a Bun/TypeScript script run on a cron schedule (5-field cron, one expression per line, in the app timezone). An empty cron means manual only.
+A job is a Bun/TypeScript script run on a cron schedule (5-field cron, one expression per line, in the app timezone). An empty cron means manual only. The script runs top to bottom; there is no handler to export.
+
+Name the job with a readable title in plain words, e.g. "Sync GitHub issues" or "Daily sales report", not "sync-github-issues". Put what it does and why in description, one short sentence. People read both in the jobs list.
 
 import agenthands from "@agenthands/runtime";
 
-await agenthands.step("Fetch", async () => {
-  const count = Number(await agenthands.kv.get("RUN_COUNT", "0")) + 1;
-  await agenthands.kv.set("RUN_COUNT", String(count));
-  agenthands.log.info(\`run #\${count}\`);
-});
+const since = agenthands.run.lastSuccessAt ?? "2026-01-01T00:00:00Z";
+const issues = await agenthands.step("Fetch", () => fetchIssues(since), { retries: 3 });
+await agenthands.step("Save", () => agenthands.datatable.insert("crm", "issues", issues));
+agenthands.log.info("synced", { count: issues.length });
+agenthands.output({ synced: issues.length });
 
-- agenthands.step(name, fn) groups logs. agenthands.log.info / warn / error write run logs. console.log works too.
-- run_job starts a run. With wait=true it returns the logs when the run finishes (up to 120s).
-- timeout_ms caps a run (default 300000).
+Steps and logs
+- agenthands.step(name, fn, { retries?, backoffMs? }) runs fn, returns its value and shows as one bar in the run trace. retries re-runs only that step (0-10, waits backoffMs × 2^n, default 1000ms). An error that escapes ends the run as failed.
+- agenthands.log.info / warn / error(message, data?) write run logs. data is any JSON and shows next to the line. console.log works too.
+- Keep steps coarse (fetch, transform, save). Do not wrap every call.
+
+Run context: agenthands.run
+- id, jobId, jobName, trigger ("cron" | "manual"), attempt, maxAttempts
+- scheduledFor: the planned cron time (ISO) for scheduled runs, else null
+- lastSuccessAt: when the last successful run finished (ISO) or null. Use it to fetch only new data.
+- input: the JSON passed to run_job input, else null
+
+Output
+- agenthands.output(value) records a JSON result (up to 256KB) on the run. The last call wins. run_job wait=true and get_job_runs return it. Store large data in a datatable and output a summary.
+
+Running and limits
+- run_job starts a run now, optionally with input. With wait=true it returns status, output, error and logs when the run finishes (up to 120s).
+- timeout_ms caps one attempt (default 300000).
+- clear_job_runs (confirm=true) deletes the finished run history. Only when the user asks.
+- max_retries (0-5) re-runs the whole script when it fails or times out, waiting 5s, 10s, 20s… Each attempt sees agenthands.run.attempt. Use it only when the script is safe to run twice; otherwise retry inside a step.
+- A job never overlaps itself: a scheduled run is skipped while the previous one is active. Up to 3 runs execute at once; the rest wait with status queued.
 - The schedule is set only by agents through cron. People can pause a job in the UI. A paused job keeps its cron and stays paused when you change the cron; pass enabled=true to resume it, and only when the user asked.
 - create_job, update_job, list_jobs and get_job return status (scheduled, paused or manual) and nextRuns (the next 3 run times, ISO) so you can confirm the cron does what you meant.
 
@@ -69,7 +97,7 @@ ${RUNTIME}`;
 
 const SITES = `## Sites
 
-A site is a small React app with a backend, edited as a draft and promoted with approve_site.
+A site is a small React app with a backend. There is no draft or review step: write_site_file changes the live site at once.
 
 Files:
 - app.tsx: export default function App() { ... }. Import data helpers from "./site-api.js":
@@ -84,7 +112,7 @@ Files:
 - styles.css: plain CSS, applied to the page automatically.
 - package.json is generated from imports. Do not hand-edit dependencies.
 
-Workflow: create_site -> write_site_file (app.tsx, backend.ts, styles.css) -> preview_site (checks the bundle and backend GET) -> approve_site -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password.
+Workflow: create_site -> write_site_file (app.tsx, backend.ts, styles.css) -> preview_site (checks the bundle and backend GET; fix any error right away, since visitors already see the change) -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password.
 
 ${RUNTIME}`;
 

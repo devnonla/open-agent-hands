@@ -1,4 +1,4 @@
-import { DatePicker, Dropdown, EditableInput, InputNumber, message } from "devnonla-ui";
+import { Button, DatePicker, Dropdown, EditableInput, InputNumber, message } from "devnonla-ui";
 import type { MenuProps } from "devnonla-ui";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
@@ -47,8 +47,8 @@ export function EditableCell({
 
   if (selecting) {
     return (
-      <div className={cn("flex h-9 min-w-0 items-center border-r border-border-subtle px-2 text-sm", col.type === "boolean" && "justify-center")}>
-        <span className={cn("min-w-0", col.type === "datetime" ? "whitespace-nowrap" : "truncate")}>{formatCellValue(col, value, timeZone)}</span>
+      <div className={cn("flex h-9 min-w-0 items-center border-r border-border-secondary px-2 text-sm", col.type === "boolean" && "justify-center")}>
+        <span className={cn("min-w-0", col.type === "datetime" ? "whitespace-nowrap" : "truncate", col.type === "number" && "flex-1")}>{formatCellValue(col, value, timeZone)}</span>
       </div>
     );
   }
@@ -67,7 +67,7 @@ export function EditableCell({
     return (
       <button
         type="button"
-        className="flex h-9 w-full min-w-0 cursor-pointer items-center justify-center border-0 border-r border-border-subtle bg-transparent px-2.5 transition-colors hover:bg-muted/40"
+        className="flex h-9 w-full min-w-0 cursor-pointer items-center justify-center border-0 border-r border-border-secondary bg-transparent px-2.5 transition-colors hover:bg-muted/40"
         onClick={() => {
           if (!tryCellAction()) return;
           onCommit(!value);
@@ -105,7 +105,7 @@ export function EditableCell({
           setSelectOpen(open);
         }}
       >
-        <button type="button" className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-subtle bg-transparent px-2 text-left text-sm transition-colors hover:bg-muted/40">
+        <button type="button" className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-secondary bg-transparent px-2 text-left text-sm transition-colors hover:bg-muted/40">
           <span className="inline-flex max-w-full min-w-0">{formatCellValue(col, value, timeZone)}</span>
         </button>
       </Dropdown>
@@ -114,7 +114,7 @@ export function EditableCell({
 
   if (col.type === "datetime" && editing) {
     return (
-      <div className="relative z-30 flex h-9 min-w-0 items-center border-r border-border-subtle">
+      <div className="relative z-30 flex h-9 min-w-0 items-center border-r border-border-secondary">
         <DatePicker
           showTime
           allowClear={false}
@@ -126,18 +126,19 @@ export function EditableCell({
           className="absolute left-0 top-0 z-30 h-9! w-[calc(100%+20px)] min-w-[calc(100%+20px)] rounded-md! border-transparent! bg-muted! shadow-panel!"
           renderExtraFooter={() =>
             value == null || value === "" ? null : (
-              <button
-                type="button"
-                className="w-full cursor-pointer border-0 bg-transparent py-1 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              <Button
+                type="text"
+                size="small"
+                block
+                className="text-muted-foreground hover:text-foreground"
                 onMouseDown={(e) => {
-                  // Prevent picker from treating this as outside-click cancel.
                   e.preventDefault();
                   e.stopPropagation();
                 }}
                 onClick={() => finish(null)}
               >
                 Clear
-              </button>
+              </Button>
             )
           }
           onChange={(d) => finish(fromPickerDate(d, timeZone))}
@@ -154,7 +155,7 @@ export function EditableCell({
 
   if (col.type === "number" && editing) {
     return (
-      <div className="flex h-9 min-w-0 items-center border-r border-border-subtle px-1">
+      <div className="flex h-9 min-w-0 items-center border-r border-border-secondary px-1">
         <InputNumber
           autoFocus
           size="small"
@@ -185,7 +186,7 @@ export function EditableCell({
   if (col.type === "text" || col.type === "json") {
     return (
       <div
-        className="flex h-9 min-w-0 cursor-pointer items-center border-r border-border-subtle px-2 transition-colors hover:bg-muted/40"
+        className="flex h-9 min-w-0 cursor-pointer items-center border-r border-border-secondary px-2 transition-colors hover:bg-muted/40"
         onClick={() => {
           if (editing || !tryCellAction()) return;
           onStartEdit();
@@ -226,13 +227,13 @@ export function EditableCell({
   return (
     <button
       type="button"
-      className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-subtle bg-transparent px-2 text-left text-sm transition-colors hover:bg-muted/40"
+      className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-secondary bg-transparent px-2 text-left text-sm transition-colors hover:bg-muted/40"
       onClick={() => {
         if (!tryCellAction()) return;
         onStartEdit();
       }}
     >
-      <span className={cn("min-w-0", col.type === "datetime" ? "whitespace-nowrap" : "truncate")}>{formatCellValue(col, value, timeZone)}</span>
+      <span className={cn("min-w-0", col.type === "datetime" ? "whitespace-nowrap" : "truncate", col.type === "number" && "flex-1")}>{formatCellValue(col, value, timeZone)}</span>
     </button>
   );
 }

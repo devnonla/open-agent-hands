@@ -19,13 +19,13 @@ import secretsRoute from "./modules/secrets/secrets.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
 import publicSitesRoute from "./modules/sites/public-sites.route.js";
 import sitesRoute from "./modules/sites/sites.route.js";
-import { getPublicSiteAsset, renderPublicSiteDocument, runInSiteWorkspace } from "./modules/sites/sites.service.js";
+import storageRoute, { contentDisposition } from "./modules/storage/storage.route.js";
+import { getPublicFile, fileEtag, fileBlob } from "./modules/storage/storage.service.js";
+import { getPublicSiteAsset, renderPublicSiteDocument } from "./modules/sites/sites.service.js";
 import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
 import v1Route from "./modules/v1/v1.route.js";
-import workspacesRoute from "./modules/workspaces/workspaces.route.js";
 import { coreMcpAdmin, coreMcpEndpoint } from "./modules/core-mcp/core-mcp.route.js";
-import { resolveWorkspace } from "./common/workspace/workspace.middleware.js";
 
 const APP_VERSION = rootPkg.version;
 
@@ -88,27 +88,8 @@ export function createApp(): Hono {
   });
 
   app.route("/api/auth", authRoute);
-  app.route("/api/workspaces", workspacesRoute);
   app.route("/api/core-mcp", coreMcpAdmin);
 
-  app.use("/api/tools/*", resolveWorkspace);
-  app.use("/api/tools", resolveWorkspace);
-  app.use("/api/tool-folders/*", resolveWorkspace);
-  app.use("/api/tool-folders", resolveWorkspace);
-  app.use("/api/my-mcp-servers/*", resolveWorkspace);
-  app.use("/api/my-mcp-servers", resolveWorkspace);
-  app.use("/api/kvstore/*", resolveWorkspace);
-  app.use("/api/kvstore", resolveWorkspace);
-  app.use("/api/datatables/*", resolveWorkspace);
-  app.use("/api/datatables", resolveWorkspace);
-  app.use("/api/secrets/*", resolveWorkspace);
-  app.use("/api/secrets", resolveWorkspace);
-  app.use("/api/sites/*", resolveWorkspace);
-  app.use("/api/sites", resolveWorkspace);
-  app.use("/api/jobs/*", resolveWorkspace);
-  app.use("/api/jobs", resolveWorkspace);
-  app.use("/api/api-keys/*", resolveWorkspace);
-  app.use("/api/api-keys", resolveWorkspace);
 
   app.route("/api/tools", toolsRoute);
   app.route("/api/tool-folders", toolFoldersRoute);
@@ -118,6 +99,7 @@ export function createApp(): Hono {
   app.route("/api/secrets", secretsRoute);
   app.route("/api/sites", sitesRoute);
   app.route("/api/public/sites", publicSitesRoute);
+  app.route("/api/storage", storageRoute);
   app.route("/api/jobs", jobsRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/api-keys", apiKeysRoute);
@@ -143,7 +125,7 @@ export function createApp(): Hono {
 
     const access = siteAccessFromRequest(c, slug);
     try {
-      const doc = await runInSiteWorkspace(slug, () => renderPublicSiteDocument(slug, c.req.raw, access));
+      const doc = await renderPublicSiteDocument(slug, c.req.raw, access);
       const headers: Record<string, string> = {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
@@ -168,7 +150,7 @@ export function createApp(): Hono {
     const file = c.req.param("file");
     if (file !== "app.js" && file !== "styles.css") return c.json({ message: "Not found" }, 404);
     try {
-      const asset = await runInSiteWorkspace(slug, () => getPublicSiteAsset(slug, file, access));
+      const asset = await getPublicSiteAsset(slug, file, access);
       return new Response(asset.body, {
         headers: { "Content-Type": asset.contentType, "Cache-Control": "no-store" },
       });
@@ -177,6 +159,26 @@ export function createApp(): Hono {
       const status = /password|unauthorized/i.test(message) ? 401 : /not found/i.test(message) ? 404 : 500;
       return c.json({ message }, status);
     }
+  });
+
+  app.get("/public/storage/*", async (c) => {
+    const token = new URL(c.req.url).pathname.slice("/public/storage/".length).split("/")[0] ?? "";
+    const file = await getPublicFile(token);
+    const privateHeaders = { "X-Robots-Tag": "noindex, nofollow, noarchive", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
+    if (!file) return new Response("Not found", { status: 404, headers: { ...privateHeaders, "Content-Type": "text/plain; charset=utf-8" } });
+    const etag = `"${await fileEtag(file)}"`;
+    const headers = {
+      "Content-Type": file.contentType,
+      "Content-Disposition": contentDisposition("inline", file.key),
+      "Cache-Control": "private, max-age=60",
+      "Content-Security-Policy": "sandbox",
+      "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex, nofollow, noarchive",
+      "Referrer-Policy": "no-referrer",
+      ETag: etag,
+    };
+    if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
+    return new Response(fileBlob(file), { headers: { ...headers, "Content-Length": String(file.size) } });
   });
 
   app.get("/api/health", (c) => c.json({ ok: true, app: "agenthands", version: APP_VERSION, runtime: "bun" }));

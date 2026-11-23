@@ -40,8 +40,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <PageShell className="h-full min-h-0 overflow-y-auto">
-      <PageHeader title="Profile" description="Manage your avatar, account info, theme and password." />
+    <PageShell className="h-full min-h-0 overflow-y-auto" header={<PageHeader title="Profile" description="Your account, theme and password." className="mb-0 pb-0" bordered={false} />}>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[300px_1fr]">
         <div className="lg:sticky lg:top-0">

@@ -1,8 +1,6 @@
-import { Button, DatePicker, Dropdown, InputNumber, Tooltip } from "devnonla-ui";
+import { Button, DatePicker, Dropdown, Input, InputNumber, Tooltip, Icon } from "devnonla-ui";
 import type { MenuProps } from "devnonla-ui";
-import { Plus, X } from "lucide-react";
 import { type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject, createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { cn } from "src/common/lib/cn";
 import type { DatatableColumn } from "src/common/types";
 import { DATETIME_PICKER_FORMAT, fromPickerDate, toPickerDate } from "src/common/utils/date";
 import { parseNumberValue } from "../common/cellValueUtils";
@@ -72,14 +70,6 @@ function isRequiredFilled(col: DatatableColumn, data: Record<string, unknown>): 
       return true;
   }
 }
-
-const fieldClass = cn(
-  "h-7 w-full min-w-0 rounded px-2 text-sm",
-  "border border-border/60 bg-background/80 text-foreground hover:border-border",
-  "placeholder:text-muted-foreground/40",
-  "focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/40 focus:bg-background transition-all",
-  "disabled:opacity-60",
-);
 
 export function NewDatatableProvider({ columns, timeZone, onCreate, onCancel, active, handleRef, children }: NewDatatableRowProps) {
   const [data, setData] = useState<Record<string, unknown>>(() => initialDraft(columns));
@@ -188,7 +178,7 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
 
   if (col.type === "boolean") {
     return (
-      <button type="button" disabled={submitting} className="flex h-9 w-full min-w-0 cursor-pointer items-center justify-center border-0 border-r border-border-subtle bg-transparent px-2.5" onClick={() => setField(col.name, !value)}>
+      <button type="button" disabled={submitting} className="flex h-9 w-full min-w-0 cursor-pointer items-center justify-center border-0 border-r border-border-secondary bg-transparent px-2.5" onClick={() => setField(col.name, !value)}>
         <span className="inline-flex items-center justify-center leading-none">{formatCellValue(col, value, timeZone)}</span>
       </button>
     );
@@ -210,7 +200,7 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
     ];
     return (
       <Dropdown menu={{ items }} trigger={["click"]} placement="bottomLeft" destroyOnHidden classNames={{ root: "dt-select-dropdown" }}>
-        <button type="button" disabled={submitting} className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-subtle bg-transparent px-2 text-left text-sm">
+        <button type="button" disabled={submitting} className="flex h-9 w-full min-w-0 cursor-pointer items-center border-0 border-r border-border-secondary bg-transparent px-2 text-left text-sm">
           <span className="inline-flex max-w-full min-w-0">{formatCellValue(col, value, timeZone)}</span>
         </button>
       </Dropdown>
@@ -219,7 +209,7 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
 
   if (col.type === "datetime") {
     return (
-      <div className="flex h-9 min-w-0 items-center border-r border-border-subtle px-1">
+      <div className="flex h-9 min-w-0 items-center border-r border-border-secondary px-1">
         <DatePicker
           showTime
           allowClear
@@ -237,7 +227,7 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
   if (col.type === "number") {
     return (
       <div
-        className="flex h-9 min-w-0 items-center border-r border-border-subtle px-1"
+        className="flex h-9 min-w-0 items-center border-r border-border-secondary px-1"
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -256,13 +246,12 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
   if (col.type === "json") {
     const text = value == null ? "" : typeof value === "string" ? value : JSON.stringify(value);
     return (
-      <div className="flex h-9 min-w-0 items-center border-r border-border-subtle px-1">
-        <input
-          type="text"
+      <div className="flex h-9 min-w-0 items-center border-r border-border-secondary px-1">
+        <Input
+          size="small"
           value={text}
           disabled={submitting}
           placeholder="{}"
-          className={fieldClass}
           onChange={(e) => {
             const next = e.target.value;
             if (next.trim() === "") {
@@ -283,8 +272,8 @@ export function NewDatatableCell({ col }: { col: DatatableColumn }) {
 
   const text = typeof value === "string" ? value : value == null ? "" : String(value);
   return (
-    <div className="flex h-9 min-w-0 items-center border-r border-border-subtle px-1">
-      <input type="text" value={text} disabled={submitting} placeholder={col.name} className={fieldClass} onChange={(e) => setField(col.name, e.target.value)} onKeyDown={onTextKeyDown} />
+    <div className="flex h-9 min-w-0 items-center border-r border-border-secondary px-1">
+      <Input size="small" value={text} disabled={submitting} placeholder={col.name} onChange={(e) => setField(col.name, e.target.value)} onKeyDown={onTextKeyDown} />
     </div>
   );
 }
@@ -294,12 +283,10 @@ export function NewDatatableActions() {
   return (
     <div className="flex h-9 items-center justify-end gap-1 px-1">
       <Tooltip title="Cancel (Esc)">
-        <Button type="text" size="small" onClick={cancel} disabled={submitting} aria-label="Cancel" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground">
-          <X size={14} />
-        </Button>
+        <Button type="icon" size="small" onClick={cancel} disabled={submitting} aria-label="Cancel" className="text-muted-foreground hover:text-foreground" icon={<Icon name="close" />} />
       </Tooltip>
       <Tooltip title={canSubmit ? "Add row (Enter)" : "Fill required fields to add"}>
-        <Button type="primary" size="small" onClick={submit} disabled={!canSubmit} loading={submitting} icon={submitting ? undefined : <Plus size={14} />} className="h-7 px-2.5 text-xs font-medium">
+        <Button type="primary" size="small" onClick={submit} disabled={!canSubmit} loading={submitting} icon={submitting ? undefined : <Icon name="add" size={12} />}>
           Add
         </Button>
       </Tooltip>

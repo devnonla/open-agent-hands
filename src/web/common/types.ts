@@ -23,7 +23,7 @@ export interface AgentTool {
   name: string;
   label: string;
   description: string;
-  icon?: string;
+  icon?: string | null;
   parameters: object;
   codeContent: string;
   draftCode?: string | null;
@@ -43,6 +43,8 @@ export interface MyMcpServerTool {
   name: string;
   label: string;
   description: string;
+  folderName: string | null;
+  icon?: string | null;
 }
 
 export interface MyMcpServer {
@@ -78,8 +80,18 @@ export type NewUser = Omit<User, "id" | "createdAt" | "updatedAt"> & {
 
 // ─── KV Store ─────────────────────────────────────────────────────────────────
 
+export interface KvProject {
+  id: string;
+  name: string;
+  description: string | null;
+  keyCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface KvStoreEntry {
   id: string;
+  projectId: string;
   key: string;
   value: string;
   description: string | null;
@@ -137,7 +149,7 @@ export interface DatatableRow {
 
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
 
-export type JobRunStatus = "running" | "success" | "failed";
+export type JobRunStatus = "queued" | "running" | "success" | "failed";
 export type JobRunTrigger = "cron" | "manual";
 export type JobLogLevel = "info" | "warn" | "error" | "system" | "step";
 export type JobLogKind = "step" | "log" | "system" | "console";
@@ -148,6 +160,9 @@ export interface JobLogEntry {
   message: string;
   duration?: number;
   kind?: JobLogKind;
+  error?: string;
+  data?: unknown;
+  attempts?: number;
 }
 
 export interface Job {
@@ -160,7 +175,11 @@ export interface Job {
   enabled: boolean;
   status?: "scheduled" | "paused" | "manual";
   nextRuns?: string[];
+  dayRuns?: string[];
+  lastRunStatus?: Exclude<JobRunStatus, "running" | "queued"> | null;
+  recentRuns?: Exclude<JobRunStatus, "running" | "queued">[];
   timeoutMs: number;
+  maxRetries?: number;
   nextRunAt: Date | null;
   lastRunAt: Date | null;
   leaseOwner: string | null;
@@ -176,6 +195,10 @@ export interface JobRun {
   trigger: JobRunTrigger;
   logs: JobLogEntry[];
   error: string | null;
+  input?: unknown;
+  output?: unknown;
+  attempts?: number;
+  scheduledFor?: Date | null;
   instanceId: string | null;
   startedAt: Date;
   finishedAt: Date | null;
@@ -211,7 +234,6 @@ export interface Site {
   draftDepsStatus: string;
   draftDepsError: string | null;
   draftUpdatedAt: Date | null;
-  draftDirty?: boolean;
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -220,5 +242,39 @@ export interface Site {
 export interface SiteFilesResponse {
   tree: "draft" | "prod";
   files: Record<SiteSourceFile, string>;
-  draftDirty: boolean;
+}
+
+export type StorageKind = "images" | "documents" | "data" | "media" | "other";
+
+export interface StorageSpace {
+  id: string;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  fileCount: number;
+  totalBytes: number;
+  folderCount?: number;
+  lastFileAt?: Date | null;
+  bytesByKind?: Record<StorageKind, number>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StorageFile {
+  id: string;
+  spaceId: string;
+  space: string;
+  key: string;
+  size: number;
+  contentType: string;
+  publicUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StorageFolder {
+  prefix: string;
+  fileCount: number;
+  totalBytes: number;
+  updatedAt: Date;
 }

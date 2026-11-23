@@ -1,23 +1,25 @@
-import { Button, Icon, Segmented, Tag, message } from "devnonla-ui";
-import { Play, X } from "lucide-react";
+import { Button, Spin, Tabs, Tag, message, Icon } from "devnonla-ui";
+import { Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
+import { useNow } from "src/common/hooks/useNow";
 import { cn } from "src/common/lib/cn";
 import type { Job, JobRun } from "src/common/types";
 import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { DraftReviewBar } from "src/components/DraftReviewBar";
+import { PageHeader } from "src/components/PageHeader";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
 import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
 import { jobsApi } from "../common/jobsApi";
-import { JobRunsPanel } from "../components/JobRunsPanel";
-import { formatJobSchedulesLabel, jobIsScheduled } from "../common/schedule";
+import { isActiveRun } from "../common/runLogs";
 import { JobOverview } from "./components/JobOverview";
+import { JobRunsView } from "./components/JobRunsView";
 
 const JOB_TABS = [
   { value: "overview", label: "Overview", icon: "book" },
-  { value: "activities", label: "Activities", icon: "clock" },
+  { value: "activities", label: "Runs", icon: "clock" },
   { value: "code", label: "Code", icon: "code" },
 ] as const;
 
@@ -28,19 +30,20 @@ function jobTabFromParam(section: string | undefined): JobTab {
   return "overview";
 }
 
-function JobSectionTabs({ value, live, onChange }: { value: JobTab; live: boolean; onChange: (next: JobTab) => void }) {
+function JobSectionTabs({ value, live, runCount, onChange }: { value: JobTab; live: boolean; runCount: number; onChange: (next: JobTab) => void }) {
   return (
-    <Segmented
-      size="small"
-      value={value}
-      onChange={onChange}
-      options={JOB_TABS.map((tab) => ({
-        value: tab.value,
+    <Tabs
+      aria-label="Job sections"
+      activeKey={value}
+      onChange={(key) => onChange(key as JobTab)}
+      items={JOB_TABS.map((tab) => ({
+        key: tab.value,
+        icon: tab.icon,
         label: (
           <span className="inline-flex items-center gap-1.5">
-            <Icon name={tab.icon} size={14} />
             {tab.label}
-            {tab.value === "activities" && live ? <span className="size-1.5 animate-pulse rounded-full bg-brand-700" /> : null}
+            {tab.value === "activities" && runCount > 0 ? <Tag className="h-4.5! px-1.5!">{runCount}</Tag> : null}
+            {tab.value === "activities" && live ? <span className="size-1.5 rounded-full bg-link motion-safe:animate-pulse" aria-label="A run is in progress" /> : null}
           </span>
         ),
       }))}
@@ -84,15 +87,15 @@ export default function JobEditPage() {
 
   const [runs, setRuns] = useState<JobRun[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const now = useNow(1_000);
 
   const isDirty = localCode !== savedCode;
-  const isOn = jobIsScheduled(job?.cron) && !!job?.enabled;
-  const scheduleLabel = formatJobSchedulesLabel(job?.cron);
 
   const loadRuns = useCallback(async (jobId: string) => {
     const res = await jobsApi.listRuns(jobId, { limit: 40 });
     setRuns(res.items);
-    const live = res.items.find((r) => r.status === "running");
+    const live = res.items.find((r) => isActiveRun(r));
     setActiveRunId(live?.id ?? null);
   }, []);
 
@@ -145,7 +148,7 @@ export default function JobEditPage() {
     const unsubRun = wsClient.on<JobRun>("job_runs:created", (payload) => {
       if (payload.jobId !== id) return;
       setRuns((prev) => [payload, ...prev.filter((r) => r.id !== payload.id)]);
-      if (payload.status === "running") {
+      if (isActiveRun(payload)) {
         setActiveRunId(payload.id);
       }
     });
@@ -153,9 +156,14 @@ export default function JobEditPage() {
     const unsubRunUpd = wsClient.on<JobRun>("job_runs:updated", (payload) => {
       if (payload.jobId !== id) return;
       setRuns((prev) => prev.map((r) => (r.id === payload.id ? payload : r)));
-      if (payload.status !== "running" && activeRunId === payload.id) {
+      if (!isActiveRun(payload) && activeRunId === payload.id) {
         setActiveRunId(null);
       }
+    });
+
+    const unsubCleared = wsClient.on<{ jobId: string }>("job_runs:cleared", (payload) => {
+      if (payload.jobId !== id) return;
+      setRuns((prev) => prev.filter((r) => isActiveRun(r)));
     });
 
     const unsubLog = wsClient.on<{ id: string; jobId: string; entries: JobRun["logs"]; logs: JobRun["logs"] }>("job_runs:log", (payload) => {
@@ -168,6 +176,7 @@ export default function JobEditPage() {
       unsubRun();
       unsubRunUpd();
       unsubLog();
+      unsubCleared();
     };
   }, [id, activeRunId]);
 
@@ -192,8 +201,8 @@ export default function JobEditPage() {
     if (!id) return;
     setToggling(true);
     try {
-      const updated = await jobsApi.update(id, { enabled });
-      setJob(updated);
+      await jobsApi.update(id, { enabled });
+      setJob(await jobsApi.get(id));
       message.success(enabled ? "Schedule resumed" : "Schedule paused");
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : String(err));
@@ -212,6 +221,7 @@ export default function JobEditPage() {
     try {
       const run = await jobsApi.run(id);
       setActiveRunId(run.id);
+      setSelectedRunId(run.id);
       setRuns((prev) => [run, ...prev.filter((r) => r.id !== run.id)]);
       message.success("Run started");
     } catch (err: unknown) {
@@ -234,6 +244,18 @@ export default function JobEditPage() {
     }
   };
 
+  const handleClearHistory = async () => {
+    if (!id) return;
+    try {
+      const result = await jobsApi.clearRuns(id);
+      setRuns((prev) => prev.filter((r) => isActiveRun(r)));
+      setSelectedRunId(null);
+      message.success(result.deleted === 1 ? "Cleared 1 run" : `Cleared ${result.deleted} runs`);
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const handleDelete = async () => {
     if (!id) return;
     try {
@@ -246,7 +268,11 @@ export default function JobEditPage() {
   };
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center bg-background text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="flex h-full items-center justify-center bg-background">
+        <Spin />
+      </div>
+    );
   }
 
   if (!job) {
@@ -288,6 +314,11 @@ export default function JobEditPage() {
 
   const jobTitle = name || job.name;
 
+  const openRun = (runId: string) => {
+    setSelectedRunId(runId);
+    openTab("activities");
+  };
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -296,28 +327,29 @@ export default function JobEditPage() {
             <div className="flex min-w-0 items-center gap-2">
               <WindowHeaderBackButton to="/jobs" label="Back to Jobs" />
               <ContentBreadcrumb items={[{ label: "Jobs", to: "/jobs", icon: <FeatureIcon name="jobs" size={16} variant="sticker" /> }, { label: jobTitle }]} />
-              <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none ${isOn ? "bg-success/15 text-success" : "bg-muted text-tertiary-foreground"}`}>
-                <span className={`size-1.5 rounded-full ${isOn ? "bg-success" : "bg-quaternary-foreground"}`} />
-                {isOn ? "Scheduled" : jobIsScheduled(job.cron) ? "Paused" : "Manual"}
-              </span>
-              <span className="hidden min-w-0 truncate text-[11px] leading-none text-tertiary-foreground lg:inline">{scheduleLabel}</span>
             </div>
           }
-          right={
+        />
+        <PageHeader
+          title={jobTitle}
+          icon="jobs"
+          bordered={false}
+          className="mb-0 shrink-0 bg-card px-8 pt-5 pb-0"
+          description={job.description || undefined}
+          actions={
             activeRunId ? (
-              <Button size="small" danger icon={<X size={14} />} onClick={() => void handleCancelRun()}>
-                Stop
+              <Button danger icon={<Icon name="close" size={14} />} onClick={() => void handleCancelRun()}>
+                Stop run
               </Button>
             ) : (
-              <Button size="small" icon={<Play size={14} />} loading={running} onClick={() => void handleRun()}>
+              <Button type="primary" icon={<Play size={14} />} loading={running} onClick={() => void handleRun()}>
                 Run now
               </Button>
             )
           }
-        />
-        <div className="flex h-10 shrink-0 items-center border-b border-border px-4">
-          <JobSectionTabs value={tab} live={!!activeRunId} onChange={openTab} />
-        </div>
+        >
+          <JobSectionTabs value={tab} live={!!activeRunId} runCount={runs.length} onChange={openTab} />
+        </PageHeader>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -351,22 +383,8 @@ export default function JobEditPage() {
               )}
               {reviewBar ? <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2">{reviewBar}</div> : null}
             </div>
-            {tab === "overview" ? <JobOverview job={job} toggling={toggling} onToggle={(enabled) => void handleToggle(enabled)} onDelete={() => void handleDelete()} /> : null}
-            {tab === "activities" ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2">
-                  <span className="text-xs text-muted-foreground">{runs.length} runs</span>
-                  {activeRunId ? (
-                    <Tag color="processing" className="m-0 text-[10px]">
-                      live
-                    </Tag>
-                  ) : null}
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <JobRunsPanel runs={runs} activeRunId={activeRunId} onCancelRun={(runId) => void handleCancelRun(runId)} />
-                </div>
-              </div>
-            ) : null}
+            {tab === "overview" ? <JobOverview job={job} runs={runs} now={now} toggling={toggling} onToggle={(enabled) => void handleToggle(enabled)} onDelete={() => void handleDelete()} onOpenRun={openRun} onOpenRuns={() => openTab("activities")} onClearHistory={() => void handleClearHistory()} /> : null}
+            {tab === "activities" ? <JobRunsView jobName={jobTitle} runs={runs} selectedId={selectedRunId} onSelect={setSelectedRunId} activeRunId={activeRunId} onCancelRun={(runId) => void handleCancelRun(runId)} onClearHistory={() => void handleClearHistory()} now={now} /> : null}
           </div>
         </div>
       </div>

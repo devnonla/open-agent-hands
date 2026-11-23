@@ -9,11 +9,9 @@ import { Button, EFormItemType, SchemaForm, type TFormItemProps, message } from 
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import meadowWallpaper from "src/assets/bg.jpg";
 import { apiClient, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
-import { AppMark } from "src/components/AppLogo";
-import { DevBadge } from "src/components/AppLogo";
+import { AuthError, AuthShell } from "./components/AuthShell";
 interface TimezoneItem {
   tz: string;
   offset: string;
@@ -153,46 +151,27 @@ export default function SetupPage() {
   if (checking) return null;
 
   return (
-    <div className="relative h-dvh w-screen overflow-hidden bg-background">
-      <img src={meadowWallpaper} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full select-none object-cover object-center" />
-      <div className="relative z-10 flex h-full items-center justify-center overflow-y-auto p-6">
-        <div className="relative w-full max-w-110 mx-4 overflow-hidden rounded-md border border-border bg-card shadow-(--elevated-shadow)">
-          <div className="flex items-center gap-2 h-8 px-3 bg-background border-b border-border/35">
-            <AppMark size={16} />
-            <span className="text-[13px] font-semibold text-foreground">Initial Setup</span>
-            <DevBadge className="ml-auto" />
-          </div>
-          <div className="px-6 pb-6 pt-6">
-            <p className="text-sm text-muted-foreground text-center mb-4">Create your admin account and configure the system</p>
-
-            <form onSubmit={onSubmit}>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-medium text-muted-foreground tracking-wide uppercase">Admin Account</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-              <SchemaForm form={form} items={accountItems} />
-
-              <div className="flex items-center gap-2 mt-2 mb-1">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-medium text-muted-foreground tracking-wide uppercase">System Settings</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-              <SchemaForm form={form} items={timezoneItems} />
-
-              {rootError ? (
-                <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2">
-                  <p className="text-xs font-medium text-destructive">{rootError}</p>
-                </div>
-              ) : null}
-
-              <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1">
-                Complete Setup
-              </Button>
-            </form>
-          </div>
+    <AuthShell title="Set up Open Agent Hands" subtitle="Create your account and pick your timezone." className="max-w-110">
+      <form onSubmit={onSubmit}>
+        <div className="mb-1 flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Account</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
-      </div>
-    </div>
+        <SchemaForm form={form} items={accountItems} />
+
+        <div className="mb-1 mt-2 flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">System</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <SchemaForm form={form} items={timezoneItems} />
+
+        <AuthError message={rootError} />
+        <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1">
+          Complete Setup
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

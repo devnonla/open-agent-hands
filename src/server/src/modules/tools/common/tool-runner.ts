@@ -1,4 +1,4 @@
-import { toolSandboxDir } from "../../../common/workspace/workspace-paths.js";
+import { toolSandboxDir } from "../../../common/utils/data-paths.js";
 import { existsSync, mkdirSync, readdirSync, statSync, rmSync } from "node:fs";
 import { SANDBOX_TSCONFIG, detectPackages, ensureWritableDir, followCaptureFile, isPkgInstalled, readCapturedOutput, rewriteSandboxTs, sandboxChildEnv, spawnCaptured, unlinkCaptured, wrapForSandbox } from "../../../common/sandbox/index.js";
 import { startRuntimeProxy } from "./runtime-proxy.js";
@@ -489,8 +489,7 @@ function toolRunEnv(prepared: PreparedRun, inputPath: string): Record<string, st
   return sandboxRuntimeEnv(prepared.sandboxDir, {
     INPUT_JSON_FILE: inputPath,
     USER_MODULE: `./${prepared.userFile}`,
-    AGENTHANDS_URL: prepared.proxy.url,
-    AGENTHANDS_TOKEN: prepared.proxy.token,
+    ...prepared.proxy.env,
   });
 }
 
@@ -548,6 +547,6 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
   }
 }
 
-export function removeToolSandbox(toolId: string, workspaceId?: string): void {
-  rmSync(toolSandboxDir(toolId, workspaceId), { recursive: true, force: true });
+export function removeToolSandbox(toolId: string): void {
+  rmSync(toolSandboxDir(toolId), { recursive: true, force: true });
 }

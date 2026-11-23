@@ -17,6 +17,7 @@ export function createAppServer(options: CreateAppServerOptions = {}) {
   const app = createApp();
 
   const server = Bun.serve<WsClientData>({
+    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     async fetch(req, bunServer) {
       if (new URL(req.url).pathname === "/ws") {
         const auth = await authenticateWsUpgrade(req);
@@ -41,14 +42,7 @@ export function createAppServer(options: CreateAppServerOptions = {}) {
       close(ws) {
         wsHub.remove(ws.data.clientId);
       },
-      message(ws, data) {
-        try {
-          const msg = JSON.parse(String(data)) as { type?: string; workspaceId?: unknown };
-          if (msg.type === "workspace:select") {
-            wsHub.selectWorkspace(ws.data.clientId, typeof msg.workspaceId === "string" && msg.workspaceId ? msg.workspaceId : null);
-          }
-        } catch {}
-      },
+      message() {},
     },
     port,
     hostname: host,

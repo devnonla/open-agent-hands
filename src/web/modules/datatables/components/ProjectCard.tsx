@@ -1,3 +1,4 @@
+import { Card, Tag } from "devnonla-ui";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
 import type { DatatableProjectListItem } from "../common/datatableProjectsSlice";
@@ -9,7 +10,7 @@ export function ProjectCard({ project, onOpen }: { project: DatatableProjectList
   const count = project.tableCount ?? names.length;
 
   return (
-    <div
+    <Card
       role="button"
       tabIndex={0}
       aria-label={`Open ${project.name}`}
@@ -20,23 +21,23 @@ export function ProjectCard({ project, onOpen }: { project: DatatableProjectList
           onOpen();
         }
       }}
-      className="group flex min-h-40 cursor-pointer flex-col rounded-2xl border border-border-subtle bg-card p-5 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-secondary"
+      className="group cursor-pointer text-left transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <FeatureIcon name="datatables" size={28} variant="sticker" />
-      <h2 className="mt-4 mb-0 truncate text-lg font-semibold text-foreground">{project.name}</h2>
-      <p className="mt-1 mb-0 text-sm text-muted-foreground">
-        {count} {count === 1 ? "table" : "tables"}
-      </p>
-      <div className="mt-3 flex min-h-6 flex-wrap gap-1">
-        <RenderIf condition={shown.length > 0} fallback={<span className="text-xs text-muted-foreground">No tables yet</span>}>
-          {shown.map((name) => (
-            <span key={name} className="max-w-full truncate rounded-md border border-border bg-background px-1.5 py-0.5 text-xs leading-4 text-muted-foreground">
-              {name}
-            </span>
-          ))}
-          {extra > 0 ? <span className="rounded-md px-1.5 py-0.5 text-xs leading-4 text-muted-foreground">+{extra}</span> : null}
-        </RenderIf>
+      <div className="flex min-h-40 flex-col rounded-xl p-5 transition-colors duration-200 group-hover:bg-muted">
+        <FeatureIcon name="datatables" size={28} variant="sticker" />
+        <h2 className="mt-4 mb-0 truncate text-lg font-semibold text-foreground">{project.name}</h2>
+        <p className="mt-1 mb-0 text-sm text-muted-foreground">
+          {count} {count === 1 ? "table" : "tables"}
+        </p>
+        <div className="mt-3 flex min-h-6 flex-wrap gap-1">
+          <RenderIf condition={shown.length > 0} fallback={<span className="text-xs text-muted-foreground">No tables yet</span>}>
+            {shown.map((name) => (
+              <Tag key={name}>{name}</Tag>
+            ))}
+            {extra > 0 ? <Tag>+{extra}</Tag> : null}
+          </RenderIf>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }

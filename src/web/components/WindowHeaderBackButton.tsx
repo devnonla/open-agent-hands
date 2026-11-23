@@ -1,5 +1,4 @@
-import { Button } from "devnonla-ui";
-import { ArrowLeft } from "lucide-react";
+import { Button, Icon } from "devnonla-ui";
 import { useNavigate } from "react-router-dom";
 
 type WindowHeaderBackButtonProps = {
@@ -19,7 +18,7 @@ export function WindowHeaderBackButton({ label, className, ...nav }: WindowHeade
     <Button
       type="text"
       size="small"
-      icon={<ArrowLeft />}
+      icon={<Icon name="arrow-back" size={14} />}
       styles={{ icon: { width: 14, height: 14 } }}
       aria-label={label}
       className={className}

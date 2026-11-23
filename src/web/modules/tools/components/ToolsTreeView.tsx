@@ -1,26 +1,31 @@
 import { type CollisionDetection, DndContext, type DragEndEvent, type DragOverEvent, DragOverlay, type DragStartEvent, PointerSensor, type UniqueIdentifier, closestCorners, getFirstCollision, pointerWithin, rectIntersection, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Dropdown, Icon, Modal, message } from "devnonla-ui";
-import type { MenuProps } from "devnonla-ui";
-import { Ellipsis, Pencil, X } from "lucide-react";
+import { Button, Card, Empty, OverlayScroll, Popover, Tag, Text, Tooltip, message, Icon } from "devnonla-ui";
+import { Folder, Hash, List, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { AgentTool } from "src/common/types";
+import { AskClaudeHint } from "src/components/AskClaudeHint";
 import RenderIf from "src/components/RenderIf";
+import { TreeBranch } from "src/components/TreeBranch";
 import { useAppDispatch } from "src/store/store";
 import type { ToolFolderWithTools } from "../common/toolFoldersSlice";
+import { ToolIcon } from "./ToolIcon";
 import { fetchTools, reorderTools, reorderToolsLocal } from "../common/toolsSlice";
 
-const UNGROUPED_ID = "ungrouped";
+export const UNGROUPED_ID = "ungrouped";
+export const ALL_TOOLS_KEY = "all";
+
+export type ToolsViewMode = "card" | "list";
 
 interface ToolsTreeViewProps {
+  view?: ToolsViewMode;
   tools: AgentTool[];
   folders: ToolFolderWithTools[];
   onToolClick?: (toolId: string) => void;
   onEditFolder?: (folder: ToolFolderWithTools) => void;
-  onDeleteFolder?: (folderId: string) => void;
-  onCreateFolder?: () => void;
+  activeKey?: string;
 }
 
 type Items = Record<string, string[]>;
@@ -33,7 +38,7 @@ type FolderMeta = {
   editable: boolean;
 };
 
-function sortFolders(folders: ToolFolderWithTools[]) {
+export function sortFolders(folders: ToolFolderWithTools[]) {
   return [...folders].sort((a, b) => {
     const byOrder = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
     if (byOrder !== 0) return byOrder;
@@ -107,84 +112,93 @@ function findContainerIn(items: Items, id: UniqueIdentifier): string | undefined
   return Object.keys(items).find((key) => items[key].includes(sid));
 }
 
-function FolderMenu({ title, onEdit, onDelete }: { title: string; onEdit?: () => void; onDelete?: () => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const menuItems: MenuProps["items"] = [
-    {
-      key: "edit",
-      label: (
-        <div className="flex items-center gap-2">
-          <Pencil size={14} />
-          Edit
-        </div>
-      ),
-      onClick: () => onEdit?.(),
-    },
-    {
-      key: "delete",
-      danger: true,
-      label: (
-        <div className="flex items-center gap-2">
-          <X size={14} />
-          Delete
-        </div>
-      ),
-      onClick: () => {
-        Modal.confirm({
-          title: "Delete folder?",
-          content: `Delete "${title}"? Tools in this folder will move to Ungrouped.`,
-          okText: "Delete",
-          okButtonProps: { danger: true },
-          cancelText: "Cancel",
-          onOk: () => onDelete?.(),
-        });
-      },
-    },
-  ];
-
+function FolderSettingsButton({ onOpen }: { onOpen?: () => void }) {
   return (
-    <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems, style: { minWidth: 160 } }}>
-      <button
-        type="button"
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-input-fill hover:text-foreground cursor-pointer opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        aria-label="Folder actions"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Ellipsis size={14} />
-      </button>
-    </Dropdown>
+    <Tooltip title="Folder settings">
+      <Button
+        type="icon"
+        size="small"
+        aria-label="Folder settings"
+        icon={<Settings size={15} />}
+        className="opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen?.();
+        }}
+      />
+    </Tooltip>
   );
 }
 
-const TREE_STROKE = "text-muted-foreground/40";
-const TREE_LINE_FILL = "bg-muted-foreground/40";
+type ParamSchema = { type?: string; description?: string; enum?: string[]; items?: { type?: string } };
 
-function TreeGuide({ isLast }: { isLast: boolean }) {
+function paramType(schema: ParamSchema): string {
+  if (schema.enum?.length) return "one of";
+  if (schema.type === "array") return `list of ${schema.items?.type ?? "any"}`;
+  return schema.type ?? "any";
+}
+
+function ParamTypeIcon({ schema }: { schema: ParamSchema }) {
+  const props = { size: 13, strokeWidth: 2 };
+  const icon = schema.enum?.length ? <Icon name="select" size={13} /> : schema.type === "array" ? <List {...props} /> : schema.type === "number" || schema.type === "integer" ? <Hash {...props} /> : schema.type === "boolean" ? <Icon name="checkbox" size={13} /> : schema.type === "object" ? <Icon name="json" size={13} /> : <Icon name="text" size={13} />;
   return (
-    <div className={cn("pointer-events-none relative w-8 shrink-0 self-stretch", TREE_STROKE)} aria-hidden>
-      <RenderIf
-        condition={isLast}
-        fallback={
-          <>
-            <div className={cn("absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2", TREE_LINE_FILL)} />
-            <div className={cn("absolute left-1/2 top-1/2 h-px w-4 -translate-y-1/2", TREE_LINE_FILL)} />
-          </>
-        }
-      >
-        <div className={cn("absolute left-1/2 top-0 w-px -translate-x-1/2", TREE_LINE_FILL, "h-[calc(50%-7px)]")} />
-        <svg className="absolute left-[calc(50%-0.5px)] top-[calc(50%-7px)] overflow-visible" width="17" height="8" viewBox="0 0 17 8" fill="none">
-          <path d="M0.5 0 V1.5 Q0.5 7.5 8 7.5 H17" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-        </svg>
-      </RenderIf>
+    <Tooltip title={paramType(schema)}>
+      <span className="flex h-5 w-4 shrink-0 items-center justify-center text-tertiary-foreground">{icon}</span>
+    </Tooltip>
+  );
+}
+
+function ParamsList({ parameters }: { parameters: object }) {
+  const schema = parameters as { properties?: Record<string, ParamSchema>; required?: string[] };
+  const required = new Set(schema.required ?? []);
+  const entries = Object.entries(schema.properties ?? {}).sort(([a], [b]) => Number(required.has(b)) - Number(required.has(a)));
+  return (
+    <div className="flex w-[22rem] max-w-[calc(100vw-56px)] flex-col">
+      <div className="border-b border-border pb-2 text-sm font-semibold text-foreground">Parameters</div>
+      <OverlayScroll autoHeight className="-mr-3 max-h-[min(24rem,calc(var(--radix-popover-content-available-height,24rem)-72px))] w-[calc(100%+0.75rem)]" innerClassName="pr-3">
+        <div className="flex flex-col">
+          {entries.map(([name, p]) => (
+            <div key={name} className="flex flex-col gap-1.5 border-b border-border/60 py-3 last:border-b-0 last:pb-0">
+              <div className="flex items-start gap-2">
+                <ParamTypeIcon schema={p} />
+                <code className="min-w-0 flex-1 font-mono text-sm font-semibold leading-5 text-foreground [overflow-wrap:anywhere]">
+                  {name}
+                  {required.has(name) ? <span className="ml-0.5 text-destructive">*</span> : null}
+                </code>
+              </div>
+              {p.enum?.length ? (
+                <div className="flex flex-wrap gap-1 pl-6">
+                  {p.enum.map((v) => (
+                    <Text key={v} code className="[overflow-wrap:anywhere]">
+                      {v}
+                    </Text>
+                  ))}
+                </div>
+              ) : null}
+              <p className={cn("m-0 line-clamp-4 pl-6 text-xs leading-relaxed [overflow-wrap:anywhere]", p.description ? "text-foreground" : "italic text-tertiary-foreground")}>{p.description || "No description"}</p>
+            </div>
+          ))}
+        </div>
+      </OverlayScroll>
     </div>
   );
 }
 
-function ToolRowView({
+function ParamCount({ tool, count }: { tool: AgentTool; count: number }) {
+  if (count === 0) return <span>No params</span>;
+  return (
+    <Popover trigger="hover" placement="bottomLeft" mouseEnterDelay={0.15} content={<ParamsList parameters={tool.parameters} />}>
+      <span className="-mx-1 rounded px-1 tabular-nums transition-colors hover:bg-muted hover:text-foreground">
+        {count} param{count === 1 ? "" : "s"}
+      </span>
+    </Popover>
+  );
+}
+
+function ToolCardView({
   tool,
+  view = "card",
   onClick,
-  isLast,
   className,
   style,
   innerRef,
@@ -193,8 +207,8 @@ function ToolRowView({
   dragging,
 }: {
   tool: AgentTool;
+  view?: ToolsViewMode;
   onClick?: () => void;
-  isLast?: boolean;
   className?: string;
   style?: React.CSSProperties;
   innerRef?: (node: HTMLElement | null) => void;
@@ -203,37 +217,64 @@ function ToolRowView({
   dragging?: boolean;
 }) {
   const paramCount = Object.keys((tool.parameters as { properties?: Record<string, unknown> })?.properties ?? {}).length;
+  const description = tool.description?.trim();
+
+  if (view === "list") {
+    return (
+      <div ref={innerRef} style={style} className={cn("flex", className)}>
+        <button
+          type="button"
+          onClick={onClick}
+          className={cn(
+            "flex w-full cursor-grab touch-none items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left transition-colors duration-150 active:cursor-grabbing",
+            !dragging && "hover:bg-muted/70 focus-visible:bg-muted/70",
+            dragging && "cursor-grabbing bg-card shadow-xl ring-1 ring-foreground/10",
+          )}
+          {...listeners}
+          {...attributes}
+        >
+          <ToolIcon icon={tool.icon} size={18} />
+          <Tooltip title={description || tool.label} mouseEnterDelay={0.5}>
+            <span className="min-w-0 truncate text-sm leading-5 text-foreground">{tool.label}</span>
+          </Tooltip>
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div ref={innerRef} style={style} className={cn("relative flex items-stretch", className)}>
-      <RenderIf condition={isLast !== undefined}>
-        <TreeGuide isLast={!!isLast} />
-      </RenderIf>
+    <div ref={innerRef} style={style} className={cn("flex", className)}>
       <button
         type="button"
         onClick={onClick}
-        className={cn("group/tool flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-2.5 text-left transition-colors cursor-grab active:cursor-grabbing touch-none", !dragging && "hover:bg-input-fill", dragging && "cursor-grabbing bg-muted ring-1 ring-foreground/10 shadow-lg")}
+        className={cn(
+          "group/tool flex w-full cursor-grab touch-none items-start gap-4 rounded-xl border-0 bg-transparent px-2 pt-3 text-left transition-colors duration-150 active:cursor-grabbing",
+          !dragging && "hover:bg-muted/70 focus-visible:bg-muted/70",
+          dragging && "cursor-grabbing bg-card shadow-xl ring-1 ring-foreground/10",
+        )}
         {...listeners}
         {...attributes}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <span className="min-w-0 truncate font-mono text-[13px] leading-snug text-foreground/90 group-hover/tool:text-foreground transition-colors">{tool.label}</span>
+        <div className="flex size-7 shrink-0 items-center justify-center">
+          <ToolIcon icon={tool.icon} size={28} />
         </div>
-        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80 opacity-0 transition-opacity group-hover/tool:opacity-100">{paramCount > 0 ? `${paramCount} param${paramCount === 1 ? "" : "s"}` : "No params"}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 pb-3">
+          <Tooltip title={tool.label} mouseEnterDelay={0.5}>
+            <span className="truncate text-base font-medium text-foreground">{tool.label}</span>
+          </Tooltip>
+          <Tooltip title={description || undefined} mouseEnterDelay={0.5}>
+            <span className={cn("line-clamp-2 text-sm leading-snug [overflow-wrap:anywhere]", description ? "text-tertiary-foreground" : "italic text-tertiary-foreground")}>{description || "No description"}</span>
+          </Tooltip>
+          <span className="mt-1 flex items-center text-xs text-tertiary-foreground">
+            <ParamCount tool={tool} count={paramCount} />
+          </span>
+        </div>
       </button>
     </div>
   );
 }
 
-function SortableToolRow({
-  tool,
-  onClick,
-  isLast,
-}: {
-  tool: AgentTool;
-  onClick: () => void;
-  isLast: boolean;
-}) {
+function SortableToolCard({ tool, view, onClick }: { tool: AgentTool; view: ToolsViewMode; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tool.id,
     data: { type: "tool", toolId: tool.id, folderId: tool.folderId ?? null },
@@ -244,21 +285,23 @@ function SortableToolRow({
     transition,
   };
 
-  return <ToolRowView tool={tool} onClick={isDragging ? undefined : onClick} isLast={isLast} innerRef={setNodeRef} listeners={listeners} attributes={attributes} style={style} className={cn(isDragging && "opacity-40 z-10")} />;
+  return <ToolCardView tool={tool} view={view} onClick={isDragging ? undefined : onClick} innerRef={setNodeRef} listeners={listeners} attributes={attributes} style={style} className={cn(isDragging && "z-10 opacity-40")} />;
 }
 
 function FolderNode({
   meta,
+  view,
   tools,
   onToolClick,
   onEditFolder,
-  onDeleteFolder,
+  bare = false,
 }: {
   meta: FolderMeta;
+  view: ToolsViewMode;
   tools: AgentTool[];
   onToolClick: (toolId: string) => void;
   onEditFolder: (folder: ToolFolderWithTools) => void;
-  onDeleteFolder: (folderId: string) => void;
+  bare?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: meta.key,
@@ -267,48 +310,92 @@ function FolderNode({
 
   const toolIds = tools.map((t) => t.id);
 
-  return (
-    <div ref={setNodeRef} className={cn("flex flex-col gap-1 rounded-xl transition-colors", isOver && "bg-muted ring-1 ring-foreground/12")}>
-      <div className="group/folder flex items-center gap-1">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5">
-          <div className="flex w-8 shrink-0 items-center justify-center">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-foreground/80 ring-1 ring-inset ring-foreground/10">
-              <Icon name="code" size={15} />
-            </div>
-          </div>
-          <span className="shrink-0 text-[15px] font-semibold tracking-tight text-foreground">{meta.title}</span>
-        </div>
-
-        <RenderIf condition={meta.editable && !!meta.folder}>
-          <FolderMenu title={meta.title} onEdit={() => meta.folder && onEditFolder(meta.folder)} onDelete={() => meta.folder && onDeleteFolder(meta.folder.id)} />
-        </RenderIf>
-      </div>
-
-      <div className="relative">
-        <div className={cn("absolute left-4 top-0 w-px -translate-x-1/2", TREE_LINE_FILL, "h-2.5")} aria-hidden />
-        <RenderIf
-          condition={tools.length > 0}
-          fallback={
-            <div className="relative flex items-stretch min-h-10">
-              <TreeGuide isLast />
-              <p className="m-0 px-2 py-3 text-[12px] text-muted-foreground">Drop tools here</p>
-            </div>
-          }
-        >
-          <SortableContext items={toolIds} strategy={verticalListSortingStrategy}>
-            <div className="flex flex-col gap-0.5 pt-1">
-              {tools.map((tool, index) => (
-                <SortableToolRow key={tool.id} tool={tool} onClick={() => onToolClick(tool.id)} isLast={index === tools.length - 1} />
+  if (bare) {
+    return (
+      <div ref={setNodeRef}>
+        <RenderIf condition={tools.length > 0} fallback={<Empty className="py-16" description={meta.folderId ? "No tools in this folder" : "No ungrouped tools"} />}>
+          <SortableContext items={toolIds} strategy={rectSortingStrategy}>
+            <div className={cn("-mx-2 grid grid-cols-1", view === "card" ? "gap-x-6 gap-y-1 md:grid-cols-2" : "gap-y-0.5")}>
+              {tools.map((tool) => (
+                <SortableToolCard key={tool.id} tool={tool} view={view} onClick={() => onToolClick(tool.id)} />
               ))}
             </div>
           </SortableContext>
         </RenderIf>
       </div>
+    );
+  }
+
+  if (view === "list") {
+    return (
+      <div ref={setNodeRef} className={cn("flex flex-col rounded-lg transition-colors", isOver && "bg-muted/40")}>
+        <div className="group/folder flex items-center gap-2 px-2 py-1.5">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <Folder size={13} />
+          </span>
+          <Tooltip title={meta.title} mouseEnterDelay={0.5}>
+            <span className="min-w-0 truncate text-sm font-medium text-foreground">{meta.title}</span>
+          </Tooltip>
+          <span className="shrink-0 text-xs tabular-nums text-tertiary-foreground">{tools.length}</span>
+          <div className="ml-auto">
+            <RenderIf condition={meta.editable && !!meta.folder}>
+              <FolderSettingsButton onOpen={() => meta.folder && onEditFolder(meta.folder)} />
+            </RenderIf>
+          </div>
+        </div>
+        <SortableContext items={toolIds} strategy={rectSortingStrategy}>
+          <TreeBranch lineX={20} elbowY={18} indent={30} className="mt-1.5">
+            {tools.length > 0
+              ? tools.map((tool) => <SortableToolCard key={tool.id} tool={tool} view={view} onClick={() => onToolClick(tool.id)} />)
+              : [
+                  <div key="empty" className="px-2 py-1.5 text-xs italic leading-5 text-tertiary-foreground">
+                    Drag tools here
+                  </div>,
+                ]}
+          </TreeBranch>
+        </SortableContext>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={setNodeRef} className={cn("rounded-xl transition-shadow", isOver && "ring-2 ring-focus-ring")}>
+      <Card>
+        <Card.Item
+          className="group/folder py-3"
+          label={
+            <>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <Folder size={14} />
+              </span>
+              <Tooltip title={meta.title} mouseEnterDelay={0.5}>
+                <span className="min-w-0 truncate text-md font-medium tracking-tight text-foreground">{meta.title}</span>
+              </Tooltip>
+              <Tag className="shrink-0 tabular-nums">{tools.length}</Tag>
+            </>
+          }
+        >
+          <RenderIf condition={meta.editable && !!meta.folder}>
+            <FolderSettingsButton onOpen={() => meta.folder && onEditFolder(meta.folder)} />
+          </RenderIf>
+        </Card.Item>
+        <Card.Item className="block p-2">
+          <RenderIf condition={tools.length > 0} fallback={<Empty bordered={false} icon={null} description="Drag tools here" className="py-6" />}>
+            <SortableContext items={toolIds} strategy={rectSortingStrategy}>
+              <div className={cn("grid grid-cols-1", view === "card" ? "gap-x-6 gap-y-1 md:grid-cols-2" : "gap-y-0.5")}>
+                {tools.map((tool) => (
+                  <SortableToolCard key={tool.id} tool={tool} view={view} onClick={() => onToolClick(tool.id)} />
+                ))}
+              </div>
+            </SortableContext>
+          </RenderIf>
+        </Card.Item>
+      </Card>
     </div>
   );
 }
 
-export function ToolsTreeView({ tools, folders, onToolClick = () => {}, onEditFolder = () => {}, onDeleteFolder = () => {}, onCreateFolder: _onCreateFolder }: ToolsTreeViewProps) {
+export function ToolsTreeView({ view = "card", tools, folders, onToolClick = () => {}, onEditFolder = () => {}, activeKey = ALL_TOOLS_KEY }: ToolsTreeViewProps) {
   const dispatch = useAppDispatch();
   const [items, setItems] = useState<Items>(() => buildItems(tools, folders));
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
@@ -503,16 +590,32 @@ export function ToolsTreeView({ tools, folders, onToolClick = () => {}, onEditFo
 
   const toolsFor = (containerId: string) => (items[containerId] ?? []).map((id) => toolsById.get(id)).filter((t): t is AgentTool => !!t);
 
+  if (activeKey === ALL_TOOLS_KEY) {
+    const all = folderMetas.flatMap((meta) => toolsFor(meta.key));
+    if (all.length === 0) {
+      return (
+        <Empty className="py-16" description="No tools yet">
+          <AskClaudeHint what="tool" tool="create_tool" />
+        </Empty>
+      );
+    }
+    return (
+      <div className={cn("-mx-2 grid grid-cols-1", view === "card" ? "gap-x-6 gap-y-1 md:grid-cols-2" : "gap-y-0.5")}>
+        {all.map((tool) => (
+          <ToolCardView key={tool.id} tool={tool} view={view} onClick={() => onToolClick(tool.id)} />
+        ))}
+      </div>
+    );
+  }
+
+  const activeMeta: FolderMeta = folderMetas.find((meta) => meta.key === activeKey) ?? { key: UNGROUPED_ID, title: "Ungrouped", folderId: null, editable: false };
+
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-          <div className="flex flex-col gap-8">
-            {folderMetas.map((meta) => (
-              <FolderNode key={meta.key} meta={meta} tools={toolsFor(meta.key)} onToolClick={handleToolClick} onEditFolder={onEditFolder} onDeleteFolder={onDeleteFolder} />
-            ))}
-          </div>
-          <DragOverlay dropAnimation={null}>{activeTool ? <ToolRowView tool={activeTool} dragging /> : null}</DragOverlay>
+          <FolderNode key={activeMeta.key} meta={activeMeta} view={view} tools={toolsFor(activeMeta.key)} onToolClick={handleToolClick} onEditFolder={onEditFolder} bare />
+          <DragOverlay dropAnimation={null}>{activeTool ? <ToolCardView tool={activeTool} view={view} dragging /> : null}</DragOverlay>
         </DndContext>
       </section>
     </div>

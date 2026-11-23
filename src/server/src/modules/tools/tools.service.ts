@@ -1,5 +1,3 @@
-import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
-import { inWorkspace } from "../../common/workspace/scope.js";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { type NewAgentTool, agentTools, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
@@ -7,6 +5,7 @@ import { qall, qone, qrun } from "../../common/db/query.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { slugify } from "../../common/utils/slug.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { normalizeToolIcon } from "./common/tool-icon.js";
 import { buildJsonSchemaFromCode, isAnnotationComment, parseMetaFromCode, syncAnnotationHeader } from "./common/code-annotations.js";
 import { executeTool, removeToolSandbox } from "./common/tool-runner.js";
 
@@ -19,13 +18,13 @@ async function nextSortOrder(folderId: string | null): Promise<number> {
           db
             .select({ sortOrder: agentTools.sortOrder })
             .from(agentTools)
-            .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.folderId, folderId))),
+            .where(eq(agentTools.folderId, folderId)),
         );
   return rows.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
 }
 
 export async function listTools(query: RawQuery = {}) {
-  const result = await listQuery({ table: agentTools, where: inWorkspace(agentTools.workspaceId) }, query);
+  const result = await listQuery({ table: agentTools }, query);
   const items = result.items.map(({ codeContent, draftCode, ...rest }: any) => rest);
   return { ...result, items };
 }
@@ -35,7 +34,7 @@ export async function getTool(id: string) {
     getDb()
       .select()
       .from(agentTools)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
 }
 
@@ -46,13 +45,13 @@ async function assertToolNameAvailable(name: string, excludeId?: string) {
         db
           .select()
           .from(agentTools)
-          .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.name, name), ne(agentTools.id, excludeId))),
+          .where(and(eq(agentTools.name, name), ne(agentTools.id, excludeId))),
       )
     : await qone(
         db
           .select()
           .from(agentTools)
-          .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.name, name))),
+          .where(eq(agentTools.name, name)),
       );
   if (dup) {
     throw new BadRequestException("Tool name already exists");
@@ -60,7 +59,7 @@ async function assertToolNameAvailable(name: string, excludeId?: string) {
 }
 
 export async function createTool(
-  body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent"> & {
+  body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent" | "icon"> & {
     folderId?: string | null;
     sortOrder?: number;
   },
@@ -68,8 +67,8 @@ export async function createTool(
   const { folderId = null, sortOrder, ...rest } = body;
   await assertToolNameAvailable(rest.name);
   const tool: NewAgentTool = {
-    workspaceId: currentWorkspaceId(),
     ...rest,
+    icon: normalizeToolIcon(rest.icon),
     id: crypto.randomUUID(),
     folderId,
     sortOrder: sortOrder ?? (await nextSortOrder(folderId)),
@@ -86,9 +85,11 @@ export async function updateTool(id: string, body: Partial<NewAgentTool>) {
     db
       .select()
       .from(agentTools)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
   if (!existing) throw new BadRequestException("Not found");
+
+  if (body.icon !== undefined) body.icon = normalizeToolIcon(body.icon);
 
   // Derive metadata from // @name / // @description / // @param comments, then
   // canonicalize those headers in the stored code so share/export stays self-describing.
@@ -145,13 +146,13 @@ export async function updateTool(id: string, body: Partial<NewAgentTool>) {
     db
       .update(agentTools)
       .set(body)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
   const updated = await qone(
     db
       .select()
       .from(agentTools)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
   if (!updated) throw new BadRequestException("Not found");
 
@@ -179,7 +180,7 @@ export async function reorderTools(folderId: string | null, toolIds: string[]) {
       db
         .update(agentTools)
         .set({ folderId, sortOrder: i })
-        .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+        .where(eq(agentTools.id, id)),
     );
   }
   wsHub.emit("tools:reordered", { folderId, toolIds });
@@ -190,7 +191,7 @@ export async function deleteTool(id: string) {
   await qrun(
     getDb()
       .delete(agentTools)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
   removeToolSandbox(id);
   wsHub.emit("tools:deleted", { id });
@@ -209,7 +210,7 @@ export async function getToolCode(id: string): Promise<string | null> {
     getDb()
       .select({ codeContent: agentTools.codeContent })
       .from(agentTools)
-      .where(and(inWorkspace(agentTools.workspaceId), eq(agentTools.id, id))),
+      .where(eq(agentTools.id, id)),
   );
   if (!row) return null;
   return row.codeContent ?? "";

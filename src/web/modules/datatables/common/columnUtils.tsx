@@ -142,7 +142,7 @@ export function formatCellValue(col: DatatableColumn, value: unknown, timeZone =
     return <span className="text-quaternary-foreground">&nbsp;</span>;
   }
   if (col.type === "boolean") {
-    return <span className={cn("inline-flex size-4 shrink-0 items-center justify-center rounded-xs border text-[10px] leading-none", value ? "border-brand/40 bg-brand/20 text-brand-700" : "border-border text-transparent")}>{value ? "✓" : null}</span>;
+    return <span className={cn("inline-flex size-4 shrink-0 items-center justify-center rounded-xs border text-2xs leading-none", value ? "border-brand/40 bg-brand/20 text-brand-700" : "border-border text-transparent")}>{value ? "✓" : null}</span>;
   }
   if (col.type === "select" && typeof value === "string") {
     return <SelectPill value={value} />;
@@ -151,7 +151,7 @@ export function formatCellValue(col: DatatableColumn, value: unknown, timeZone =
     return <span className="truncate text-foreground">{JSON.stringify(value)}</span>;
   }
   if (col.type === "number") {
-    return <span className="tabular-nums text-foreground">{String(value)}</span>;
+    return <span className="block w-full text-right tabular-nums text-foreground">{String(value)}</span>;
   }
   if (col.type === "datetime") {
     return <span className="whitespace-nowrap text-foreground">{formatDatetimeCell(value, timeZone)}</span>;

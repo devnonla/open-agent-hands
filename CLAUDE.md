@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Agent Hands (`agenthands`) is a local, single-binary server for **tools, MCP, KV, secrets, datatables and cron jobs**. AI coding agents (Claude Code, Codex) connect to it over MCP. Stack: Bun + Hono API, React 19/Vite UI, SQLite via Drizzle. Bun workspaces are `src/server` and `src/web`. Requires Bun ≥ 1.4.3.
+Agent Hands (`agenthands`) is a local, single-binary server for **tools, MCP, KV, secrets, datatables, file storage and cron jobs**. AI coding agents (Claude Code, Codex) connect to it over MCP. Stack: Bun + Hono API, React 19/Vite UI, SQLite via Drizzle. Bun workspaces are `src/server` and `src/web`. Requires Bun ≥ 1.4.3.
 
-It has no in-app LLM agents. The agent, chat, provider, skill and team features, the outbound remote MCP client, multi-user management and roles, plus Postgres, were removed on purpose. The root `Dockerfile` and `docker-compose.yml` only package the single binary for a VPS; keep them that thin. It is single-user: one account created at `/setup`, and every authenticated request has full access. Don't reintroduce them.
+It has no in-app LLM agents. The agent, chat, provider, skill and team features, the outbound remote MCP client, multi-user management and roles, workspaces, plus Postgres, were removed on purpose. The root `Dockerfile` and `docker-compose.yml` only package the single binary for a VPS; keep them that thin. The `Dockerfile` default target builds from source, and its `release` target wraps a prebuilt linux binary for the GHCR image that `docker-compose.yml` pulls. It is single-user: one account created at `/setup`, and every authenticated request has full access. Don't reintroduce them.
 
 ## Product principle: agent-first, human-observes
 
@@ -14,8 +14,8 @@ Agent Hands is built **for AI agents to use, not for people to operate**. Agents
 
 - **Every capability is an MCP tool first.** A new feature is not done until the Core MCP can do it (`modules/core-mcp/core-mcp.tools.ts`). The UI is optional.
 - **The UI does not create agent-authored resources.** There are no "New tool / New site / New job / New MCP server" buttons. Empty states point to the matching Core MCP tool (`AskClaudeHint`). The UI keeps view, inspect, edit, toggle and delete.
-- **Config agents write is read-only in the UI.** This covers job schedules, datatable structure and the tools on a hosted MCP server. Show it in plain words, with switches to pause or resume (for example a job's `enabled`), never an editor for it.
-- **Humans still enter things an agent should not see or invent.** Secrets, KV values, datatable rows, workspaces, folders and settings stay editable in the UI. Never require secret values to pass through chat.
+- **Config agents write is read-only in the UI.** This covers job schedules and datatable structure. Show it in plain words, with switches to pause or resume (for example a job's `enabled`), never an editor for it. Which tools a hosted MCP server exposes is the exception: each tool has an on/off switch in the server detail.
+- **Humans still enter things an agent should not see or invent.** Secrets, KV values, datatable rows, folders and settings stay editable in the UI. Never require secret values to pass through chat.
 - **Optimize the agent's experience.** Tool names are predictable (`verb_noun`, grouped by prefix). Arguments accept names as well as ids. Results are compact JSON. Errors are explicit, set `isError`, and say how to fix the call. `get_guide` documents how to write tools, jobs and sites. Long or side-effecting actions say so in their description.
 - **Fail loudly and safely.** Destructive tools need `confirm=true`. Agents must never silently fall back to something they did not ask for (e.g. `requestedLanguageMatched`).
 
@@ -39,6 +39,7 @@ CI (`.github/workflows/ci.yml`) runs lint, both typechecks and tests. Use Conven
 
 **Releasing:** always follow the `release` skill (`.claude/skills/release/SKILL.md`), every gate, in order. Pushing a `v*` tag runs `release.yml`:
 - an ubuntu job builds the 4 binaries and `install.sh`, and creates the release with notes taken from the matching `CHANGELOG.md` section;
+- a `docker` job wraps the linux binaries in the `Dockerfile` `release` target and pushes `ghcr.io/devnonla/open-agent-hands` (`X.Y.Z`, `X.Y`, `latest`; amd64 + arm64);
 - a `macos-latest` job reuses the darwin binaries from that job and adds `OpenAgentHands-darwin-{arm64,x64}.app.tar.gz`.
 
 Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a published release; fix forward with a patch.
@@ -49,26 +50,20 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 
 ### Server (`src/server/src`)
 - `index.ts` is the CLI entry (`--port/--host/--data-dir`). It runs `initDb` (applies migrations), then `startJobsScheduler`, then `createAppServer` (`common/ws/create-app-server.ts`: Bun HTTP + `/ws` WebSocket for UI live updates via `wsHub`). `app.ts` mounts the routers and serves the SPA.
-- Feature code lives in `modules/<feature>/*.route.ts` + `*.service.ts`. The features are tools, tool-folders, my-mcp-servers (hosted MCP), sites, kvstore, secrets, datatables, jobs, settings, auth, api-keys and v1.
-- **Core MCP** (`modules/core-mcp/`): a built-in admin MCP server at `POST /mcp/core`, authenticated with a single `ah_core_…` Bearer key. The key is generated on first use and stored encrypted in `configurations.core_mcp_key`; `/api/core-mcp` shows it and `/api/core-mcp/rotate` replaces it. `core-mcp.tools.ts` is the tool catalog. Each tool takes an optional `workspace` (id or name, default `default`) and runs the existing services inside `runInWorkspace`. `core-mcp-guide.ts` holds the authoring guide that `get_guide` returns. When you add a feature, add matching core tools.
+- Feature code lives in `modules/<feature>/*.route.ts` + `*.service.ts`. The features are tools, tool-folders, my-mcp-servers (hosted MCP), sites, kvstore, secrets, datatables, storage, jobs, settings, auth, api-keys and v1.
+- **Core MCP** (`modules/core-mcp/`): a built-in admin MCP server at `POST /mcp/core`, authenticated with a single `ah_core_…` Bearer key. The key is generated on first use and stored encrypted in `configurations.core_mcp_key`; `/api/core-mcp` shows it and `/api/core-mcp/rotate` replaces it. `core-mcp.tools.ts` is the tool catalog. Each tool calls the existing services directly. `core-mcp-guide.ts` holds the authoring guide that `get_guide` returns. When you add a feature, add matching core tools.
 - **MCP plumbing**: `common/mcp/json-rpc.ts` is the shared stateless JSON-RPC/Streamable-HTTP handler used by both Core MCP and hosted MCP servers.
 - **Hosted MCP**: `modules/my-mcp-servers/mcp-http.route.ts` is a stateless JSON-RPC Streamable HTTP endpoint at `POST /mcp/:id`, authenticated with a per-server `ra_mcp_…` Bearer key. It exposes the tools assigned to that server and runs them through `executeTool`.
 - **Tool execution**: `modules/tools/common/tool-runner.ts` writes the tool code into a per-tool sandbox dir under `DATA_DIR`. It `bun add`s any detected imports, then spawns `process.execPath` wrapped by `common/sandbox` (bubblewrap on Linux, Seatbelt on macOS, otherwise unsandboxed). Tool metadata and the JSON schema come from `// @name`, `// @description` and `// @param` annotations (`common/code-annotations.ts`).
 - **Runtime SDK**: tools and jobs import `@agenthands/runtime` (`tools/common/runtime-sdk.ts`, `jobs/jobs-runtime-sdk.ts`); `@nonla-agents/runtime` and `nonlaagents` are written as legacy aliases. It's generated into the sandbox's `node_modules` and talks to a localhost RPC proxy (`runtime-proxy.ts`) for kv, secrets and datatable access.
-- **Sites** (`modules/sites/`): React sites made of `app.tsx`, `backend.ts`, `styles.css` and `package.json`, edited as a draft tree and promoted to prod with approve. `sites-bundle.ts` bundles `app.tsx` with `Bun.build`; `sites-deps.ts` installs npm imports. `backend.ts` exports `handle({ request, params, query, agenthands, nonlaagents })` and runs in a subprocess (`sites-backend-runner.ts` → `sites-backend-worker.ts`). A compiled binary runs that worker by re-invoking itself with `__sites-backend-worker` (see `index.ts`). Published sites are served at `/public/sites/:slug`, optionally behind a password, with data and actions under `/api/public/sites/:slug`. Files live in `{DATA_DIR}/sites/<id>/`, with the draft tree in `draft/`.
+- **Sites** (`modules/sites/`): React sites made of `app.tsx`, `backend.ts`, `styles.css` and `package.json`, with no review step: `updateSiteFile` writes both the `draft/` tree and the live tree, so every write is live at once. `sites-bundle.ts` bundles `app.tsx` with `Bun.build`; `sites-deps.ts` installs npm imports. `backend.ts` exports `handle({ request, params, query, agenthands, nonlaagents })` and runs in a subprocess (`sites-backend-runner.ts` → `sites-backend-worker.ts`). A compiled binary runs that worker by re-invoking itself with `__sites-backend-worker` (see `index.ts`). Published sites are served at `/public/sites/:slug`, optionally behind a password, with data and actions under `/api/public/sites/:slug`. Files live in `{DATA_DIR}/sites/<id>/`, with the draft tree in `draft/`.
+- **Storage** (`modules/storage/`): files grouped in spaces, Drive-style (do not call them buckets or objects). Metadata is in `storage_spaces` / `storage_files`; bytes live on disk at `{DATA_DIR}/storage/<space-id>/<file-id>` (keyed by id, never by the user's key). There is no size limit: every write streams to a temp file in the space folder while hashing (`writeStreamToFile`), then `commitFile` renames it into place, so never buffer whole bodies; `Bun.serve` sets `maxRequestBodySize` to `MAX_SAFE_INTEGER`. In a public space each file is served at `/public/storage/<public_token>/<file name>`: the token is random per file so links cannot be guessed or listed, every miss is the same 404, and responses carry `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer` and `Content-Security-Policy: sandbox`. Code uses `agenthands.storage.space(name)`: `put`/`get`/`stream` send raw bytes to `/storage/<space>/<key>` on the runtime proxy, `list`/`delete` go over JSON RPC.
+- **Update check** (`modules/settings/update-check.ts`): `GET /api/settings/update` reads the latest GitHub release (`AGENTHANDS_UPDATE_REPO`, default this repo, `off` disables) at most every 6h and returns the install kind (`docker` via `AGENTHANDS_INSTALL=docker` set in the image, `desktop`, `binary`, `source`) with its update command. It skips the network for `desktop` (own updater) and `source`. The web shows it in the sidebar and Settings → General.
 - **Jobs**: cron scripts run by `jobs-runner.ts` with `process.execPath run main.ts`. `jobs-scheduler.ts` claims due jobs through lease columns.
 
-### Workspaces
-- Resources (tools, tool folders, hosted MCP servers, KV, secrets, datatable projects, jobs, sites, API keys) carry `workspace_id`. Users and settings are global. The `default` workspace always exists and cannot be deleted. Names and keys are unique per workspace, but site slugs are global because public URLs have no workspace.
-- The current workspace lives in an `AsyncLocalStorage` context (`common/workspace/workspace-context.ts`). Services read it via `currentWorkspaceId()` and filter with `inWorkspace(table.workspaceId)` (`common/workspace/scope.ts`). New scoped queries and inserts must do the same.
-- How each entry point picks the workspace:
-  - UI routes use `resolveWorkspace`, which reads `X-Workspace-Id`, then `?workspaceId`, then the `agenthands_workspace` cookie, then `default`.
-  - `/api/v1` uses the API key's workspace.
-  - `/mcp/:id` uses the MCP server's workspace.
-  - Public sites look up the slug globally (`runInSiteWorkspace`).
-  - The runtime proxy records the workspace when it starts.
-  - The jobs scheduler runs each due job inside its own workspace.
-- WebSocket events are tagged with the emitting workspace, and clients only receive their own (`workspace:select` message). The web app stores the selection in localStorage and the cookie (`src/web/common/workspace.ts`), and `WorkspaceGuard` redirects to `/workspaces` until one is chosen.
+### One shared space
+- There are no workspaces (removed in migration `0007_drop_workspaces.sql`, which merged them and renamed clashing names). Every tool, folder, MCP server, KV key, secret, datatable project, storage space, job, site and API key is visible to everything else, so any MCP server can expose any tool. Tool names, secret keys and datatable project names are globally unique. KV keys are unique per KV project (`kv_projects`, migrations `0008`–`0009`). Every key has a project; the `default` project always exists, cannot be changed or deleted, and is what code without a project uses. Code reaches another project with `agenthands.kv.project(name)`.
+- WebSocket events go to every connected client.
 
 ### Single binary
 - `scripts/build-binary.ts` generates `src/server/src/embedded-assets.ts`, which imports every `src/web/dist` file with `{ type: "file" }`. It then runs `bun build --compile` and restores the empty stub. Keep the stub committed as an empty map; `app.ts` falls back to `src/web/dist` on disk when the map is empty.
@@ -76,7 +71,7 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 - Migrations are embedded via `import … with { type: "text" }` in `common/db/migrations/index.ts`. A new migration needs a new `00NN_name.sql` **and** an entry in that index.
 
 ### Claude Code plugin (`plugins/agenthands/`)
-- A plugin with one skill, `agenthands`, whose `SKILL.md` is a short index and `references/<group>.md` holds one file per group (tools, jobs, sites, datatables, mcp-servers, kv, secrets, workspaces, runtime). Listed by `.claude-plugin/marketplace.json`. Claude loads the skill locally, then reads only the reference it needs, so agents get the exact formats without a tool call.
+- A plugin with one skill, `agenthands`, whose `SKILL.md` is a short index and `references/<group>.md` holds one file per group (tools, jobs, sites, datatables, mcp-servers, kv, secrets, storage, runtime). Listed by `.claude-plugin/marketplace.json`. Claude loads the skill locally, then reads only the reference it needs, so agents get the exact formats without a tool call.
 - Keep each reference in step with `core-mcp-guide.ts` and the Core MCP tools. When a tool's format or arguments change, update its reference. Bump `plugin.json` `version` only in a release where the plugin changed (the `release` skill checks this).
 
 ### Desktop app (`desktop/`)
@@ -105,9 +100,9 @@ Feature modules live in `modules/<feature>/` and mirror the server. Shared API c
 ## Data dir
 `DATA_DIR` defaults to `~/.open-agent-hands`. Layout:
 - `data.db`: SQLite. Tool and job code lives here.
-- `workspaces/<workspace-id>/`:
-  - `tools/<tool-id>/`: tool sandbox (generated, can be deleted)
-  - `sites/<site-id>/`: site source with a `draft/` subfolder; this is the only code stored on disk
-  - `job_runs/<run-id>/`: temporary, removed after each run
+- `tools/<tool-id>/`: tool sandbox (generated, can be deleted)
+- `sites/<site-id>/`: site source with a `draft/` subfolder; this is the only code stored on disk
+- `storage/<space-id>/<file-id>`: storage file bytes (metadata in `data.db`)
+- `job_runs/<run-id>/`: temporary, removed after each run
 
-Build paths with `common/workspace/workspace-paths.ts`, never by hand. Deleting a workspace removes its folder. `legacy-layout.ts` moves the pre-workspace `sites/` and `tool_envs/` folders at startup. `bunfig.toml` preloads `__tests__/preload.ts`, which points `DATA_DIR` at a temp folder so tests never write to the real data dir.
+Build paths with `common/utils/data-paths.ts`, never by hand. `common/utils/legacy-layout.ts` runs at startup: it moves site folders out of the old `workspaces/<id>/` layout and deletes `tool_envs/` and leftover tool sandboxes. `bunfig.toml` preloads `__tests__/preload.ts`, which points `DATA_DIR` at a temp folder so tests never write to the real data dir.

@@ -36,7 +36,7 @@ export function CreatedKeyDialog({ created, onClose }: CreatedKeyDialogProps) {
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Secret key</span>
           <div className="flex items-center gap-2">
-            <Input value={secret} readOnly className="font-mono text-[12px]" />
+            <Input value={secret} readOnly className="font-mono text-xs" />
             <Button type="text" icon={<Icon name="copy" size={14} />} onClick={() => void copyKey()} aria-label="Copy key" />
           </div>
         </div>

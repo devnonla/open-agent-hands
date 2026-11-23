@@ -52,7 +52,7 @@ curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download
 - **macOS:** installs **Open Agent Hands.app** into `/Applications` and opens it. The app sits in the menu bar and runs the server for you. It also adds the `agenthands` command to your terminal.
 - **Linux:** installs the `agenthands` binary into `~/.local/bin`. Start it with `agenthands`.
 
-Then open **http://127.0.0.1:8429**, create your account and pick a workspace. Everything stays on your machine.
+Then open **http://127.0.0.1:8429**, create your account. Everything stays on your machine.
 
 ## Connect your agent
 
@@ -90,8 +90,8 @@ Agents create things. You mostly look, and step in when needed.
 | **Jobs** | See the schedule in plain words and the next runs, pause or resume, run now, read the logs |
 | **Sites** | Preview, publish, set a password |
 | **Datatables** | Browse and edit rows |
+| **Storage** | Browse files by folder, preview, upload or download them, make a space public, reset a file's link |
 | **KV Store / Secrets** | Enter values that agents should use but never see in chat, such as API keys |
-| **Workspaces** | Keep clients or projects apart. Each has its own tools, data and keys |
 
 Things you might ask an agent:
 
@@ -100,20 +100,20 @@ Things you might ask an agent:
 - *"Add a tool that converts text to a URL slug and put it on the Everyday server."*
 
 <details>
-<summary><b>Everything the Core MCP can do</b> (51 tools)</summary>
+<summary><b>Everything the Core MCP can do</b> (58 tools)</summary>
 
 | Group | Tools |
 | --- | --- |
 | Guide | `get_guide` |
-| Workspaces | `list_workspaces` `create_workspace` `update_workspace` `delete_workspace` |
 | Tools | `list_tools` `get_tool` `create_tool` `update_tool` `run_tool` `delete_tool` `manage_tool_folder` `move_tool` |
 | MCP servers | `list_mcp_servers` `create_mcp_server` `update_mcp_server` `add_tools_to_mcp_server` `remove_tools_from_mcp_server` `delete_mcp_server` |
-| KV & secrets | `kv_list` `kv_get` `kv_set` `kv_delete` `secret_list` `secret_set` `secret_delete` |
+| KV & secrets | `kv_list_projects` `kv_list` `kv_get` `kv_set` `kv_delete` `kv_delete_project` `secret_list` `secret_set` `secret_delete` |
 | Datatables | `datatable_list_projects` `datatable_create_project` `datatable_get_schema` `datatable_create_table` `datatable_add_column` `datatable_query` `datatable_insert_rows` `datatable_update_row` `datatable_delete_rows` `datatable_delete_project` |
-| Sites | `list_sites` `create_site` `get_site_files` `write_site_file` `preview_site` `approve_site` `publish_site` `delete_site` |
-| Jobs | `list_jobs` `get_job` `create_job` `update_job` `run_job` `get_job_runs` `delete_job` |
+| Storage | `storage_list_spaces` `storage_create_space` `storage_update_space` `storage_delete_space` `storage_list_files` `storage_put_file` `storage_get_file` `storage_delete_file` `storage_reset_public_link` |
+| Sites | `list_sites` `create_site` `get_site_files` `write_site_file` `preview_site` `publish_site` `delete_site` |
+| Jobs | `list_jobs` `get_job` `create_job` `update_job` `run_job` `get_job_runs` `clear_job_runs` `delete_job` |
 
-Every tool takes an optional `workspace` (id or name). The code agents write uses a small runtime SDK:
+The code agents write uses a small runtime SDK:
 
 ```ts
 import agenthands from "@agenthands/runtime";
@@ -121,6 +121,7 @@ import agenthands from "@agenthands/runtime";
 const city = await agenthands.kv.get("DEFAULT_CITY", "Hanoi");
 const token = await agenthands.secrets.get("OPENWEATHER_API_KEY");
 const leads = await agenthands.datatable.query("crm", "leads", { where: { score: { $gt: 80 } } });
+await agenthands.storage.space("reports").put("leads.json", JSON.stringify(leads));
 ```
 
 </details>
@@ -137,11 +138,6 @@ const leads = await agenthands.datatable.query("crm", "leads", { where: { score:
     <td width="50%"><img src=".github/assets/site-preview.jpg" alt="Site preview" /><br /><sub><b>Sites</b>: small React apps with a backend, published at <code>/public/sites/&lt;slug&gt;</code>.</sub></td>
   </tr>
 </table>
-
-<p align="center">
-  <img src=".github/assets/workspaces.jpg" alt="Workspace picker" width="720" /><br />
-  <sub><b>Workspaces</b> keep clients and projects apart: tools, data, keys and files all live inside one.</sub>
-</p>
 
 ## The Mac app
 
@@ -168,14 +164,15 @@ agenthands --data-dir ~/work-ah  # a separate set of data
 | `-H, --host` | `127.0.0.1` (env `HOST`) |
 | `-d, --data-dir` | `~/.open-agent-hands` (env `DATA_DIR`) |
 
+The server checks GitHub for a newer release at most every 6 hours and shows it in the app. Set `AGENTHANDS_UPDATE_REPO=off` to turn that off.
+
 ## Run on a server with Docker
 
-Build and run it on a VPS. Data lives in the `agenthands-data` volume.
+Each release publishes an image for `amd64` and `arm64` to `ghcr.io/devnonla/open-agent-hands`. Save [`docker-compose.yml`](docker-compose.yml) on your VPS and start it. Data lives in the `agenthands-data` volume.
 
 ```bash
-git clone https://github.com/devnonla/open-agent-hands.git
-cd open-agent-hands
-docker compose up -d --build
+curl -fsSLO https://raw.githubusercontent.com/devnonla/open-agent-hands/main/docker-compose.yml
+docker compose up -d
 ```
 
 The port is bound to `127.0.0.1:8429`, so put a reverse proxy with HTTPS in front. With Caddy:
@@ -190,13 +187,31 @@ agenthands.example.com {
 - **Sandbox.** Tools and jobs run in bubblewrap, which Docker's default seccomp profile blocks. The compose file sets `seccomp:unconfined` for that reason. Without it, they run unsandboxed.
 - **Connect your agent** to `https://agenthands.example.com/mcp/core` with the key from the app, as in "Connect your agent".
 
+### Update
+
+When a new version is out, the sidebar shows **Update available** and **Settings → General** gives the command. Next to your `docker-compose.yml`, run:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Your data stays in the volume, and the new version upgrades the database when it starts. You can't go back to an older version after that, so back up the volume first:
+
+```bash
+docker run --rm -v agenthands-data:/data -v "$PWD":/backup debian tar czf /backup/agenthands-data.tgz -C /data .
+```
+
+To stay on one version, replace `latest` with a version such as `0.5.0` in `docker-compose.yml`. To build the image from source instead, run `docker build -t ghcr.io/devnonla/open-agent-hands:latest .` in a clone of this repo.
+
 ## Your data
 
 Everything lives in `~/.open-agent-hands`:
 
 ```
-data.db               all workspaces, tools, jobs, KV, secrets and datatables (SQLite)
-workspaces/<id>/      site files and generated tool folders
+data.db               tools, jobs, KV, secrets, datatables and file metadata (SQLite)
+storage/<id>/         storage files
+sites/<id>/           site files
+tools/<id>/           generated tool folders (safe to delete)
 logs/server.log       server log when started by the Mac app
 ```
 

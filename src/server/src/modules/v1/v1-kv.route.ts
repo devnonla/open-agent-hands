@@ -1,7 +1,8 @@
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { BadRequestException, ForbiddenException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { type ApiKeyContext, canAccessKvEntry } from "../api-keys/api-keys.service.js";
-import { createKvEntry, deleteKvByKey, getKvByKey, listKvEntries, updateKvEntry } from "../kvstore/kvstore.service.js";
+import { createKvEntry, deleteKvByKey, getKvByKey, listKvEntries, requireKvProjectId, updateKvEntry } from "../kvstore/kvstore.service.js";
 import { getApiKey } from "./api-key.middleware.js";
 
 const app = new Hono();
@@ -10,8 +11,12 @@ function toPublic(entry: { key: string; value: string; description?: string | nu
   return { key: entry.key, value: entry.value, description: entry.description ?? null };
 }
 
-async function requireKv(apiKey: ApiKeyContext, key: string) {
-  const entry = await getKvByKey(key);
+function projectRef(c: Context): string {
+  return c.req.query("project")?.trim() ?? "";
+}
+
+async function requireKv(apiKey: ApiKeyContext, key: string, projectId: string) {
+  const entry = await getKvByKey(key, projectId);
   if (!entry) throw new NotFoundException("KV entry not found");
   if (!canAccessKvEntry(apiKey, entry.id)) {
     throw new ForbiddenException("This API key cannot access that key");
@@ -21,28 +26,29 @@ async function requireKv(apiKey: ApiKeyContext, key: string) {
 
 app.get("/", async (c) => {
   const apiKey = getApiKey(c);
-  const all = (await listKvEntries({ sorts: "key" })).items;
+  const all = (await listKvEntries({ sorts: "key", project: await requireKvProjectId(projectRef(c)) })).items;
   const items = apiKey.kvUnrestricted ? all : all.filter((entry) => apiKey.kvEntryIds.includes(entry.id));
   return c.json({ items: items.map(toPublic) });
 });
 
 app.get("/:key", async (c) => {
-  return c.json(toPublic(await requireKv(getApiKey(c), c.req.param("key"))));
+  return c.json(toPublic(await requireKv(getApiKey(c), c.req.param("key"), await requireKvProjectId(projectRef(c)))));
 });
 
 app.put("/:key", async (c) => {
   const apiKey = getApiKey(c);
   const key = c.req.param("key");
+  const projectId = await requireKvProjectId(projectRef(c));
   const body = await c.req.json<{ value?: string; description?: string | null }>();
   if (typeof body.value !== "string") {
     throw new BadRequestException("value is required");
   }
-  const existing = await getKvByKey(key);
+  const existing = await getKvByKey(key, projectId);
   if (!existing) {
     if (!apiKey.kvUnrestricted) {
       throw new ForbiddenException("This API key cannot access that key");
     }
-    return c.json(toPublic(await createKvEntry({ key, value: body.value, description: body.description })), 201);
+    return c.json(toPublic(await createKvEntry({ key, value: body.value, description: body.description, projectId })), 201);
   }
   if (!canAccessKvEntry(apiKey, existing.id)) {
     throw new ForbiddenException("This API key cannot access that key");
@@ -58,8 +64,9 @@ app.put("/:key", async (c) => {
 });
 
 app.delete("/:key", async (c) => {
-  await requireKv(getApiKey(c), c.req.param("key"));
-  return c.json(await deleteKvByKey(c.req.param("key")));
+  const projectId = await requireKvProjectId(projectRef(c));
+  await requireKv(getApiKey(c), c.req.param("key"), projectId);
+  return c.json(await deleteKvByKey(c.req.param("key"), projectId));
 });
 
 export default app;

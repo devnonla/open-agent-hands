@@ -1,4 +1,3 @@
-import { workspaceIdOrNull } from "../workspace/workspace-context.js";
 import type { ServerWebSocket } from "bun";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -18,6 +17,9 @@ export type WsEventType =
   | "kvstore:created"
   | "kvstore:updated"
   | "kvstore:deleted"
+  | "kvprojects:created"
+  | "kvprojects:updated"
+  | "kvprojects:deleted"
   | "datatables:project-created"
   | "datatables:project-updated"
   | "datatables:project-deleted"
@@ -41,12 +43,16 @@ export type WsEventType =
   | "job_runs:created"
   | "job_runs:updated"
   | "job_runs:log"
+  | "job_runs:cleared"
   | "sites:created"
   | "sites:updated"
   | "sites:deleted"
-  | "workspaces:created"
-  | "workspaces:updated"
-  | "workspaces:deleted"
+  | "storage:space-created"
+  | "storage:space-updated"
+  | "storage:space-deleted"
+  | "storage:file-created"
+  | "storage:file-updated"
+  | "storage:file-deleted"
   | "ping";
 
 export interface WsEvent<T = unknown> {
@@ -62,12 +68,7 @@ export type WsClientData = {
 type ClientEntry = {
   ws: ServerWebSocket<WsClientData>;
   userId: string;
-  workspaceId: string | null;
 };
-
-function isGlobalEvent(type: WsEventType): boolean {
-  return type.startsWith("workspaces:") || type === "ping";
-}
 
 // ─── Hub ──────────────────────────────────────────────────────────────────────
 
@@ -75,23 +76,17 @@ class WsHub {
   private clients = new Map<string, ClientEntry>();
 
   add(ws: ServerWebSocket<WsClientData>, clientId: string, meta: { userId: string }) {
-    this.clients.set(clientId, { ws, userId: meta.userId, workspaceId: null });
-  }
-
-  selectWorkspace(clientId: string, workspaceId: string | null) {
-    const client = this.clients.get(clientId);
-    if (client) client.workspaceId = workspaceId;
+    this.clients.set(clientId, { ws, userId: meta.userId });
   }
 
   remove(clientId: string) {
     this.clients.delete(clientId);
   }
 
-  broadcast<T>(type: WsEventType, payload: T, workspaceId: string | null = null) {
+  broadcast<T>(type: WsEventType, payload: T) {
     if (this.clients.size === 0) return;
     const msg = JSON.stringify({ type, payload } satisfies WsEvent<T>);
     for (const client of this.clients.values()) {
-      if (workspaceId && client.workspaceId !== workspaceId) continue;
       try {
         client.ws.send(msg);
       } catch {
@@ -113,7 +108,7 @@ class WsHub {
   }
 
   emit<T>(type: WsEventType, payload: T) {
-    this.broadcast(type, payload, isGlobalEvent(type) ? null : workspaceIdOrNull());
+    this.broadcast(type, payload);
   }
 
   get size() {

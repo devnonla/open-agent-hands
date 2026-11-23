@@ -14,7 +14,6 @@
  */
 
 import { getAuthToken } from "../api";
-import { getCurrentWorkspaceId } from "../workspace";
 
 /** Must stay in sync with server `WS_APP_PROTOCOL` / `WS_JWT_PROTOCOL_PREFIX`. */
 const WS_APP_PROTOCOL = "agenthands";
@@ -37,12 +36,18 @@ export type WsEventType =
   | "sites:created"
   | "sites:updated"
   | "sites:deleted"
-  | "workspaces:created"
-  | "workspaces:updated"
-  | "workspaces:deleted"
+  | "storage:space-created"
+  | "storage:space-updated"
+  | "storage:space-deleted"
+  | "storage:file-created"
+  | "storage:file-updated"
+  | "storage:file-deleted"
   | "kvstore:created"
   | "kvstore:updated"
   | "kvstore:deleted"
+  | "kvprojects:created"
+  | "kvprojects:updated"
+  | "kvprojects:deleted"
   | "datatables:project-created"
   | "datatables:project-updated"
   | "datatables:project-deleted"
@@ -66,6 +71,7 @@ export type WsEventType =
   | "job_runs:created"
   | "job_runs:updated"
   | "job_runs:log"
+  | "job_runs:cleared"
   | "sites:created"
   | "sites:updated"
   | "sites:deleted"
@@ -148,8 +154,6 @@ function connect() {
 
   ws.onopen = () => {
     retryDelay = 1_000;
-    const workspaceId = getCurrentWorkspaceId();
-    if (workspaceId) ws?.send(JSON.stringify({ type: "workspace:select", workspaceId }));
 
     // Heartbeat ping every 25s
     pingInterval = setInterval(() => {

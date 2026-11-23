@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Hono } from "hono";
 import { secrets } from "../common/db/schema.js";
 import { loadSecretsMap } from "../modules/secrets/secrets.service.js";
-import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
+import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 describe("Secrets API", () => {
   let app: Hono;
@@ -67,7 +67,7 @@ describe("Secrets API", () => {
   });
 
   test("loadSecretsMap decrypts for tool runtime", async () => {
-    const map = await inDefaultWorkspace(() => loadSecretsMap());
+    const map = await (loadSecretsMap());
     expect(map.API_TOKEN).toBe("super-secret-value");
   });
 
@@ -79,12 +79,12 @@ describe("Secrets API", () => {
     });
     expect(res.status).toBe(201);
     const created = (await res.json()) as { id: string };
-    expect((await inDefaultWorkspace(() => loadSecretsMap())).VI_SECRET).toBe(original);
+    expect((await (loadSecretsMap())).VI_SECRET).toBe(original);
 
     const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
     const put = await authRequest(app, token, "PUT", `/api/secrets/${created.id}`, { value: updated });
     expect(put.status).toBe(200);
-    expect((await inDefaultWorkspace(() => loadSecretsMap())).VI_SECRET).toBe(updated);
+    expect((await (loadSecretsMap())).VI_SECRET).toBe(updated);
 
     await authRequest(app, token, "DELETE", `/api/secrets/${created.id}`);
   });
@@ -96,7 +96,7 @@ describe("Secrets API", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as Record<string, unknown>;
     expect(data).not.toHaveProperty("value");
-    expect((await inDefaultWorkspace(() => loadSecretsMap())).API_TOKEN).toBe("rotated-secret");
+    expect((await (loadSecretsMap())).API_TOKEN).toBe("rotated-secret");
   });
 
   test("GET /api/settings/values — secret_encryption_key never returned", async () => {
@@ -109,6 +109,6 @@ describe("Secrets API", () => {
   test("DELETE /api/secrets/:id", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/secrets/${secretId}`);
     expect(res.status).toBe(200);
-    expect((await inDefaultWorkspace(() => loadSecretsMap())).API_TOKEN).toBeUndefined();
+    expect((await (loadSecretsMap())).API_TOKEN).toBeUndefined();
   });
 });

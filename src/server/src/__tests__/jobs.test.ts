@@ -1,13 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hono } from "hono";
-import { finishJobRun, getJob, getJobRun, tryClaimJob } from "../modules/jobs/jobs.service.js";
-import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
+import { finishJobRun, getJob, getJobRun, toPublicJobRun, tryClaimJob } from "../modules/jobs/jobs.service.js";
+
+const toPublic = toPublicJobRun;
+import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 async function waitForRun(runId: string, timeoutMs = 15_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const run = await getJobRun(runId);
-    if (run && run.status !== "running") return run;
+    if (run && run.status !== "running" && run.status !== "queued") return run;
     await Bun.sleep(50);
   }
   throw new Error(`Run ${runId} did not finish within ${timeoutMs}ms`);
@@ -150,7 +152,7 @@ await agenthands.step("hello", async () => {
     expect(res.status).toBe(202);
     const run = (await res.json()) as { id: string; status: string; trigger: string };
     expect(run.trigger).toBe("manual");
-    expect(run.status).toBe("running");
+    expect(run.status).toBe("queued");
 
     const done = await waitForRun(run.id);
     expect(done.status).toBe("success");
@@ -160,7 +162,7 @@ await agenthands.step("hello", async () => {
   });
 
   test("POST /api/jobs/:id/run — overlap blocked while lease held", async () => {
-    const claimed = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
+    const claimed = await (tryClaimJob(jobId, "manual"));
     expect(claimed).not.toBeNull();
 
     const res = await authRequest(app, token, "POST", `/api/jobs/${jobId}/run`, {});
@@ -176,9 +178,9 @@ await agenthands.step("hello", async () => {
   });
 
   test("tryClaimJob — only one winner", async () => {
-    const a = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
+    const a = await (tryClaimJob(jobId, "manual"));
     expect(a).not.toBeNull();
-    const b = await inDefaultWorkspace(() => tryClaimJob(jobId, "manual"));
+    const b = await (tryClaimJob(jobId, "manual"));
     expect(b).toBeNull();
     await finishJobRun({
       jobId,
@@ -230,7 +232,9 @@ await agenthands.step("kv check", async () => {
     const res = await authRequest(app, token, "POST", `/api/jobs/${slow.id}/run`, {});
     expect(res.status).toBe(202);
     const run = (await res.json()) as { id: string; status: string };
-    expect(run.status).toBe("running");
+    expect(run.status).toBe("queued");
+    for (let i = 0; i < 100 && (await getJobRun(run.id))?.status !== "running"; i++) await Bun.sleep(20);
+    expect((await getJobRun(run.id))?.status).toBe("running");
 
     const cancel = await authRequest(app, token, "POST", `/api/jobs/${slow.id}/runs/${run.id}/cancel`, {});
     expect(cancel.status).toBe(200);
@@ -242,9 +246,107 @@ await agenthands.step("kv check", async () => {
     await authRequest(app, token, "DELETE", `/api/jobs/${slow.id}`);
   });
 
+  test("run input, output and run context reach the script", async () => {
+    const create = await authRequest(app, token, "POST", "/api/jobs", {
+      name: "io job",
+      code: `import agenthands from "@agenthands/runtime";
+const doubled = await agenthands.step("Double", () => agenthands.run.input.n * 2);
+agenthands.log.info("context", { trigger: agenthands.run.trigger, attempt: agenthands.run.attempt, last: agenthands.run.lastSuccessAt });
+agenthands.output({ doubled, jobName: agenthands.run.jobName });
+`,
+    });
+    const job = (await create.json()) as { id: string };
+    const res = await authRequest(app, token, "POST", `/api/jobs/${job.id}/run`, { input: { n: 21 } });
+    expect(res.status).toBe(202);
+    const done = toPublic(await waitForRun(((await res.json()) as { id: string }).id));
+    expect(done.status).toBe("success");
+    expect(done.input).toEqual({ n: 21 });
+    expect(done.output).toEqual({ doubled: 42, jobName: "io job" });
+    const context = done.logs.find((e) => e.message === "context");
+    expect(context?.data).toEqual({ trigger: "manual", attempt: 1, last: null });
+    const step = done.logs.find((e) => e.kind === "step" && e.duration != null);
+    const stepStart = done.logs.find((e) => e.kind === "step" && e.duration == null);
+    expect(step && stepStart && Math.abs(step.t - stepStart.t)).toBeLessThanOrEqual(5);
+
+    const second = await authRequest(app, token, "POST", `/api/jobs/${job.id}/run`, { input: { n: 1 } });
+    const again = toPublic(await waitForRun(((await second.json()) as { id: string }).id));
+    expect((again.logs.find((e) => e.message === "context")?.data as { last: string | null }).last).not.toBeNull();
+    await authRequest(app, token, "DELETE", `/api/jobs/${job.id}`);
+  });
+
+  test("step retries recover and a failed step records its error", async () => {
+    const create = await authRequest(app, token, "POST", "/api/jobs", {
+      name: "flaky steps",
+      code: `import agenthands from "@agenthands/runtime";
+let tries = 0;
+await agenthands.step("Flaky", () => { tries++; if (tries < 3) throw new Error("nope " + tries); return tries; }, { retries: 3, backoffMs: 10 });
+await agenthands.step("Broken", () => { throw new Error("database is down"); });
+`,
+    });
+    const job = (await create.json()) as { id: string };
+    const res = await authRequest(app, token, "POST", `/api/jobs/${job.id}/run`, {});
+    const done = toPublic(await waitForRun(((await res.json()) as { id: string }).id));
+    expect(done.status).toBe("failed");
+    const flaky = done.logs.find((e) => e.kind === "step" && e.message === "Flaky" && e.duration != null);
+    expect(flaky?.level).toBe("step");
+    expect(flaky?.attempts).toBe(3);
+    expect(done.logs.filter((e) => e.level === "warn" && e.message.startsWith("Flaky failed")).length).toBe(2);
+    const broken = done.logs.find((e) => e.kind === "step" && e.message === "Broken" && e.duration != null);
+    expect(broken?.level).toBe("error");
+    expect(broken?.error).toBe("database is down");
+    expect(done.logs.some((e) => e.message.includes("\u001b["))).toBe(false);
+    await authRequest(app, token, "DELETE", `/api/jobs/${job.id}`);
+  });
+
+  test("max_retries re-runs the whole script until it succeeds", async () => {
+    const create = await authRequest(app, token, "POST", "/api/jobs", {
+      name: "retry job",
+      maxRetries: 2,
+      code: `import agenthands from "@agenthands/runtime";
+if (agenthands.run.attempt < 2) throw new Error("first attempt fails");
+agenthands.output({ attempt: agenthands.run.attempt, max: agenthands.run.maxAttempts });
+`,
+    });
+    const job = (await create.json()) as { id: string; maxRetries: number };
+    expect(job.maxRetries).toBe(2);
+    const res = await authRequest(app, token, "POST", `/api/jobs/${job.id}/run`, {});
+    const done = toPublic(await waitForRun(((await res.json()) as { id: string }).id, 30_000));
+    expect(done.status).toBe("success");
+    expect(done.attempts).toBe(2);
+    expect(done.output).toEqual({ attempt: 2, max: 3 });
+    expect(done.logs.some((e) => e.message.startsWith("Attempt 1 failed"))).toBe(true);
+    expect(done.logs.some((e) => e.message === "Attempt 2 of 3")).toBe(true);
+    await authRequest(app, token, "DELETE", `/api/jobs/${job.id}`);
+  }, 40_000);
+
+  test("DELETE /api/jobs/:id/runs clears finished runs only", async () => {
+    const active = await (tryClaimJob(jobId, "manual"));
+    expect(active).not.toBeNull();
+    const before = (await (await authRequest(app, token, "GET", `/api/jobs/${jobId}/runs`)).json()) as { total: number };
+    expect(before.total).toBeGreaterThan(1);
+
+    const res = await authRequest(app, token, "DELETE", `/api/jobs/${jobId}/runs`);
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as { deleted: number; kept: number };
+    expect(result.deleted).toBe(before.total - 1);
+    expect(result.kept).toBe(1);
+
+    const after = (await (await authRequest(app, token, "GET", `/api/jobs/${jobId}/runs`)).json()) as { items: { id: string }[]; total: number };
+    expect(after.total).toBe(1);
+    expect(after.items[0].id).toBe(active!.run.id);
+    await finishJobRun({ jobId, runId: active!.run.id, status: "success", logs: [], advanceSchedule: false });
+  });
+
+  test("max_retries out of range is rejected", async () => {
+    const res = await authRequest(app, token, "POST", "/api/jobs", { name: "bad retries", code: "", maxRetries: 9 });
+    expect(res.status).toBe(400);
+    const update = await authRequest(app, token, "PUT", `/api/jobs/${jobId}`, { maxRetries: -1 });
+    expect(update.status).toBe(400);
+  });
+
   test("DELETE /api/jobs/:id", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/jobs/${jobId}`);
     expect(res.status).toBe(200);
-    expect(await inDefaultWorkspace(() => getJob(jobId))).toBeUndefined();
+    expect(await (getJob(jobId))).toBeUndefined();
   });
 });

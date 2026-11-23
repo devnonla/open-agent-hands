@@ -1,9 +1,10 @@
 import rootPkg from "../../../package.json" with { type: "json" };
 import { closeDb, initDb } from "./common/db/client.js";
-import { migrateLegacyDataLayout } from "./common/workspace/legacy-layout.js";
+import { migrateLegacyDataLayout } from "./common/utils/legacy-layout.js";
 import { getDataDir } from "./common/utils/data-dir.js";
 import { createAppServer } from "./common/ws/create-app-server.js";
 import { startJobsScheduler, stopJobsScheduler } from "./modules/jobs/jobs-scheduler.js";
+import { publishPendingSiteDrafts } from "./modules/sites/sites.service.js";
 import { SITE_WORKER_FLAG } from "./modules/sites/sites-backend-runner.js";
 import { runSiteBackendWorker } from "./modules/sites/sites-backend-worker.js";
 
@@ -20,7 +21,8 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
 
   process.env.DATA_DIR = dataDir;
   await initDb(dataDir);
-  await migrateLegacyDataLayout();
+  migrateLegacyDataLayout();
+  void publishPendingSiteDrafts().catch((err) => console.error("[sites] publishing pending drafts failed", err));
   startJobsScheduler();
 
   const server = createAppServer({ port, host });

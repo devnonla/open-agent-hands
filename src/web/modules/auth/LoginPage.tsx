@@ -2,11 +2,9 @@ import { Button, EFormItemType, SchemaForm, type TFormItemProps } from "devnonla
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import meadowWallpaper from "src/assets/bg.jpg";
 import { apiClient, clearAuthToken, getAuthToken, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
-import { AppMark } from "src/components/AppLogo";
-import { DevBadge } from "src/components/AppLogo";
+import { AuthError, AuthShell } from "./components/AuthShell";
 type LoginValues = {
   username: string;
   password: string;
@@ -90,35 +88,14 @@ export default function LoginPage() {
   if (checking) return null;
 
   return (
-    <div className="relative h-dvh w-screen overflow-hidden bg-background">
-      <img src={meadowWallpaper} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full select-none object-cover object-center" />
-      <div className="relative z-10 flex h-full items-center justify-center overflow-y-auto p-6">
-        <div className="relative w-full max-w-sm animate-fadeIn overflow-hidden rounded-md border border-border bg-card shadow-(--elevated-shadow)">
-          <div className="flex items-center gap-2 h-8 px-3 bg-background border-b border-border/35">
-            <AppMark size={16} />
-            <span className="text-[13px] font-semibold text-foreground">Sign in</span>
-            <DevBadge className="ml-auto" />
-          </div>
-          <div className="p-6">
-            <div className="flex flex-col gap-1.5 pb-6">
-              <h2 className="text-xl font-semibold tracking-tight text-foreground">Welcome back</h2>
-              <p className="text-sm text-muted-foreground">Enter your credentials to open the desk.</p>
-            </div>
-
-            <form onSubmit={onSubmit}>
-              <SchemaForm form={form} items={ITEMS} />
-              {rootError ? (
-                <div role="alert" className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2">
-                  <p className="text-xs font-medium text-destructive">{rootError}</p>
-                </div>
-              ) : null}
-              <Button htmlType="submit" type="primary" size="large" block loading={loading}>
-                Sign in
-              </Button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthShell title="Welcome back" subtitle="Sign in to watch what your agents build.">
+      <form onSubmit={onSubmit}>
+        <SchemaForm form={form} items={ITEMS} />
+        <AuthError message={rootError} />
+        <Button htmlType="submit" type="primary" size="large" block loading={loading}>
+          Sign in
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

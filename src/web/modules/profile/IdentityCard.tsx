@@ -1,4 +1,4 @@
-import { Button, message } from "devnonla-ui";
+import { Button, Card, Tag, Tooltip, message } from "devnonla-ui";
 import { Dices, LogOut } from "lucide-react";
 import { useState } from "react";
 import { apiClient } from "src/common/api";
@@ -30,7 +30,6 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-/** Profile card: glowing banner, big avatar with a shuffle badge, account facts, and log out. */
 export function IdentityCard({ user, avatar, onAvatarChange, onLogout }: IdentityCardProps) {
   const dispatch = useAppDispatch();
   const [saving, setSaving] = useState(false);
@@ -53,47 +52,39 @@ export function IdentityCard({ user, avatar, onAvatarChange, onLogout }: Identit
   };
 
   return (
-    <aside className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-      <div className="relative h-28 overflow-hidden bg-[radial-gradient(ellipse_at_50%_130%,color-mix(in_srgb,var(--brand)_55%,transparent),transparent_70%),linear-gradient(180deg,color-mix(in_srgb,var(--brand)_16%,transparent),transparent)]">
+    <Card>
+      <div className="relative h-28 overflow-hidden rounded-t-xl bg-[radial-gradient(ellipse_at_50%_130%,color-mix(in_srgb,var(--brand)_55%,transparent),transparent_70%),linear-gradient(180deg,color-mix(in_srgb,var(--brand)_16%,transparent),transparent)]">
         <div className="absolute inset-0 bg-[radial-gradient(color-mix(in_srgb,var(--brand)_40%,transparent)_1px,transparent_1px)] bg-size-[14px_14px] mask-[linear-gradient(180deg,black,transparent)] opacity-70" />
       </div>
 
       <div className="flex flex-col items-center px-6 text-center">
         <div className="relative -mt-14">
-          <div className="rounded-full bg-card p-1.5 ring-1 ring-border-subtle">
+          <div className="rounded-full bg-card p-1.5 ring-1 ring-border-secondary">
             <UserAvatar avatar={avatar} name={name} size={104} />
           </div>
-          <button
-            type="button"
-            onClick={handleRandomize}
-            disabled={saving}
-            title="Shuffle avatar"
-            aria-label="Shuffle avatar"
-            className="absolute right-0 bottom-1 flex size-8 cursor-pointer items-center justify-center rounded-full border-2 border-card bg-brand text-white shadow-md transition-transform hover:scale-110 disabled:cursor-default disabled:opacity-60 disabled:hover:scale-100"
-          >
-            <Dices size={15} className={cn(saving && "animate-spin")} />
-          </button>
+          <Tooltip title="Shuffle avatar">
+            <Button type="primary" shape="circle" aria-label="Shuffle avatar" disabled={saving} onClick={handleRandomize} icon={<Dices size={15} className={cn(saving && "animate-spin")} />} className="absolute right-0 bottom-1 border-2 border-card" />
+          </Tooltip>
         </div>
 
         <h2 className="mt-4 mb-0 max-w-full truncate text-lg font-semibold leading-tight text-foreground">{name}</h2>
         <p className="mt-1 mb-0 max-w-full truncate text-sm text-muted-foreground">@{user.username}</p>
       </div>
 
-      <div className="mx-6 mt-5 divide-y divide-border-subtle border-t border-border-subtle">
+      <div className="mx-6 mt-5 divide-y divide-border-secondary border-t border-border-secondary">
         <InfoRow label="Status">
-          <span className="inline-flex items-center gap-1.5">
-            <span className={cn("size-1.5 rounded-full", user.isActive ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+          <Tag color={user.isActive ? "success" : "default"} dot>
             {user.isActive ? "Active" : "Inactive"}
-          </span>
+          </Tag>
         </InfoRow>
         <InfoRow label="Joined">{formatJoined(user.createdAt)}</InfoRow>
       </div>
 
-      <div className="mt-5 border-t border-border-subtle bg-secondary/40 px-5 py-4">
+      <div className="mt-5 rounded-b-xl border-t border-border-secondary bg-muted px-5 py-4">
         <Button block icon={<LogOut size={14} />} onClick={onLogout}>
           Log out
         </Button>
       </div>
-    </aside>
+    </Card>
   );
 }

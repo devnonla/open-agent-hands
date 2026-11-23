@@ -1,4 +1,4 @@
-import { type ColumnsType, Table } from "devnonla-ui";
+import { Button, type ColumnsType, Empty, Table } from "devnonla-ui";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { SecretEntry } from "src/common/types";
@@ -89,10 +89,10 @@ export function SecretsTable({ items, page, pageSize, total, onPageChange, onUpd
 
   return (
     <NewSecretProvider onCreate={onCreate} onCancel={onCancelAdd} active={adding} handleRef={newSecretRef}>
-      <div ref={hostRef} className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+      <div ref={hostRef} className="min-h-0 flex-1 overflow-hidden">
         <Table
+          className="rounded-xl bg-card [&_th]:bg-card!"
           rowKey="id"
-          size="small"
           columns={columns}
           dataSource={dataSource}
           pagination={{
@@ -102,11 +102,9 @@ export function SecretsTable({ items, page, pageSize, total, onPageChange, onUpd
             hideOnSinglePage: true,
             showSizeChanger: false,
             showTotal: (count, [from, to]) => `${from}–${to} of ${count}`,
-            className: "px-4 pb-4",
             onChange: onPageChange,
           }}
           scroll={{ y: scrollY }}
-          className="bg-card [&_tr]:border-b-0 [&_thead_tr]:border-b-0 [&_td]:border-border/20 [&_th]:border-border/20"
           rowSelection={{
             type: "checkbox",
             selectedRowKeys,
@@ -116,16 +114,23 @@ export function SecretsTable({ items, page, pageSize, total, onPageChange, onUpd
           onRow={(row) => ({ className: cn(isNewRow(row) && "bg-muted/30") })}
           locale={{
             emptyText: hasSearch ? (
-              <div className="py-8 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">
-                  No secrets match &ldquo;<span className="font-medium text-foreground">{searchQuery}</span>&rdquo;
-                </p>
-                <button type="button" onClick={onClearSearch} className="text-xs font-medium text-primary hover:underline">
-                  Clear search filter
-                </button>
-              </div>
+              <Empty
+                bordered={false}
+                icon={null}
+                className="py-8"
+                description={
+                  <>
+                    No secrets match &ldquo;<span className="font-medium text-foreground">{searchQuery}</span>&rdquo;
+                  </>
+                }
+                action={
+                  <Button type="link" size="small" onClick={onClearSearch}>
+                    Clear search filter
+                  </Button>
+                }
+              />
             ) : (
-              <span className="text-xs text-muted-foreground">No secrets stored yet. Click Add secret to create one.</span>
+              <Empty bordered={false} icon={null} className="py-8" description="No secrets stored yet. Click Add secret to create one." />
             ),
           }}
         />

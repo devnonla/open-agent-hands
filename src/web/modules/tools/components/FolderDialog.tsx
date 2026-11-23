@@ -1,6 +1,6 @@
-import { Button, EFormItemType, Modal, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
-import { Pencil, Plus } from "lucide-react";
+import { Button, EFormItemType, Modal, SchemaForm, type TFormItemProps, message, Icon } from "devnonla-ui";
 import { useEffect, useState } from "react";
+import { Settings } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useAppDispatch } from "src/store/store";
 import { createToolFolder, updateToolFolder } from "../common/toolFoldersSlice";
@@ -10,6 +10,7 @@ interface FolderDialogProps {
   open: boolean;
   onClose: () => void;
   folder?: ToolFolderWithTools | null;
+  onDelete?: (folder: ToolFolderWithTools) => void;
 }
 
 type FolderValues = {
@@ -30,7 +31,7 @@ const ITEMS: TFormItemProps[] = [
   },
 ];
 
-export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
+export function FolderDialog({ open, onClose, folder, onDelete }: FolderDialogProps) {
   const dispatch = useAppDispatch();
   const isEdit = !!folder;
   const [saving, setSaving] = useState(false);
@@ -63,7 +64,7 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
     }
   });
 
-  const icon = isEdit ? <Pencil size={16} /> : <Plus size={16} />;
+  const icon = isEdit ? <Settings size={16} /> : <Icon name="add" size={16} />;
 
   return (
     <Modal
@@ -72,9 +73,9 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
       title={
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
-            <div className="text-[14px] leading-none text-muted-foreground">{icon}</div>
+            <div className="text-sm leading-none text-muted-foreground">{icon}</div>
           </div>
-          <span className="truncate font-semibold text-foreground">{isEdit ? "Edit Folder" : "New Folder"}</span>
+          <span className="truncate font-semibold text-foreground">{isEdit ? "Folder settings" : "New Folder"}</span>
         </div>
       }
       width={420}
@@ -95,6 +96,34 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
         <SchemaForm form={form} items={ITEMS} />
         {rootError ? <div className="mt-4 pl-2.75 text-xs leading-snug text-destructive">{rootError}</div> : null}
       </form>
+      {isEdit && folder && onDelete ? (
+        <div className="mt-5 flex items-center justify-between gap-4 rounded-lg border border-destructive/30 px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-foreground">Delete this folder</div>
+            <div className="text-xs text-muted-foreground">Its tools move to Ungrouped. No tool is deleted.</div>
+          </div>
+          <Button
+            danger
+            size="small"
+            icon={<Icon name="trash" size={14} />}
+            onClick={() =>
+              Modal.confirm({
+                title: `Delete folder "${folder.name}"?`,
+                content: "Its tools move to Ungrouped.",
+                okText: "Delete",
+                okButtonProps: { danger: true },
+                cancelText: "Cancel",
+                onOk: () => {
+                  onClose();
+                  onDelete(folder);
+                },
+              })
+            }
+          >
+            Delete
+          </Button>
+        </div>
+      ) : null}
     </Modal>
   );
 }

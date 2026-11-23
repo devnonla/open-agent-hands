@@ -16,9 +16,9 @@ function guard(param: string, check: (id: string) => Promise<boolean>, label: st
 }
 
 const projectGuard = guard("projectId", async (id) => !!(await svc.getProject(id)), "Project");
-const tableGuard = guard("tableId", svc.tableInWorkspace, "Table");
-const columnGuard = guard("columnId", svc.columnInWorkspace, "Column");
-const rowGuard = guard("rowId", svc.rowInWorkspace, "Row");
+const tableGuard = guard("tableId", svc.tableExists, "Table");
+const columnGuard = guard("columnId", svc.columnExists, "Column");
+const rowGuard = guard("rowId", svc.rowExists, "Row");
 
 app.use("/projects/:projectId", projectGuard);
 app.use("/projects/:projectId/*", projectGuard);

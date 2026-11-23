@@ -5,6 +5,7 @@ import mcpIcon from "src/assets/feature-icons/mcp.svg";
 import secretsIcon from "src/assets/feature-icons/secrets.svg";
 import settingsIcon from "src/assets/feature-icons/settings.svg";
 import sitesIcon from "src/assets/feature-icons/sites.svg";
+import storageIcon from "src/assets/feature-icons/storage.svg";
 import toolsIcon from "src/assets/feature-icons/tools.svg";
 import { cn } from "src/common/lib/cn";
 
@@ -17,6 +18,7 @@ const FEATURE_ICONS = {
   secrets: secretsIcon,
   settings: settingsIcon,
   sites: sitesIcon,
+  storage: storageIcon,
 } as const;
 
 export type FeatureIconName = keyof typeof FEATURE_ICONS;
@@ -29,7 +31,7 @@ function stickerRim(size: number): string {
   return [edge(w, 0), edge(-w, 0), edge(0, w), edge(0, -w)].join(" ");
 }
 
-/** Color mark for a workspace feature. Decorative when a text label sits beside it. */
+/** Color mark for an app feature. Decorative when a text label sits beside it. */
 export function FeatureIcon({ name, size = 24, variant = "plain", className }: { name: FeatureIconName; size?: number; variant?: FeatureIconVariant; className?: string }) {
   const img = <img src={FEATURE_ICONS[name]} alt="" width={size} height={size} aria-hidden className={cn("inline-block max-w-none shrink-0 object-contain", className)} style={{ width: size, height: size, filter: variant === "sticker" ? stickerRim(size) : undefined }} />;
 

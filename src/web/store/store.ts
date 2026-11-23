@@ -4,14 +4,14 @@ import { useDispatch, useSelector } from "react-redux";
 import { authReducer } from "src/common/authSlice";
 import { datatableProjectsReducer } from "src/modules/datatables/common/datatableProjectsSlice";
 import { jobsReducer } from "src/modules/jobs/common/jobsSlice";
+import { kvProjectsReducer } from "src/modules/kvstore/common/kvProjectsSlice";
 import { kvStoreReducer } from "src/modules/kvstore/common/kvStoreSlice";
 import { myMcpServersReducer } from "src/modules/my-mcp-servers/common/myMcpServersSlice";
 import { secretsReducer } from "src/modules/secrets/common/secretsSlice";
 import { sitesReducer } from "src/modules/sites/common/sitesSlice";
+import { storageReducer } from "src/modules/storage/common/storageSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
-
-export const resetWorkspaceState = () => ({ type: "workspace/reset" as const });
 
 const appReducer = combineReducers({
     auth: authReducer,
@@ -19,19 +19,16 @@ const appReducer = combineReducers({
     toolFolders: toolFoldersReducer,
     myMcpServers: myMcpServersReducer,
     kvStore: kvStoreReducer,
+    kvProjects: kvProjectsReducer,
     secrets: secretsReducer,
     sites: sitesReducer,
     jobs: jobsReducer,
     datatableProjects: datatableProjectsReducer,
+    storage: storageReducer,
 });
 
-const rootReducer = (state: ReturnType<typeof appReducer> | undefined, action: { type: string }) => {
-  if (action.type === "workspace/reset" && state) return appReducer({ auth: state.auth } as ReturnType<typeof appReducer>, action);
-  return appReducer(state, action);
-};
-
 export const store = configureStore({
-  reducer: rootReducer,
+  reducer: appReducer,
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });
 

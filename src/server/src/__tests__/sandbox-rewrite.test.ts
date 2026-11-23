@@ -4,7 +4,6 @@ import { rewriteSandboxTs } from "../common/sandbox/rewrite-source.js";
 import { tmpDir } from "../common/utils/data-dir.js";
 import { _stopProxyHubForTests } from "../modules/tools/common/runtime-proxy.js";
 import { executeTool } from "../modules/tools/common/tool-runner.js";
-import { inDefaultWorkspace } from "./test-helpers.js";
 
 describe("rewriteSandboxTs", () => {
   test("rewrites caret regex literals to new RegExp", () => {
@@ -55,7 +54,7 @@ describe("sandbox executeTool caret regex", () => {
 
   test("runs ASI `/^` and /^\\/+|\\/+$/g without Unexpected ^", async () => {
     dataDir = `${tmpDir()}/agenthands-sandbox-rewrite-${crypto.randomUUID()}`;
-    const raw = await inDefaultWorkspace(() => executeTool(
+    const raw = await (executeTool(
       "tool-caret-regex",
       `export default async function main(input: Record<string, unknown>) {
   const x = "hello"

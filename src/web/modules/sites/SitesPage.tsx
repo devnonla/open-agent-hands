@@ -1,4 +1,4 @@
-import { Empty, Segmented, message } from "devnonla-ui";
+import { Card, Empty, Skeleton, Tabs, message } from "devnonla-ui";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Site } from "src/common/types";
@@ -11,6 +11,13 @@ import { fetchSites } from "./common/sitesSlice";
 import { SITE_VISIBILITY_META, SiteCard, type SiteVisibility, siteVisibility } from "./components/SiteCard";
 
 type VisibilityFilter = "all" | SiteVisibility;
+
+const FILTERS: { label: string; value: VisibilityFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Public", value: "public" },
+  { label: "Protected", value: "protected" },
+  { label: "Private", value: "unpublished" },
+];
 
 export default function SitesPage() {
   const dispatch = useAppDispatch();
@@ -35,51 +42,64 @@ export default function SitesPage() {
     };
   }, [dispatch]);
 
+  const counts = useMemo(() => {
+    const byVisibility: Record<VisibilityFilter, number> = { all: items.length, public: 0, protected: 0, unpublished: 0 };
+    for (const site of items) byVisibility[siteVisibility(site)] += 1;
+    return byVisibility;
+  }, [items]);
+
   const filtered = useMemo(() => {
     if (visibilityFilter === "all") return items;
     return items.filter((site) => siteVisibility(site) === visibilityFilter);
   }, [items, visibilityFilter]);
 
   return (
-    <PageShell>
-      <PageHeader title="Sites" icon="sites">
-        {items.length > 0 ? (
-          <Segmented
-            value={visibilityFilter}
-            onChange={setVisibilityFilter}
-            options={[
-              { label: "All", value: "all" },
-              { label: "Public", value: "public" },
-              { label: "Protected", value: "protected" },
-              { label: "Unpublished", value: "unpublished" },
-            ]}
+    <PageShell
+      header={<PageHeader title="Sites" icon="sites" className="mb-0 pb-0" bordered={false} />}
+      tabs={
+        items.length > 0 ? (
+          <Tabs
+            aria-label="Filter sites"
+            className="min-w-0"
+            activeKey={visibilityFilter}
+            onChange={(key) => setVisibilityFilter(key as VisibilityFilter)}
+            items={FILTERS.map((filter) => ({
+              key: filter.value,
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  {filter.label}
+                  <span className="text-xs tabular-nums text-muted-foreground">{counts[filter.value]}</span>
+                </span>
+              ),
+            }))}
           />
-        ) : null}
-      </PageHeader>
+        ) : undefined
+      }
+    >
 
       <RenderIf
         condition={items.length > 0 || loading}
         fallback={
-          <Empty className="rounded-2xl border border-dashed border-border px-5 py-16" description="No sites yet">
+          <Empty className="py-16" description="No sites yet">
             <AskClaudeHint what="site" tool="create_site" />
           </Empty>
         }
       >
         <RenderIf condition={loading && items.length === 0}>
           <div className="@container">
-            <div className="grid grid-cols-2 gap-3 @min-[900px]:grid-cols-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
               {["a", "b"].map((key) => (
-                <div key={key} className="overflow-hidden rounded-xl border border-border-subtle bg-card">
-                  <div className="mx-2 mt-2 aspect-16/10 animate-pulse rounded-lg border border-border bg-muted shadow-[0_1px_2px_rgb(0_0_0/0.05)]" />
-                  <div className="h-12" />
-                </div>
+                <Card key={key}>
+                  <Skeleton.Input className="mx-2 mt-2 aspect-16/10 h-auto w-auto rounded-lg" />
+                  <Skeleton title paragraph={false} className="px-3 py-4" />
+                </Card>
               ))}
             </div>
           </div>
         </RenderIf>
         <RenderIf condition={filtered.length > 0}>
           <div className="@container">
-            <div className="grid grid-cols-2 gap-3 @min-[900px]:grid-cols-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
               {filtered.map((site) => (
                 <SiteCard key={site.id} site={site} onOpen={() => navigate(`/sites/${site.id}`)} />
               ))}
@@ -87,7 +107,7 @@ export default function SitesPage() {
           </div>
         </RenderIf>
         <RenderIf condition={!loading && items.length > 0 && filtered.length === 0}>
-          <div className="py-8 text-center text-sm text-muted-foreground">No {SITE_VISIBILITY_META[visibilityFilter as SiteVisibility]?.label.toLowerCase() ?? ""} sites</div>
+          <Empty bordered={false} icon={null} className="py-8" description={`No ${SITE_VISIBILITY_META[visibilityFilter as SiteVisibility]?.label.toLowerCase() ?? ""} sites`} />
         </RenderIf>
       </RenderIf>
     </PageShell>

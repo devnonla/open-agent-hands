@@ -1,4 +1,4 @@
-import { Icon } from "devnonla-ui";
+import { Button, Empty, Spin } from "devnonla-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
@@ -10,6 +10,7 @@ import { useAppDispatch } from "src/store/store";
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
 import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams, sameSourceBody } from "../common/utils";
 import { EditToolHeader } from "./components/EditToolHeader";
+import { ToolSettingsDialog } from "./components/ToolSettingsDialog";
 import { ValidationBanner } from "./components/ValidationBanner";
 
 function displayToolCode(tool: AgentTool, source: string): string {
@@ -73,6 +74,7 @@ export default function EditToolPage() {
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const isDirty = localCode !== savedCode;
 
   const codeMeta = useMemo(() => parseMetaFromCode(localCode), [localCode]);
@@ -184,10 +186,7 @@ export default function EditToolPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-          <span className="text-sm font-medium text-muted-foreground">Loading tool…</span>
-        </div>
+        <Spin tip="Loading tool…" />
       </div>
     );
   }
@@ -195,18 +194,7 @@ export default function EditToolPage() {
   if (!loading && id && !tool) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Icon name="code" size={22} />
-          </div>
-          <div>
-            <p className="mb-1 text-sm font-semibold text-foreground">Tool not found</p>
-            <p className="text-xs text-muted-foreground">This tool may have been deleted.</p>
-          </div>
-          <button type="button" onClick={() => navigate("/tools")} className="cursor-pointer border-0 bg-transparent text-xs font-semibold text-primary underline underline-offset-2 hover:text-primary">
-            Back to Tools
-          </button>
-        </div>
+        <Empty icon="code" title="Tool not found" description="This tool may have been deleted." bordered={false} action={<Button onClick={() => navigate("/tools")}>Back to Tools</Button>} />
       </div>
     );
   }
@@ -215,7 +203,8 @@ export default function EditToolPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <EditToolHeader label={toolLabel} toolId={id} deleting={deleting} onDelete={handleDelete} />
+      <EditToolHeader label={toolLabel} onOpenSettings={() => setSettingsOpen(true)} />
+      <ToolSettingsDialog open={settingsOpen} tool={tool} deleting={deleting} onClose={() => setSettingsOpen(false)} onDelete={handleDelete} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">

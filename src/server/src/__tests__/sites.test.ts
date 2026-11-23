@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import type { Hono } from "hono";
 import { tmpDir } from "../common/utils/data-dir.js";
-import { authRequest, createTestApp, setupAdmin, inDefaultWorkspace } from "./test-helpers.js";
+import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 describe("Sites API", () => {
   let app: Hono;
@@ -30,7 +30,7 @@ describe("Sites API", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("CRUD + draft/approve + public live HTML", async () => {
+  test("CRUD + direct edits go live + public live HTML", async () => {
     const createRes = await authRequest(app, token, "POST", "/api/sites", {
       name: "News",
       slug: "news",
@@ -40,7 +40,6 @@ describe("Sites API", () => {
       id: string;
       slug: string;
       isPublished: boolean;
-      draftDirty: boolean;
       depsStatus: string;
     };
     expect(site.slug).toBe("news");
@@ -48,9 +47,9 @@ describe("Sites API", () => {
 
     const filesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
     expect(filesRes.status).toBe(200);
-    const files = (await filesRes.json()) as { files: Record<string, string>; draftDirty: boolean };
+    const files = (await filesRes.json()) as { files: Record<string, string> };
     expect(files.files["backend.ts"]).toContain("export async function handle");
-    expect(files.files["app.tsx"]).toContain("export default async function App");
+    expect(files.files["app.tsx"]).toContain("export default function App");
     expect(files.files["styles.css"]).toContain(".page");
     expect(files.files["app.tsx"]).toContain("loadSiteData");
     expect(files.files["data.ts"]).toBeUndefined();
@@ -65,11 +64,10 @@ describe("Sites API", () => {
 `;
     const putRes = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/backend.ts`, {
       content: draftBackend,
-      tree: "draft",
     });
     expect(putRes.status).toBe(200);
-    const putBody = (await putRes.json()) as { draftDirty: boolean };
-    expect(putBody.draftDirty).toBe(true);
+    const liveAfterPut = (await (await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`)).json()) as { files: Record<string, string> };
+    expect(liveAfterPut.files["backend.ts"]).toContain("Draft Title");
 
     const draftApp = `import { useEffect, useState } from "react";
 import { loadSiteData } from "./site-api.js";
@@ -82,11 +80,9 @@ export default function App() {
 `;
     await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/app.tsx`, {
       content: draftApp,
-      tree: "draft",
     });
     await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/styles.css`, {
       content: ".hero { color: #b91c1c; }\n",
-      tree: "draft",
     });
 
     const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
@@ -136,10 +132,6 @@ export default function App() {
     expect(pubBefore.status).toBe(200);
     const pubBeforeHtml = await pubBefore.text();
     expect(pubBeforeHtml).toContain('id="root"');
-    expect(pubBeforeHtml).not.toContain("Draft Title");
-
-    const approveRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, {});
-    expect(approveRes.status).toBe(200);
 
     const prodFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`);
     const prodFiles = (await prodFilesRes.json()) as { files: Record<string, string> };
@@ -154,21 +146,6 @@ export default function App() {
     const pubData = await app.request("/api/public/sites/news/data");
     expect(pubData.status).toBe(200);
     expect(((await pubData.json()) as { data: { title: string } }).data.title).toBe("Draft Title");
-
-    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/backend.ts`, {
-      content: `export async function handle({ request }) {
-  if (request.method === "GET" || request.method === "HEAD") return { title: "Temp", message: "x" };
-  return { ok: false };
-}
-`,
-      tree: "draft",
-    });
-    const discardRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/discard`, {});
-    expect(discardRes.status).toBe(200);
-    const filesAfterDiscard = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
-    const discarded = (await filesAfterDiscard.json()) as { files: Record<string, string>; draftDirty: boolean };
-    expect(discarded.files["backend.ts"]).toContain("Draft Title");
-    expect(discarded.draftDirty).toBe(false);
 
     const delRes = await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
     expect(delRes.status).toBe(200);
@@ -259,7 +236,7 @@ export default function App() {
 
     const { unlinkSync: unlink } = await import("node:fs");
     const { getTreeDir } = await import("../modules/sites/sites-fs.js");
-    unlink(`${inDefaultWorkspace(() => getTreeDir(site.id, "draft"))}/styles.css`);
+    unlink(`${(getTreeDir(site.id, "draft"))}/styles.css`);
 
     const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
     expect(previewRes.status).toBe(200);
@@ -321,7 +298,6 @@ export default function App() {
   return { ok: false, message: "unknown" };
 }
 `,
-      tree: "draft",
     });
 
     const actionRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/action`, {
@@ -347,7 +323,6 @@ export default function App() {
   await Bun.sleep(60_000);
 }
 `,
-      tree: "draft",
     });
 
     const prevTimeout = process.env.SITE_BACKEND_TIMEOUT_MS;
@@ -369,45 +344,24 @@ export default function App() {
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 30_000);
 
-  test("POST /api/sites/:id/approve — single file leaves other draft changes", async () => {
-    const createRes = await authRequest(app, token, "POST", "/api/sites", {
-      name: "Partial",
-      slug: "partial-approve",
-    });
+  test("PUT a site file is live at once and only touches that file", async () => {
+    const createRes = await authRequest(app, token, "POST", "/api/sites", { name: "Direct", slug: "direct-edit" });
     expect(createRes.status).toBe(201);
     const site = (await createRes.json()) as { id: string };
 
-    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/app.tsx`, {
-      content: "export default function App() { return <div>OnlyApp</div>; }\n",
-      tree: "draft",
-    });
-    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/styles.css`, {
-      content: ".only-css { color: red; }\n",
-      tree: "draft",
-    });
+    const before = (await (await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`)).json()) as { files: Record<string, string> };
+    const put = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/app.tsx`, { content: "export default function App() { return <div>OnlyApp</div>; }\n" });
+    expect(put.status).toBe(200);
 
-    const badFile = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "secret.txt" });
+    const badFile = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/secret.txt`, { content: "x" });
     expect(badFile.status).toBe(400);
+    expect((await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, {})).status).toBe(404);
 
-    const approveRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "app.tsx" });
-    expect(approveRes.status).toBe(200);
-    const approved = (await approveRes.json()) as { draftDirty: boolean };
-    expect(approved.draftDirty).toBe(true);
-
-    const prodFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`);
-    const prodFiles = (await prodFilesRes.json()) as { files: Record<string, string> };
-    expect(prodFiles.files["app.tsx"]).toContain("OnlyApp");
-    expect(prodFiles.files["styles.css"]).not.toContain("only-css");
-
-    const discardRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/discard`, { file: "styles.css" });
-    expect(discardRes.status).toBe(200);
-    const discarded = (await discardRes.json()) as { draftDirty: boolean };
-    expect(discarded.draftDirty).toBe(false);
-
-    const draftFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
-    const draftFiles = (await draftFilesRes.json()) as { files: Record<string, string> };
-    expect(draftFiles.files["styles.css"]).not.toContain("only-css");
-    expect(draftFiles.files["app.tsx"]).toContain("OnlyApp");
+    const live = (await (await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`)).json()) as { files: Record<string, string> };
+    expect(live.files["app.tsx"]).toContain("OnlyApp");
+    expect(live.files["styles.css"]).toBe(before.files["styles.css"]);
+    const editor = (await (await authRequest(app, token, "GET", `/api/sites/${site.id}/files`)).json()) as { files: Record<string, string> };
+    expect(editor.files["app.tsx"]).toContain("OnlyApp");
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);
@@ -441,26 +395,22 @@ export default function App() {
 `;
     const putRes = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/app.tsx`, {
       content: appSource,
-      tree: "draft",
     });
     expect(putRes.status).toBe(200);
     const putBody = (await putRes.json()) as { depsInstalled: boolean };
     expect(putBody.depsInstalled).toBe(true);
 
-    const draftDir = `${dataDir}/workspaces/default/sites/${site.id}/draft`;
+    const draftDir = `${dataDir}/sites/${site.id}/draft`;
     expect(existsSync(`${draftDir}/node_modules/nanoid/package.json`)).toBe(true);
     const pkg = JSON.parse(readFileSync(`${draftDir}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
     expect(pkg.dependencies?.nanoid).toBeTruthy();
 
     const putPkg = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/package.json`, {
       content: "{}\n",
-      tree: "draft",
     });
     expect(putPkg.status).toBe(400);
 
-    const approveRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "app.tsx" });
-    expect(approveRes.status).toBe(200);
-    const prodPkg = JSON.parse(readFileSync(`${dataDir}/workspaces/default/sites/${site.id}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
+    const prodPkg = JSON.parse(readFileSync(`${dataDir}/sites/${site.id}/package.json`, "utf8")) as { dependencies?: Record<string, string> };
     expect(prodPkg.dependencies?.nanoid).toBeTruthy();
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);

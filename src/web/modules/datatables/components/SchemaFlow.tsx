@@ -1,5 +1,6 @@
 import { Background, type Node, type NodeChange, type NodeProps, ReactFlow, applyNodeChanges, useReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Button, Tooltip } from "devnonla-ui";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNonlaDark } from "src/common/hooks/useNonlaDark";
 import type { DatatableColumn, DatatableColumnType, DatatableTable } from "src/common/types";
@@ -87,19 +88,22 @@ function TableSchemaNode({ id, data }: NodeProps<TableFlowNode>) {
   const openTable = useContext(OpenTableContext);
 
   return (
-    <div className="w-60 rounded-lg border border-border-subtle bg-card shadow-sm">
-      <div className="rounded-t-lg border-b border-border-subtle bg-foreground/4 px-3 py-2">
-        <button
-          type="button"
-          title={data.name}
-          className="nodrag nopan block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-sm font-semibold text-foreground"
-          onClick={(event) => {
-            event.stopPropagation();
-            openTable(id);
-          }}
-        >
-          {data.name}
-        </button>
+    <div className="w-60 rounded-lg border border-border-secondary bg-card shadow-sm">
+      <div className="rounded-t-lg border-b border-border-secondary bg-ink-hover px-3 py-2">
+        <Tooltip title={data.name}>
+          <Button
+            variant="nostyle"
+            block
+            className="nodrag nopan justify-start text-left text-sm font-semibold text-foreground"
+            classNames={{ content: "block truncate" }}
+            onClick={(event) => {
+              event.stopPropagation();
+              openTable(id);
+            }}
+          >
+            {data.name}
+          </Button>
+        </Tooltip>
       </div>
       {data.columns.length === 0 ? (
         <p className="m-0 px-3 py-2 text-xs text-muted-foreground">No columns</p>
@@ -107,11 +111,13 @@ function TableSchemaNode({ id, data }: NodeProps<TableFlowNode>) {
         <ul className="m-0 list-none p-0">
           {data.columns.map((column) => (
             <li key={column.id} className="flex items-center gap-2 px-3 py-1.5">
-              <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={column.name}>
-                {column.name}
-                {column.required ? <span className="text-brand-700"> *</span> : null}
-              </span>
-              <span className="shrink-0 text-[11px] text-muted-foreground">{propertyTypeLabel(column.type)}</span>
+              <Tooltip title={column.name}>
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                  {column.name}
+                  {column.required ? <span className="text-brand-700"> *</span> : null}
+                </span>
+              </Tooltip>
+              <span className="shrink-0 text-2xs text-muted-foreground">{propertyTypeLabel(column.type)}</span>
             </li>
           ))}
         </ul>

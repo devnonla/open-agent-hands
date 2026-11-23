@@ -1,5 +1,4 @@
-import { Button, Icon, Modal, message } from "devnonla-ui";
-import { Plus, Trash2 } from "lucide-react";
+import { Button, Checkbox, Empty, Modal, Spin, Tooltip, message, Icon } from "devnonla-ui";
 import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useAppTimezone } from "src/common/hooks/useAppTimezone";
 import { cn } from "src/common/lib/cn";
@@ -14,14 +13,6 @@ import { NewDatatableActions, NewDatatableCell, NewDatatableProvider, type NewDa
 import { PropertyHeader } from "./PropertyHeader";
 
 type EditingCell = { rowId: string; colId: string };
-
-function RowCheck({ checked, indeterminate, label, disabled, onChange }: { checked: boolean; indeterminate?: boolean; label: string; disabled?: boolean; onChange: (checked: boolean) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
-  }, [indeterminate, checked]);
-  return <input ref={ref} type="checkbox" aria-label={label} checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} className="size-3.5 cursor-pointer accent-foreground disabled:cursor-default disabled:opacity-40" />;
-}
 
 type TableRowsPanelProps = {
   tableId: string;
@@ -282,34 +273,35 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
     // Absolute fill pins both scrollbars to the visible viewport — horizontal bar
     // stays at the bottom of the panel instead of the bottom of the row list.
     <NewDatatableProvider columns={columns} timeZone={timeZone} onCreate={handleCreateRow} onCancel={() => setAdding(false)} active={adding} handleRef={newRowRef}>
-      <div className="relative h-full min-h-0 w-full flex-1">
+      <div className="relative h-full min-h-0 w-full flex-1 bg-card">
         <div ref={scrollRef} className={cn("absolute inset-x-0 top-0 overflow-auto overscroll-contain", showStatusBar ? "bottom-8" : "bottom-0")}>
           <RenderIf
             condition={!loading && columns.length === 0}
             fallback={
-              <div className={cn("min-w-max", loading && "opacity-60")}>
-                <div className="sticky top-0 z-10 grid border-b border-border-subtle bg-card" style={{ gridTemplateColumns: gridTemplate }}>
-                  <div className="flex h-9 items-center justify-center border-r border-border-subtle">
-                    <RowCheck checked={allSelected} indeterminate={selectedCount > 0 && !allSelected} label={allSelected ? "Clear selection" : "Select all rows"} disabled={rows.length === 0} onChange={toggleAll} />
+              <Spin spinning={loading} className="min-w-max">
+                <div className="sticky top-0 z-10 grid border-b border-border-secondary bg-card" style={{ gridTemplateColumns: gridTemplate }}>
+                  <div className="flex h-9 items-center justify-center border-r border-border-secondary">
+                    <Checkbox checked={allSelected} indeterminate={selectedCount > 0 && !allSelected} aria-label={allSelected ? "Clear selection" : "Select all rows"} disabled={rows.length === 0} onChange={toggleAll} />
                   </div>
-                  <div className="flex h-9 items-center justify-center border-r border-border-subtle px-1 text-[11px] font-medium tabular-nums text-quaternary-foreground">#</div>
+                  <div className="flex h-9 items-center justify-center border-r border-border-secondary px-1 text-2xs font-medium tabular-nums text-tertiary-foreground">#</div>
                   {columns.map((col) => {
                     const width = columnWidths[col.id] ?? defaultColumnWidthPx(col);
                     return (
-                      <div key={col.id} className="relative h-9 border-r border-border-subtle">
+                      <div key={col.id} className="relative h-9 border-r border-border-secondary">
                         <PropertyHeader col={col} timeZone={timeZone} />
-                        <button
-                          type="button"
-                          aria-label={`Resize ${col.name}`}
-                          title="Drag to resize · Double-click to fit"
-                          className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-brand/30 active:bg-brand/40"
-                          onMouseDown={(e) => startColumnResize(col.id, width, e)}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            fitColumn(col);
-                          }}
-                        />
+                        <Tooltip title="Drag to resize · Double-click to fit">
+                          <button
+                            type="button"
+                            aria-label={`Resize ${col.name}`}
+                            className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-brand/30 active:bg-brand/40"
+                            onMouseDown={(e) => startColumnResize(col.id, width, e)}
+                            onDoubleClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              fitColumn(col);
+                            }}
+                          />
+                        </Tooltip>
                       </div>
                     );
                   })}
@@ -317,9 +309,9 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
                 </div>
 
                 <RenderIf condition={adding}>
-                  <NewDatatableRowShell className="grid border-b border-border-subtle bg-muted/30" style={{ gridTemplateColumns: gridTemplate }}>
-                    <div className="border-r border-border-subtle" />
-                    <div className="flex h-9 items-center justify-center border-r border-border-subtle text-[11px] tabular-nums text-quaternary-foreground">+</div>
+                  <NewDatatableRowShell className="grid border-b border-border-secondary bg-muted/30" style={{ gridTemplateColumns: gridTemplate }}>
+                    <div className="border-r border-border-secondary" />
+                    <div className="flex h-9 items-center justify-center border-r border-border-secondary text-2xs tabular-nums text-tertiary-foreground">+</div>
                     {columns.map((col) => (
                       <NewDatatableCell key={col.id} col={col} />
                     ))}
@@ -332,7 +324,7 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
                   return (
                     <div
                       key={row.id}
-                      className={cn("grid border-b border-border-subtle transition-colors", selecting && "cursor-pointer", selected ? "bg-muted/50" : "hover:bg-muted/35")}
+                      className={cn("grid border-b border-border-secondary transition-colors", selecting && "cursor-pointer", selected ? "bg-muted/50" : "hover:bg-muted/35")}
                       style={{ gridTemplateColumns: gridTemplate }}
                       onClick={
                         selecting
@@ -342,10 +334,10 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
                           : undefined
                       }
                     >
-                      <div className="flex h-9 items-center justify-center border-r border-border-subtle" onClick={(event) => event.stopPropagation()}>
-                        <RowCheck checked={selected} label={`Select row ${idx + 1}`} onChange={(on) => toggleRow(row.id, on)} />
+                      <div className="flex h-9 items-center justify-center border-r border-border-secondary" onClick={(event) => event.stopPropagation()}>
+                        <Checkbox checked={selected} aria-label={`Select row ${idx + 1}`} onChange={(on) => toggleRow(row.id, on)} />
                       </div>
-                      <div className="flex h-9 items-center justify-center border-r border-border-subtle text-[11px] tabular-nums text-quaternary-foreground">{idx + 1}</div>
+                      <div className="flex h-9 items-center justify-center border-r border-border-secondary text-2xs tabular-nums text-tertiary-foreground">{idx + 1}</div>
                       {columns.map((col) => (
                         <EditableCell
                           key={col.id}
@@ -366,38 +358,42 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
 
                 <div ref={sentinelRef} className="h-px w-full" />
                 <RenderIf condition={loadingMore}>
-                  <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
+                  <div className="px-3 py-2">
+                    <Spin size="small" />
+                  </div>
                 </RenderIf>
-              </div>
+              </Spin>
             }
           >
-            <div className="flex h-full min-h-60 flex-col items-center justify-center px-8 py-16">
-              <span className="mb-3 flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <Icon name="document" size={24} />
-              </span>
-              <p className="m-0 text-sm font-medium text-foreground">No properties yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Ask your agent to add columns with <code className="font-mono text-[12px]">datatable_add_column</code>.
-              </p>
-            </div>
+            <Empty
+              bordered={false}
+              icon="document"
+              title="No properties yet"
+              className="h-full min-h-60 px-8 py-16"
+              description={
+                <>
+                  Ask your agent to add columns with <code className="font-mono text-xs">datatable_add_column</code>.
+                </>
+              }
+            />
           </RenderIf>
         </div>
 
         <RenderIf condition={showStatusBar}>
-          <div className="absolute inset-x-0 bottom-0 z-10 flex h-8 items-center justify-between gap-3 border-t border-border-subtle bg-card px-3">
+          <div className="absolute inset-x-0 bottom-0 z-10 flex h-8 items-center justify-between gap-3 border-t border-border-secondary bg-card px-3">
             {selectedCount > 0 ? (
-              <Button type="text" size="small" danger icon={<Trash2 size={14} />} onClick={() => setConfirmDelete(true)}>
+              <Button type="text" size="small" danger icon={<Icon name="trash" size={12} />} onClick={() => setConfirmDelete(true)}>
                 Delete {selectedCount}
               </Button>
             ) : (
               <>
-                <Button type="text" size="small" disabled={loading || columns.length === 0} icon={<Plus size={14} />} onClick={handleAddClick} className="text-muted-foreground">
+                <Button type="text" size="small" disabled={loading || columns.length === 0} icon={<Icon name="add" size={12} />} onClick={handleAddClick} className="text-muted-foreground">
                   Add new row
                 </Button>
-                <span className="text-xs tabular-nums text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
                   {loadedCount === 0 && total === 0 ? "0 rows" : loadedCount >= total ? `${total.toLocaleString()} ${total === 1 ? "row" : "rows"}` : `${loadedCount.toLocaleString()} of ${total.toLocaleString()} rows`}
-                  {loadingMore ? " · Loading…" : null}
-                </span>
+                  {loadingMore ? <Spin size="small" color="neutral" /> : null}
+                </div>
               </>
             )}
           </div>

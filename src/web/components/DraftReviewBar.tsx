@@ -1,5 +1,4 @@
-import { Button, Popconfirm } from "devnonla-ui";
-import { ArrowRight, Check, RefreshCw } from "lucide-react";
+import { Button, Popconfirm, Icon } from "devnonla-ui";
 
 export interface DraftReviewConfirm {
   title: string;
@@ -53,13 +52,13 @@ export function DraftReviewBar({ onApprove, onDiscard, approving = false, discar
   return (
     <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-lg">
       {showNext ? (
-        <Button size="xs" classNames={{ content: "font-semibold" }} icon={<ArrowRight size={12} />} onClick={onReviewNext}>
+        <Button size="xs" classNames={{ content: "font-semibold" }} icon={<Icon name="arrow-forward" size={12} />} onClick={onReviewNext}>
           {onChangedFile ? "Next file" : "Review next file"}
         </Button>
       ) : null}
       {showDecide ? (
         <Popconfirm title={discard.title} description={discard.description} okText="Discard" okType="danger" cancelText="Cancel" onConfirm={onDiscard} styles={{ root: { width: 280 } }}>
-          <Button size="xs" color="default" variant="filled" classNames={{ content: "font-semibold" }} icon={<RefreshCw size={12} />} loading={discarding}>
+          <Button size="xs" color="default" variant="filled" classNames={{ content: "font-semibold" }} icon={<Icon name="refresh" size={12} />} loading={discarding}>
             Discard
           </Button>
         </Popconfirm>
@@ -67,12 +66,12 @@ export function DraftReviewBar({ onApprove, onDiscard, approving = false, discar
       {showApprove ? (
         approveConfirm ? (
           <Popconfirm title={approveConfirm.title} description={approveConfirm.description} okText="Approve" okButtonProps={{ type: "primary" }} cancelText="Cancel" onConfirm={onApprove} styles={{ root: { width: 280 } }}>
-            <Button size="xs" type="primary" className="bg-success hover:bg-success/90 active:bg-success/80" classNames={{ content: "font-semibold" }} icon={<Check size={12} />} loading={approving}>
+            <Button size="xs" type="primary" className="bg-success hover:bg-success/90 active:bg-success/80" classNames={{ content: "font-semibold" }} icon={<Icon name="check" size={12} />} loading={approving}>
               {approveText}
             </Button>
           </Popconfirm>
         ) : (
-          <Button size="xs" type="primary" className="bg-success hover:bg-success/90 active:bg-success/80" classNames={{ content: "font-semibold" }} icon={<Check size={12} />} loading={approving} onClick={onApprove}>
+          <Button size="xs" type="primary" className="bg-success hover:bg-success/90 active:bg-success/80" classNames={{ content: "font-semibold" }} icon={<Icon name="check" size={12} />} loading={approving} onClick={onApprove}>
             {approveText}
           </Button>
         )

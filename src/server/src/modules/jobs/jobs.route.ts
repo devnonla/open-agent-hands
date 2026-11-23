@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import { cancelJobRun, startClaimedRun } from "./jobs-runner.js";
-import { createJob, deleteJob, getJob, getJobRun, listJobRuns, listJobs, toPublicJob, toPublicJobRun, tryClaimJob, updateJob } from "./jobs.service.js";
+import { clearJobRuns, createJob, deleteJob, getJob, getJobRun, listJobRuns, listJobs, runsInNextDay, toPublicJob, toPublicJobRun, tryClaimJob, updateJob } from "./jobs.service.js";
 
 const app = new Hono();
 
@@ -13,12 +13,15 @@ app.use("/:id/*", async (c, next) => {
   await next();
 });
 
-app.get("/", async (c) => c.json(await listJobs(c.req.query())));
+app.get("/", async (c) => {
+  const result = await listJobs(c.req.query());
+  return c.json({ ...result, items: result.items.map(({ code, draftCode, ...rest }) => rest) });
+});
 
 app.get("/:id", async (c) => {
   const job = await getJob(c.req.param("id"));
   if (!job) throw new BadRequestException("Job not found");
-  return c.json(toPublicJob(job));
+  return c.json({ ...toPublicJob(job), dayRuns: runsInNextDay(job) });
 });
 
 app.post("/", async (c) => {
@@ -36,6 +39,8 @@ app.delete("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+app.delete("/:id/runs", async (c) => c.json(await clearJobRuns(c.req.param("id"))));
+
 app.get("/:id/runs", async (c) => {
   return c.json(await listJobRuns(c.req.param("id"), c.req.query()));
 });
@@ -51,7 +56,8 @@ app.post("/:id/run", async (c) => {
   const job = await getJob(jobId);
   if (!job) throw new BadRequestException("Job not found");
 
-  const claimed = await tryClaimJob(jobId, "manual");
+  const body = (await c.req.json().catch(() => ({}))) as { input?: unknown };
+  const claimed = await tryClaimJob(jobId, "manual", { input: body.input });
   if (!claimed) {
     throw new BadRequestException("Job is already running or could not be claimed");
   }

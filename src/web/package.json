@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
-    "devnonla-ui": "^0.19.2",
+    "devnonla-ui": "^0.20.0",
     "framer-motion": "^12.36.0",
     "html-to-image": "^1.11.13",
     "lodash": "^4.18.1",

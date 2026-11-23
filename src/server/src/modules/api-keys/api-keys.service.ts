@@ -1,5 +1,3 @@
-import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
-import { inWorkspace } from "../../common/workspace/scope.js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { apiKeyDatatableProjects, apiKeyKvEntries, apiKeys, datatableProjects, getDb, kvStore } from "../../common/db/client.js";
 import { qall, qone, qrun } from "../../common/db/query.js";
@@ -23,7 +21,6 @@ export type ApiKeyMeta = {
 
 export type ApiKeyContext = {
   id: string;
-  workspaceId: string;
   createdBy: string;
   datatablesUnrestricted: boolean;
   datatableProjectIds: string[];
@@ -88,7 +85,6 @@ async function toContext(row: typeof apiKeys.$inferSelect): Promise<ApiKeyContex
   const scope = await loadScope(row.id);
   return {
     id: row.id,
-    workspaceId: row.workspaceId,
     createdBy: row.createdBy,
     datatablesUnrestricted: Boolean(row.datatablesUnrestricted),
     datatableProjectIds: scope.datatableProjectIds,
@@ -100,7 +96,7 @@ async function toContext(row: typeof apiKeys.$inferSelect): Promise<ApiKeyContex
 async function assertExistingIds(ids: string[], table: typeof datatableProjects | typeof kvStore, label: string): Promise<string[]> {
   const unique = uniqueIds(ids);
   if (unique.length === 0) return [];
-  const found = await qall(getDb().select({ id: table.id }).from(table).where(and(inWorkspace(table.workspaceId), inArray(table.id, unique))));
+  const found = await qall(getDb().select({ id: table.id }).from(table).where(inArray(table.id, unique)));
   if (found.length !== unique.length) {
     throw new BadRequestException(`One or more ${label} were not found`);
   }
@@ -130,7 +126,7 @@ export function canAccessKvEntry(apiKey: ApiKeyContext, entryId: string): boolea
 }
 
 export async function listApiKeys(): Promise<{ items: ApiKeyMeta[]; total: number }> {
-  const rows = await qall(getDb().select().from(apiKeys).where(inWorkspace(apiKeys.workspaceId)));
+  const rows = await qall(getDb().select().from(apiKeys));
   const items = [];
   for (const row of rows) {
     items.push(toMeta(row, await loadScope(row.id)));
@@ -149,7 +145,6 @@ export async function createApiKey(body: ApiKeyWriteBody & { name: string; creat
   const raw = generateRawKey();
   const now = new Date();
   const row = {
-    workspaceId: currentWorkspaceId(),
     id: crypto.randomUUID(),
     name,
     keyPrefix: raw.slice(0, KEY_PREFIX_LEN),
@@ -172,7 +167,7 @@ export async function updateApiKey(id: string, body: ApiKeyWriteBody): Promise<A
     getDb()
       .select()
       .from(apiKeys)
-      .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+      .where(eq(apiKeys.id, id)),
   );
   if (!existing) throw new BadRequestException("API key not found");
 
@@ -188,7 +183,7 @@ export async function updateApiKey(id: string, body: ApiKeyWriteBody): Promise<A
       getDb()
         .update(apiKeys)
         .set(patch)
-        .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+        .where(eq(apiKeys.id, id)),
     );
   }
 
@@ -207,7 +202,7 @@ export async function updateApiKey(id: string, body: ApiKeyWriteBody): Promise<A
     getDb()
       .select()
       .from(apiKeys)
-      .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+      .where(eq(apiKeys.id, id)),
   )) ?? { ...existing, name };
   return toMeta(updated, { datatableProjectIds, kvEntryIds });
 }
@@ -217,7 +212,7 @@ export async function revokeApiKey(id: string): Promise<ApiKeyMeta> {
     getDb()
       .select()
       .from(apiKeys)
-      .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+      .where(eq(apiKeys.id, id)),
   );
   if (!existing) throw new BadRequestException("API key not found");
   if (!existing.revokedAt) {
@@ -225,7 +220,7 @@ export async function revokeApiKey(id: string): Promise<ApiKeyMeta> {
       getDb()
         .update(apiKeys)
         .set({ revokedAt: new Date() })
-        .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+        .where(eq(apiKeys.id, id)),
     );
   }
   const updated =
@@ -233,7 +228,7 @@ export async function revokeApiKey(id: string): Promise<ApiKeyMeta> {
       getDb()
         .select()
         .from(apiKeys)
-        .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+        .where(eq(apiKeys.id, id)),
     )) ?? existing;
   return toMeta(updated, await loadScope(id));
 }
@@ -243,13 +238,13 @@ export async function deleteApiKey(id: string) {
     getDb()
       .select()
       .from(apiKeys)
-      .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+      .where(eq(apiKeys.id, id)),
   );
   if (!existing) throw new BadRequestException("API key not found");
   await qrun(
     getDb()
       .delete(apiKeys)
-      .where(and(inWorkspace(apiKeys.workspaceId), eq(apiKeys.id, id))),
+      .where(eq(apiKeys.id, id)),
   );
 }
 

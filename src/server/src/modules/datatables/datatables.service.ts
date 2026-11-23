@@ -1,5 +1,3 @@
-import { currentWorkspaceId } from "../../common/workspace/workspace-context.js";
-import { inWorkspace } from "../../common/workspace/scope.js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   COLUMN_TYPES,
@@ -111,7 +109,7 @@ function validateRowData(columns: DatatableColumn[], data: Record<string, unknow
 
 export async function listProjects() {
   const db = getDb();
-  const projects = await qall(db.select().from(datatableProjects).where(inWorkspace(datatableProjects.workspaceId)).orderBy(asc(datatableProjects.name)));
+  const projects = await qall(db.select().from(datatableProjects).orderBy(asc(datatableProjects.name)));
   if (projects.length === 0) return [] as Array<DatatableProject & { tableCount: number; tableNames: string[]; tables: { id: string; name: string }[] }>;
 
   const tables = await qall(
@@ -147,7 +145,7 @@ export async function getProject(id: string): Promise<DatatableProject | null> {
       getDb()
         .select()
         .from(datatableProjects)
-        .where(and(inWorkspace(datatableProjects.workspaceId), eq(datatableProjects.id, id))),
+        .where(eq(datatableProjects.id, id)),
     )) ?? null
   );
 }
@@ -158,7 +156,7 @@ export async function getProjectByName(name: string): Promise<DatatableProject |
       getDb()
         .select()
         .from(datatableProjects)
-        .where(and(inWorkspace(datatableProjects.workspaceId), eq(datatableProjects.name, name))),
+        .where(eq(datatableProjects.name, name)),
     )) ?? null
   );
 }
@@ -167,7 +165,7 @@ export async function createProject(body: { name: string }) {
   const name = assertName(body.name, "name");
   if (await getProjectByName(name)) throw new BadRequestException(`Project "${name}" already exists`);
   const now = new Date();
-  const entry: NewDatatableProject = { id: crypto.randomUUID(), workspaceId: currentWorkspaceId(), name, createdAt: now, updatedAt: now };
+  const entry: NewDatatableProject = { id: crypto.randomUUID(), name, createdAt: now, updatedAt: now };
   await qrun(getDb().insert(datatableProjects).values(entry));
   wsHub.emit("datatables:project-created", entry);
   return entry;
@@ -185,7 +183,7 @@ export async function updateProject(id: string, body: { name?: string }) {
     getDb()
       .update(datatableProjects)
       .set({ name, updatedAt })
-      .where(and(inWorkspace(datatableProjects.workspaceId), eq(datatableProjects.id, id))),
+      .where(eq(datatableProjects.id, id)),
   );
   const updated = (await getProject(id))!;
   wsHub.emit("datatables:project-updated", updated);
@@ -198,7 +196,7 @@ export async function deleteProject(id: string) {
   await qrun(
     getDb()
       .delete(datatableProjects)
-      .where(and(inWorkspace(datatableProjects.workspaceId), eq(datatableProjects.id, id))),
+      .where(eq(datatableProjects.id, id)),
   );
   wsHub.emit("datatables:project-deleted", { id });
 }
@@ -239,19 +237,19 @@ export async function getProjectSchema(projectId: string) {
   };
 }
 
-export async function tableInWorkspace(tableId: string): Promise<boolean> {
+export async function tableExists(tableId: string): Promise<boolean> {
   const table = await getTable(tableId);
   return !!table && !!(await getProject(table.projectId));
 }
 
-export async function columnInWorkspace(columnId: string): Promise<boolean> {
+export async function columnExists(columnId: string): Promise<boolean> {
   const column = await getColumn(columnId);
-  return !!column && (await tableInWorkspace(column.tableId));
+  return !!column && (await tableExists(column.tableId));
 }
 
-export async function rowInWorkspace(rowId: string): Promise<boolean> {
+export async function rowExists(rowId: string): Promise<boolean> {
   const row = await getRow(rowId);
-  return !!row && (await tableInWorkspace(row.tableId));
+  return !!row && (await tableExists(row.tableId));
 }
 
 export async function getTable(id: string): Promise<DatatableTable | null> {

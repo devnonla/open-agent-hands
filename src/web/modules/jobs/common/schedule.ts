@@ -57,6 +57,7 @@ export function describeCron(expr: string): string {
   const days = parseDays(dow);
   const time = describeTime(minute, hour);
   if (!days || days.length === 0 || !time) return expr;
+  if (days.length === 7 && time.startsWith("every ")) return `E${time.slice(1)}`;
   return `${describeDays(days)}, ${time}`;
 }
 

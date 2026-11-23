@@ -36,7 +36,7 @@
         "clsx": "^2.1.1",
         "date-fns": "^4.4.0",
         "date-fns-tz": "^3.2.0",
-        "devnonla-ui": "^0.19.2",
+        "devnonla-ui": "^0.20.0",
         "framer-motion": "^12.36.0",
         "html-to-image": "^1.11.13",
         "lodash": "^4.18.1",
@@ -675,7 +675,7 @@
 
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
 
-    "devnonla-ui": ["devnonla-ui@0.19.2", "", { "dependencies": { "@ag-ui/client": "1.0.2", "@dnd-kit/core": "6.3.1", "@dnd-kit/sortable": "10.0.0", "@dnd-kit/utilities": "3.2.2", "@fontsource-variable/geist-mono": "^5.3.0", "@fontsource-variable/inter": "^5.3.0", "@radix-ui/react-checkbox": "^1.3.3", "@radix-ui/react-context-menu": "^2.3.7", "@radix-ui/react-dialog": "^1.1.15", "@radix-ui/react-dropdown-menu": "^2.1.16", "@radix-ui/react-popover": "^1.1.15", "@radix-ui/react-select": "^2.2.6", "@radix-ui/react-switch": "^1.2.6", "@radix-ui/react-tooltip": "^1.2.8", "clsx": "^2.1.1", "date-fns": "^4.4.0", "highlight.js": "^11.12.0", "mermaid": "^11.14.0", "react-day-picker": "^10.0.1", "react-markdown": "^10.1.0", "remark-gfm": "^4.0.1", "sucrase": "^3.35.1", "tailwind-merge": "^3.5.0" }, "peerDependencies": { "react": ">=19", "react-dom": ">=19", "react-hook-form": "^7.0.0" } }, "sha512-dihDcqL1bLmCL5c2Ov8Ht37Tzr06TsXyI3sSBe7BEKxEmyTrWIFRJTFk8hIRlt8aWMaFxqKyTnwQxB8U438p/A=="],
+    "devnonla-ui": ["devnonla-ui@0.20.0", "", { "dependencies": { "@ag-ui/client": "1.0.2", "@dnd-kit/core": "6.3.1", "@dnd-kit/sortable": "10.0.0", "@dnd-kit/utilities": "3.2.2", "@fontsource-variable/geist-mono": "^5.3.0", "@fontsource-variable/inter": "^5.3.0", "@radix-ui/react-checkbox": "^1.3.3", "@radix-ui/react-context-menu": "^2.3.7", "@radix-ui/react-dialog": "^1.1.15", "@radix-ui/react-dropdown-menu": "^2.1.16", "@radix-ui/react-popover": "^1.1.15", "@radix-ui/react-select": "^2.2.6", "@radix-ui/react-switch": "^1.2.6", "@radix-ui/react-tooltip": "^1.2.8", "clsx": "^2.1.1", "date-fns": "^4.4.0", "highlight.js": "^11.12.0", "mermaid": "^11.14.0", "react-day-picker": "^10.0.1", "react-markdown": "^10.1.0", "remark-gfm": "^4.0.1", "sucrase": "^3.35.1", "tailwind-merge": "^3.5.0" }, "peerDependencies": { "react": ">=19", "react-dom": ">=19", "react-hook-form": "^7.0.0" } }, "sha512-XAvu2hJCrCLo9FQBj3T/gIgRCJo5M7VtRuJ8RB5XxEV5ZeDF/qCHcW31szqno1pB3+8BWeyO8dX8y64y7Qch/A=="],
 
     "dompurify": ["dompurify@3.2.7", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-WhL/YuveyGXJaerVlMYGWhvQswa7myDG17P7Vu65EWC05o8vfeNbvNf4d/BOvH99+ZW+LlQsc1GDKMa1vNK6dw=="],
 

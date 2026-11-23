@@ -1,5 +1,3 @@
-import { currentWorkspaceId, runInWorkspace } from "../../common/workspace/workspace-context.js";
-import { inWorkspace } from "../../common/workspace/scope.js";
 import { and, eq } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
 import { getDb, sites } from "../../common/db/client.js";
@@ -13,7 +11,7 @@ import { resolveSiteSelection } from "./common/resolve-selection.js";
 import { buildSiteBundle, buildSiteShellHtml, buildSiteUnlockHtml, invalidateSiteCaches as invalidateBundleCaches } from "./sites-bundle.js";
 import { invalidateSiteDataModules, runSiteActionModule, runSiteLoad } from "./sites-data-runtime.js";
 import { ensureSitePackages, installSiteDeps } from "./sites-deps.js";
-import { SITE_SOURCE_FILES, type SiteSourceFile, type SiteTree, discardDraft, ensureReactSiteSources, isAllowedSourceFile, isDraftDirty, promoteDraftToProd, readAllSourceFiles, readSourceFile, removeSiteDir, writeScaffold, writeSourceFile } from "./sites-fs.js";
+import { SITE_SOURCE_FILES, type SiteSourceFile, type SiteTree, ensureReactSiteSources, isAllowedSourceFile, isDraftDirty, promoteDraftToProd, readAllSourceFiles, readSourceFile, removeSiteDir, writeScaffold, writeSourceFile } from "./sites-fs.js";
 import { readSiteThumbnailPng, writeSiteThumbnailPng } from "./sites-thumbnail.js";
 
 function sitePublicPath(slug: string) {
@@ -78,7 +76,7 @@ export async function verifySitePublicPassword(slug: string, password?: string) 
         getDb()
           .update(sites)
           .set({ publicPassword: hashed, updatedAt: new Date() })
-          .where(and(inWorkspace(sites.workspaceId), eq(sites.id, site.id))),
+          .where(eq(sites.id, site.id)),
       );
       site.publicPassword = hashed;
     }
@@ -117,14 +115,14 @@ async function getSiteOrThrow(id: string) {
     db
       .select()
       .from(sites)
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
+      .where(eq(sites.id, id)),
   );
   if (!row) throw new NotFoundException("Site not found");
   return row;
 }
 
 function withDirty<T extends { id: string }>(row: T) {
-  return { ...row, draftDirty: isDraftDirty(row.id) };
+  return row;
 }
 
 function isPasswordHash(value: string) {
@@ -148,7 +146,7 @@ async function touchSite(id: string, tree: SiteTree) {
     db
       .update(sites)
       .set(patch)
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
+      .where(eq(sites.id, id))
       .returning(),
   );
   const safe = toSiteResponse(row);
@@ -175,7 +173,7 @@ async function hashPublicPassword(password: string): Promise<string> {
 }
 
 export async function listSites(query: Record<string, string | undefined>) {
-  const result = await listQuery({ table: sites, where: inWorkspace(sites.workspaceId), searchColumns: ["name", "slug"] }, query);
+  const result = await listQuery({ table: sites, searchColumns: ["name", "slug"] }, query);
   return {
     ...result,
     items: result.items.map((row) => toSiteResponse(row)),
@@ -186,19 +184,13 @@ export async function getSite(id: string) {
   return toSiteResponse(await getSiteOrThrow(id));
 }
 
-export async function runInSiteWorkspace<T>(slug: string, fn: () => Promise<T>): Promise<T> {
-  const row = await qone(getDb().select({ workspaceId: sites.workspaceId }).from(sites).where(eq(sites.slug, slug.trim().toLowerCase())));
-  if (!row) throw new NotFoundException("Site not found");
-  return runInWorkspace(row.workspaceId, fn);
-}
-
 export async function getSiteBySlug(slug: string) {
   const db = getDb();
   const row = await qone(
     db
       .select()
       .from(sites)
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.slug, slug.trim().toLowerCase()))),
+      .where(eq(sites.slug, slug.trim().toLowerCase())),
   );
   if (!row) throw new NotFoundException("Site not found");
   return withDirty(row);
@@ -226,7 +218,6 @@ export async function createSite(body: { name?: string; slug?: string; createdBy
       .insert(sites)
       .values({
         id,
-        workspaceId: currentWorkspaceId(),
         name,
         slug,
         isPublished: false,
@@ -253,7 +244,7 @@ export async function createSite(body: { name?: string; slug?: string; createdBy
         draftDepsError: draft.ok ? null : draft.error,
         updatedAt: new Date(),
       })
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
+      .where(eq(sites.id, id))
       .returning(),
   );
   wsHub.emit("sites:updated", toSiteResponse(updated));
@@ -294,7 +285,7 @@ export async function updateSite(id: string, body: { name?: string; slug?: strin
     db
       .update(sites)
       .set(patch)
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
+      .where(eq(sites.id, id))
       .returning(),
   );
   const safe = toSiteResponse(row);
@@ -305,7 +296,7 @@ export async function updateSite(id: string, body: { name?: string; slug?: strin
 export async function deleteSite(id: string) {
   await getSiteOrThrow(id);
   const db = getDb();
-  await qrun(db.delete(sites).where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))));
+  await qrun(db.delete(sites).where(eq(sites.id, id)));
   removeSiteDir(id);
   invalidateSiteCaches(id);
   wsHub.emit("sites:deleted", { id });
@@ -315,10 +306,10 @@ export async function deleteSite(id: string) {
 export async function getSiteFiles(id: string, tree: SiteTree = "draft") {
   const site = await getSiteOrThrow(id);
   ensureReactSiteSources(id, site.slug);
-  return { tree, files: readAllSourceFiles(id, tree), draftDirty: isDraftDirty(id) };
+  return { tree, files: readAllSourceFiles(id, tree) };
 }
 
-export async function updateSiteFile(id: string, file: string, content: string, tree: SiteTree = "draft") {
+export async function updateSiteFile(id: string, file: string, content: string) {
   const site = await getSiteOrThrow(id);
   ensureReactSiteSources(id, site.slug);
   if (!isAllowedSourceFile(file)) throw new BadRequestException(`Invalid file: ${file}`);
@@ -326,23 +317,19 @@ export async function updateSiteFile(id: string, file: string, content: string, 
     throw new BadRequestException("package.json is auto-maintained from imports — do not edit it");
   }
   if (typeof content !== "string") throw new BadRequestException("content must be a string");
-  writeSourceFile(id, tree, file as SiteSourceFile, content);
-  if (tree === "prod") {
-    writeSourceFile(id, "draft", file as SiteSourceFile, content);
-  }
+  writeSourceFile(id, "draft", file as SiteSourceFile, content);
+  writeSourceFile(id, "prod", file as SiteSourceFile, content);
   invalidateSiteCaches(id);
 
   let depsInstalled = false;
   if (file === "app.tsx" || file === "backend.ts") {
-    const ensured = await requireSitePackages(id, tree);
+    const ensured = await requireSitePackages(id, "prod");
+    await requireSitePackages(id, "draft");
     depsInstalled = ensured.added.length > 0;
-    if (tree === "prod") {
-      await requireSitePackages(id, "draft");
-    }
   }
 
-  const safe = await touchSite(id, tree === "prod" ? "draft" : tree);
-  return { ok: true, file, tree, draftDirty: isDraftDirty(id), site: safe, depsInstalled };
+  const safe = await touchSite(id, "draft");
+  return { ok: true, file, site: safe, depsInstalled };
 }
 
 export async function installDeps(id: string, tree: SiteTree = "draft") {
@@ -353,14 +340,14 @@ export async function installDeps(id: string, tree: SiteTree = "draft") {
       db
         .update(sites)
         .set({ draftDepsStatus: "installing", draftDepsError: null, updatedAt: new Date() })
-        .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
+        .where(eq(sites.id, id)),
     );
   } else {
     await qrun(
       db
         .update(sites)
         .set({ depsStatus: "installing", depsError: null, updatedAt: new Date() })
-        .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
+        .where(eq(sites.id, id)),
     );
   }
 
@@ -381,7 +368,7 @@ export async function installDeps(id: string, tree: SiteTree = "draft") {
               updatedAt: new Date(),
             },
       )
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
+      .where(eq(sites.id, id))
       .returning(),
   );
 
@@ -398,93 +385,17 @@ function parseOptionalSourceFiles(file?: string): SiteSourceFile[] | undefined {
   return [file];
 }
 
-/** package.json is auto-maintained — promote it with UI/backend so prod deps match approved source. */
-function withAutoPackageJson(files?: SiteSourceFile[]): SiteSourceFile[] | undefined {
-  if (!files) return undefined;
-  if ((files.includes("app.tsx") || files.includes("backend.ts")) && !files.includes("package.json")) {
-    return [...files, "package.json"];
+export async function publishPendingSiteDrafts(): Promise<number> {
+  const rows = await qall(getDb().select({ id: sites.id }).from(sites));
+  let published = 0;
+  for (const row of rows) {
+    if (!isDraftDirty(row.id)) continue;
+    promoteDraftToProd(row.id);
+    invalidateSiteCaches(row.id);
+    await requireSitePackages(row.id, "prod");
+    published += 1;
   }
-  return files;
-}
-
-/** Publish site drafts when they differ from production. No-op when the draft matches live. */
-export async function approveSiteDraft(id: string): Promise<{ published: boolean }> {
-  await getSiteOrThrow(id);
-  if (!isDraftDirty(id)) return { published: false };
-  await approveSite(id);
-  return { published: true };
-}
-
-export async function approveSite(id: string, file?: string) {
-  await getSiteOrThrow(id);
-  const files = withAutoPackageJson(parseOptionalSourceFiles(file));
-  promoteDraftToProd(id, files);
-  invalidateSiteCaches(id);
-
-  const needsInstall = !files || files.includes("package.json");
-  if (needsInstall) {
-    const db = getDb();
-    await qrun(
-      db
-        .update(sites)
-        .set({ depsStatus: "installing", depsError: null, updatedAt: new Date() })
-        .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
-    );
-
-    const result = await installSiteDeps(id, "prod");
-    await qrun(
-      db
-        .update(sites)
-        .set({
-          depsStatus: result.ok ? "ready" : "error",
-          depsError: result.ok ? null : result.error,
-          updatedAt: new Date(),
-        })
-        .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
-    );
-    if (!result.ok) {
-      const [row] = await qall(
-        db
-          .select()
-          .from(sites)
-          .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id))),
-      );
-      const safe = toSiteResponse(row);
-      wsHub.emit("sites:updated", safe);
-      throw new BadRequestException(`Approved but prod install failed: ${result.error}`);
-    }
-  }
-
-  await requireSitePackages(id, "prod");
-
-  const db = getDb();
-  const [row] = await qall(
-    db
-      .update(sites)
-      .set({ updatedAt: new Date() })
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
-      .returning(),
-  );
-  const safe = toSiteResponse(row);
-  wsHub.emit("sites:updated", safe);
-  return safe;
-}
-
-export async function discardSiteDraft(id: string, file?: string) {
-  await getSiteOrThrow(id);
-  discardDraft(id, parseOptionalSourceFiles(file));
-  invalidateSiteCaches(id);
-  const db = getDb();
-  const [row] = await qall(
-    db
-      .update(sites)
-      .set({ draftUpdatedAt: new Date(), updatedAt: new Date() })
-      .where(and(inWorkspace(sites.workspaceId), eq(sites.id, id)))
-      .returning(),
-  );
-  const safe = toSiteResponse(row);
-  wsHub.emit("sites:updated", safe);
-  return safe;
+  return published;
 }
 
 export async function getSiteThumbnailPng(id: string) {

@@ -16,5 +16,7 @@ export const jobsApi = {
 
   listRuns: (id: string, params?: Record<string, string | number>) => apiClient.get<{ items: JobRun[]; total: number; page: number; limit: number }>(`/api/jobs/${id}/runs`, params as Record<string, string | number | boolean | undefined>),
 
+  clearRuns: (id: string) => apiClient.delete<{ deleted: number; kept: number }>(`/api/jobs/${id}/runs`),
+
   getRun: (id: string, runId: string) => apiClient.get<JobRun>(`/api/jobs/${id}/runs/${runId}`),
 };

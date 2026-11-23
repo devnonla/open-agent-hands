@@ -2,7 +2,7 @@ import type { KvStoreEntry } from "src/common/types";
 import { BaseReducer, type IBaseState } from "src/store/baseSlice";
 
 export interface IKvStoreState extends IBaseState {
-  filter: { page: number; limit: number; sorts?: string; search?: string };
+  filter: { page: number; limit: number; sorts?: string; search?: string; project?: string };
 }
 
 const initialState: IKvStoreState = {

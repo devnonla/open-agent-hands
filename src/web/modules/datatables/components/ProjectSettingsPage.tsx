@@ -1,8 +1,8 @@
-import { Button, EFormItemType, Modal, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
-import { Trash2 } from "lucide-react";
+import { Alert, Button, Card, EFormItemType, Empty, Modal, SchemaForm, Spin, type TFormItemProps, message, Icon } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
+import { SectionCard } from "src/components/SectionCard";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { type DatatableProjectListItem, deleteDatatableProject, updateDatatableProject } from "../common/datatableProjectsSlice";
 
@@ -64,46 +64,57 @@ export function ProjectSettingsPage({ projectId, loading }: { projectId: string;
   };
 
   if (!project && loading) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spin />
+      </div>
+    );
   }
 
   if (!project) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Project not found</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Empty bordered={false} icon={null} description="Project not found" />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
-        <form onSubmit={onSubmit} className="rounded-2xl border border-border bg-card p-6">
-          <SchemaForm form={form} items={ITEMS} />
-          {rootError ? <div className="mt-4 text-xs leading-snug text-destructive">{rootError}</div> : null}
-          <div className="mt-4 flex justify-end">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 p-6">
+        <SectionCard
+          title="Project"
+          onSubmit={onSubmit}
+          footer={
             <Button type="primary" htmlType="submit" loading={saving}>
               {saving ? "Saving…" : "Save"}
             </Button>
-          </div>
-        </form>
+          }
+        >
+          <SchemaForm form={form} items={ITEMS} />
+          {rootError ? <Alert type="error" showIcon message={rootError} /> : null}
+        </SectionCard>
 
-        <section className="rounded-2xl border border-destructive/30 bg-card p-6">
-          <h2 className="m-0 text-sm font-semibold text-foreground">Delete project</h2>
-          <p className="mt-1 mb-4 text-sm text-muted-foreground">All tables and rows in this project will be deleted.</p>
-          <Button
-            danger
-            disabled={deleting || saving}
-            icon={<Trash2 size={14} />}
-            onClick={() => {
-              Modal.confirm({
-                title: "Delete project?",
-                content: `Delete "${project.name}"? All tables and rows in this project will be deleted.`,
-                okText: "Delete",
-                okType: "danger",
-                onOk: handleDelete,
-              });
-            }}
-          >
-            Delete
-          </Button>
-        </section>
+        <Card title="Danger zone">
+          <Card.Item label="Delete project" description="All tables and rows in this project will be deleted.">
+            <Button
+              danger
+              disabled={deleting || saving}
+              icon={<Icon name="trash" size={14} />}
+              onClick={() => {
+                Modal.confirm({
+                  title: "Delete project?",
+                  content: `Delete "${project.name}"? All tables and rows in this project will be deleted.`,
+                  okText: "Delete",
+                  okType: "danger",
+                  onOk: handleDelete,
+                });
+              }}
+            >
+              Delete
+            </Button>
+          </Card.Item>
+        </Card>
       </div>
     </div>
   );

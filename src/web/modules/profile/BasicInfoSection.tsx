@@ -61,7 +61,7 @@ export function BasicInfoSection({ user, avatar }: BasicInfoSectionProps) {
       onSubmit={onSubmit}
       footer={
         <Button htmlType="submit" type="primary" loading={saving}>
-          Save Changes
+          Save changes
         </Button>
       }
     >

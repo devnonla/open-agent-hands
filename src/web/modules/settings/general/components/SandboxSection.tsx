@@ -1,9 +1,7 @@
-import { Switch, message } from "devnonla-ui";
-import { ShieldCheck } from "lucide-react";
+import { Card, Skeleton, Switch, Tag, message } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
-import { SectionCard } from "src/components/SectionCard";
 import { saveSettingValues } from "src/modules/settings/common/settingsApi";
 
 type SandboxStatus = { enabled: boolean; available: boolean; backend: string | null; platform: string };
@@ -25,7 +23,7 @@ export function SandboxSection() {
     try {
       await saveSettingValues({ [SettingKey.SandboxEnabled]: enabled ? "true" : "false" });
       setStatus({ ...status, enabled });
-      message.success(enabled ? "Sandbox enabled" : "Sandbox disabled");
+      message.success(enabled ? "Sandbox on" : "Sandbox off");
     } catch {
       message.error("Failed to save sandbox setting");
     } finally {
@@ -33,24 +31,23 @@ export function SandboxSection() {
     }
   };
 
-  const hint = !status
-    ? "Loading…"
-    : status.available
-      ? `Uses ${status.backend} on ${status.platform}. Tools and site backends can only write inside their own folder.`
-      : `No sandbox backend available on ${status.platform}${status.backend ? ` (${status.backend} not found)` : ""}. Code runs unsandboxed even when enabled.`;
-
   return (
-    <SectionCard title="Sandbox" description="Run tool and site backend code inside an OS sandbox. Off by default: code runs as your user with full file access.">
-      <div className="flex items-center gap-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-          <ShieldCheck size={20} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="m-0 text-sm font-medium text-foreground">{status?.enabled ? "Sandbox on" : "Sandbox off"}</p>
-          <p className="mt-0.5 mb-0 text-[11px] text-tertiary-foreground">{hint}</p>
-        </div>
+    <Card title="Security" caption="Off by default: tool and site backend code runs as your user with full file access.">
+      <Card.Item
+        label={
+          <span className="inline-flex items-center gap-2">
+            Sandbox
+            {status ? <Tag color={status.enabled ? "success" : "default"}>{status.enabled ? "On" : "Off"}</Tag> : null}
+          </span>
+        }
+        description="Run tool and site backend code inside an OS sandbox. They can only write inside their own folder."
+        align="center"
+      >
         <Switch checked={!!status?.enabled} disabled={!status || saving} onChange={(checked: boolean) => void toggle(checked)} aria-label="Enable sandbox" />
-      </div>
-    </SectionCard>
+      </Card.Item>
+      <Card.Item label="Backend" description={status && !status.available ? "Code runs unsandboxed even when the switch is on." : undefined} align="center">
+        {status ? <Tag color={status.available ? "success" : "warning"}>{status.available ? `${status.backend} on ${status.platform}` : `Not available on ${status.platform}`}</Tag> : <Skeleton.Input active />}
+      </Card.Item>
+    </Card>
   );
 }

@@ -1,5 +1,4 @@
-import { type NonlaColorPreference, Segmented, message, setColorPreference, useColorPreference } from "devnonla-ui";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { type NonlaColorPreference, Segmented, message, setColorPreference, useColorPreference, Icon } from "devnonla-ui";
 import { useState } from "react";
 import { apiClient } from "src/common/api";
 import { setUserTheme } from "src/common/authSlice";
@@ -7,9 +6,9 @@ import { SectionCard } from "src/components/SectionCard";
 import { useAppDispatch } from "src/store/store";
 
 const OPTIONS: { value: NonlaColorPreference; label: string; icon: React.ReactNode }[] = [
-  { value: "system", label: "System", icon: <Monitor size={14} /> },
-  { value: "light", label: "Light", icon: <Sun size={14} /> },
-  { value: "dark", label: "Dark", icon: <Moon size={14} /> },
+  { value: "system", label: "System", icon: <Icon name="monitor" size={14} /> },
+  { value: "light", label: "Light", icon: <Icon name="sun" size={14} /> },
+  { value: "dark", label: "Dark", icon: <Icon name="moon" size={14} /> },
 ];
 
 export function AppearanceSection() {

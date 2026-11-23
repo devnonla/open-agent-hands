@@ -1,4 +1,4 @@
-import { Icon, Splitter, message } from "devnonla-ui";
+import { Empty, Spin, Splitter, message } from "devnonla-ui";
 import { useCallback, useEffect, useState } from "react";
 import { useMatch, useNavigate, useParams } from "react-router-dom";
 import type { DatatableColumn, DatatableProject, DatatableTable } from "src/common/types";
@@ -13,9 +13,9 @@ import { SchemaFlow } from "../components/SchemaFlow";
 import { TableRowsPanel } from "../components/TableRowsPanel";
 
 const RAIL_KEY = "datatables-rail-width";
-const RAIL_MIN = 240;
+const RAIL_MIN = 180;
 const RAIL_MAX = 420;
-const RAIL_DEFAULT = 260;
+const RAIL_DEFAULT = 240;
 
 function storedRailWidth() {
   try {
@@ -152,17 +152,15 @@ export default function DatatableProjectPage() {
                   ) : (
                     <div className="relative flex min-h-0 flex-1 flex-col">
                       {schemaError ? (
-                        <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">{schemaError}</div>
+                        <Empty bordered={false} icon={null} description={schemaError} className="flex-1" />
                       ) : !schemaReady ? (
-                        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading…</div>
-                      ) : visibleTables.length === 0 ? (
-                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-                          <span className="mb-3 flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                            <Icon name="document" size={24} />
-                          </span>
-                          <p className="m-0 text-sm font-medium text-foreground">No tables yet</p>
-                          <AskClaudeHint what="table" tool="datatable_create_table" />
+                        <div className="flex flex-1 items-center justify-center">
+                          <Spin />
                         </div>
+                      ) : visibleTables.length === 0 ? (
+                        <Empty bordered={false} icon="document" title="No tables yet" className="min-h-0 flex-1">
+                          <AskClaudeHint what="table" tool="datatable_create_table" />
+                        </Empty>
                       ) : schemaProjectId ? (
                         <SchemaFlow
                           tables={visibleTables}
@@ -181,7 +179,7 @@ export default function DatatableProjectPage() {
                   )}
                 </>
               ) : (
-                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Project not found</div>
+                <Empty bordered={false} icon={null} description="Project not found" className="flex-1" />
               )}
             </div>
           </div>

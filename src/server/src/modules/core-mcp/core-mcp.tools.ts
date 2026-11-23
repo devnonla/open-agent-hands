@@ -1,7 +1,5 @@
-import { DEFAULT_WORKSPACE_ID } from "../../common/db/schema.js";
 import { HttpException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { type McpServerHandler, type McpToolDescriptor, textResult } from "../../common/mcp/json-rpc.js";
-import { runInWorkspace } from "../../common/workspace/workspace-context.js";
 import * as datatables from "../datatables/datatables.service.js";
 import type { OrderByItem, WhereFilter } from "../datatables/datatable-where.util.js";
 import { startClaimedRun } from "../jobs/jobs-runner.js";
@@ -10,29 +8,30 @@ import * as kv from "../kvstore/kvstore.service.js";
 import * as mcpServers from "../my-mcp-servers/my-mcp-servers.service.js";
 import * as secrets from "../secrets/secrets.service.js";
 import * as sites from "../sites/sites.service.js";
+import * as storage from "../storage/storage.service.js";
 import { buildJsonSchemaFromCode, parseMetaFromCode } from "../tools/common/code-annotations.js";
 import * as toolFolders from "../tool-folders/tool-folders.service.js";
 import * as tools from "../tools/tools.service.js";
-import * as workspaces from "../workspaces/workspaces.service.js";
 import { CORE_MCP_INSTRUCTIONS, getGuide } from "./core-mcp-guide.js";
 
 type Args = Record<string, unknown>;
 
 type CoreTool = McpToolDescriptor & {
-  global?: boolean;
   run: (args: Args) => Promise<unknown>;
 };
 
 type Schema = Record<string, unknown>;
 
-const WORKSPACE_PROP: Schema = { type: "string", description: 'Workspace id or name. Defaults to "default".' };
+const MAX_INLINE_BYTES = 5 * 1024 * 1024;
+
+const KV_PROJECT_HINT = 'KV project name or id. Defaults to "default".';
 
 function s(description: string): Schema {
   return { type: "string", description };
 }
 
-function input(properties: Record<string, Schema>, required: string[] = [], global = false): object {
-  return { type: "object", properties: global ? properties : { workspace: WORKSPACE_PROP, ...properties }, required };
+function input(properties: Record<string, Schema>, required: string[] = []): object {
+  return { type: "object", properties, required };
 }
 
 function str(args: Args, key: string, required = true): string {
@@ -51,15 +50,6 @@ function strList(args: Args, key: string): string[] {
   const value = args[key];
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === "string" && v.trim() !== "").map((v) => v.trim());
-}
-
-async function resolveWorkspaceId(ref: unknown): Promise<string> {
-  const key = typeof ref === "string" ? ref.trim() : "";
-  if (!key) return DEFAULT_WORKSPACE_ID;
-  const all = await workspaces.listWorkspaces();
-  const found = all.find((w) => w.id === key) ?? all.find((w) => w.name.toLowerCase() === key.toLowerCase());
-  if (!found) throw new NotFoundException(`Workspace "${key}" not found`);
-  return found.id;
 }
 
 async function findTool(ref: string) {
@@ -87,6 +77,10 @@ async function findMcpServer(ref: string) {
   return match;
 }
 
+function forAgent<T extends { tools: { icon?: string | null }[] }>(server: T): T {
+  return { ...server, tools: server.tools.map(({ icon: _icon, ...tool }) => tool) };
+}
+
 async function toolIdsFor(refs: string[]): Promise<string[]> {
   const ids: string[] = [];
   for (const ref of refs) ids.push((await findTool(ref)).id);
@@ -111,15 +105,36 @@ async function findJob(ref: string) {
   return job;
 }
 
-function toolSummary(tool: { id: string; name: string; label: string; description: string; folderId?: string | null }) {
-  return { id: tool.id, name: tool.name, label: tool.label, description: tool.description, folderId: tool.folderId ?? null };
+function toolSummary(tool: { id: string; name: string; label: string; description: string; folderId?: string | null; icon?: string | null }) {
+  return { id: tool.id, name: tool.name, label: tool.label, description: tool.description, folderId: tool.folderId ?? null, hasIcon: !!tool.icon };
+}
+
+function spaceSummary(space: storage.SpaceSummary) {
+  return { name: space.name, description: space.description, public: space.isPublic, fileCount: space.fileCount, totalBytes: space.totalBytes };
+}
+
+function fileSummary(file: storage.PublicStorageFile) {
+  return { space: file.space, key: file.key, size: file.size, contentType: file.contentType, updatedAt: file.updatedAt, publicUrl: file.publicUrl };
+}
+
+async function fetchForStorage(url: string): Promise<{ data: ReadableStream<Uint8Array> | Uint8Array; contentType: string | null }> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`"url" is not a valid URL: ${url}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error('"url" must start with http:// or https://');
+  const res = await fetch(parsed);
+  if (!res.ok) throw new Error(`Downloading ${url} failed: HTTP ${res.status}`);
+  return { data: res.body ?? new Uint8Array(0), contentType: res.headers.get("content-type") };
 }
 
 async function waitForRun(runId: string, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const run = await jobs.getJobRun(runId);
-    if (run && run.status !== "running") return jobs.toPublicJobRun(run);
+    if (run && !jobs.isActiveRunStatus(run.status)) return jobs.toPublicJobRun(run);
     await Bun.sleep(500);
   }
   const run = await jobs.getJobRun(runId);
@@ -130,46 +145,12 @@ const CORE_TOOLS: CoreTool[] = [
   {
     name: "get_guide",
     description: "How to write tools, jobs and sites, and the @agenthands/runtime SDK. Read before writing code.",
-    inputSchema: input({ topic: { type: "string", enum: ["tools", "jobs", "sites", "runtime", "all"] } }, ["topic"], true),
-    global: true,
+    inputSchema: input({ topic: { type: "string", enum: ["tools", "jobs", "sites", "runtime", "all"] } }, ["topic"]),
     run: async (args) => getGuide(str(args, "topic")),
   },
   {
-    name: "list_workspaces",
-    description: "List all workspaces.",
-    inputSchema: input({}, [], true),
-    global: true,
-    run: async () => workspaces.listWorkspaces(),
-  },
-  {
-    name: "create_workspace",
-    description: "Create a workspace.",
-    inputSchema: input({ name: s("Workspace name"), description: s("Optional description") }, ["name"], true),
-    global: true,
-    run: async (args) => workspaces.createWorkspace({ name: args.name, description: args.description }),
-  },
-  {
-    name: "update_workspace",
-    description: "Rename a workspace or change its description.",
-    inputSchema: input({ workspace_id: s("Workspace id or name"), name: s("New name"), description: s("New description") }, ["workspace_id"], true),
-    global: true,
-    run: async (args) => workspaces.updateWorkspace(await resolveWorkspaceId(args.workspace_id), { name: args.name, description: args.description }),
-  },
-  {
-    name: "delete_workspace",
-    description: "Delete a workspace and everything in it. The default workspace cannot be deleted. Requires confirm=true.",
-    inputSchema: input({ workspace_id: s("Workspace id or name"), confirm: { type: "boolean" } }, ["workspace_id", "confirm"], true),
-    global: true,
-    run: async (args) => {
-      if (args.confirm !== true) throw new Error("Set confirm=true to delete the workspace and all its resources");
-      await workspaces.deleteWorkspace(await resolveWorkspaceId(args.workspace_id));
-      return { ok: true };
-    },
-  },
-
-  {
     name: "list_tools",
-    description: "List tools in a workspace (without code).",
+    description: "List tools (without code).",
     inputSchema: input({}),
     run: async () => ((await tools.listTools({})).items as Parameters<typeof toolSummary>[0][]).map(toolSummary),
   },
@@ -182,24 +163,26 @@ const CORE_TOOLS: CoreTool[] = [
   {
     name: "create_tool",
     description: "Create a tool from code. Name, description and parameters come from the @name/@description/@param header. See get_guide topic=tools.",
-    inputSchema: input({ code: s("Full TypeScript module with annotation header and export default async function main(input)"), folder_id: s("Optional tool folder id or name") }, ["code"]),
+    inputSchema: input({ code: s("Full TypeScript module with annotation header and export default async function main(input)"), folder_id: s("Optional tool folder id or name"), icon: s("Optional inline SVG icon shown in the UI (e.g. a Lucide icon, 24x24 viewBox, stroke=\"currentColor\"). Plain SVG only, max 8000 chars. Without it the UI shows a default icon.") }, ["code"]),
     run: async (args) => {
       const code = str(args, "code");
       const meta = parseMetaFromCode(code);
       if (!meta.label || !meta.name) throw new Error("Code must start with // @name <Label>");
       if (!meta.description) throw new Error("Code must include // @description <text>");
-      const created = await tools.createTool({ name: meta.name, label: meta.label, description: meta.description, parameters: buildJsonSchemaFromCode(code), codeContent: code, folderId: optStr(args, "folder_id") ? (await findFolder(str(args, "folder_id"))).id : null });
+      const created = await tools.createTool({ name: meta.name, label: meta.label, description: meta.description, parameters: buildJsonSchemaFromCode(code), codeContent: code, icon: optStr(args, "icon"), folderId: optStr(args, "folder_id") ? (await findFolder(str(args, "folder_id"))).id : null });
       return toolSummary(await tools.updateTool(created.id as string, { codeContent: code }));
     },
   },
   {
     name: "update_tool",
-    description: "Update a tool's code (annotations re-read).",
-    inputSchema: input({ tool: s("Tool id or name"), code: s("New full module") }, ["tool"]),
+    description: "Update a tool's code (annotations re-read) and/or its icon.",
+    inputSchema: input({ tool: s("Tool id or name"), code: s("New full module"), icon: s("Inline SVG icon; empty string removes it and the UI falls back to the default icon") }, ["tool"]),
     run: async (args) => {
       const tool = await findTool(str(args, "tool"));
       const patch: Record<string, unknown> = {};
       if (typeof args.code === "string") patch.codeContent = args.code;
+      if (typeof args.icon === "string") patch.icon = args.icon;
+      if (!Object.keys(patch).length) throw new Error("Pass code and/or icon to update");
       return toolSummary(await tools.updateTool(tool.id, patch));
     },
   },
@@ -267,9 +250,9 @@ const CORE_TOOLS: CoreTool[] = [
 
   {
     name: "list_mcp_servers",
-    description: "List hosted MCP servers in a workspace. Each one exposes a set of tools at /mcp/<id>.",
+    description: "List hosted MCP servers. Each one exposes a set of tools at /mcp/<id>.",
     inputSchema: input({}),
-    run: async () => (await mcpServers.listMyMcpServers({})).items,
+    run: async () => (await mcpServers.listMyMcpServers({})).items.map(forAgent),
   },
   {
     name: "create_mcp_server",
@@ -277,7 +260,7 @@ const CORE_TOOLS: CoreTool[] = [
     inputSchema: input({ name: s("Server name"), description: s("Optional description"), tools: { type: "array", items: { type: "string" }, description: "Tool ids or names" } }, ["name"]),
     run: async (args) => {
       const created = await mcpServers.createMyMcpServer({ name: str(args, "name"), description: optStr(args, "description") ?? null, toolIds: await toolIdsFor(strList(args, "tools")) });
-      return { ...created, endpoint: `/mcp/${created.id}` };
+      return { ...forAgent(created), endpoint: `/mcp/${created.id}` };
     },
   },
   {
@@ -286,11 +269,11 @@ const CORE_TOOLS: CoreTool[] = [
     inputSchema: input({ server: s("Server id or name"), name: s("New name"), active: { type: "boolean" }, tools: { type: "array", items: { type: "string" }, description: "Replaces assigned tools (ids or names)" } }, ["server"]),
     run: async (args) => {
       const server = await findMcpServer(str(args, "server"));
-      return mcpServers.updateMyMcpServer(server.id, {
+      return forAgent(await mcpServers.updateMyMcpServer(server.id, {
         ...(typeof args.name === "string" ? { name: args.name } : {}),
         ...(typeof args.active === "boolean" ? { isActive: args.active } : {}),
         ...(Array.isArray(args.tools) ? { toolIds: await toolIdsFor(strList(args, "tools")) } : {}),
-      });
+      }));
     },
   },
   {
@@ -301,7 +284,7 @@ const CORE_TOOLS: CoreTool[] = [
       const server = await findMcpServer(str(args, "server"));
       const ids = new Set(server.tools.map((tool) => tool.id));
       for (const id of await toolIdsFor(strList(args, "tools"))) ids.add(id);
-      return mcpServers.updateMyMcpServer(server.id, { toolIds: [...ids] });
+      return forAgent(await mcpServers.updateMyMcpServer(server.id, { toolIds: [...ids] }));
     },
   },
   {
@@ -311,7 +294,7 @@ const CORE_TOOLS: CoreTool[] = [
     run: async (args) => {
       const server = await findMcpServer(str(args, "server"));
       const remove = new Set(await toolIdsFor(strList(args, "tools")));
-      return mcpServers.updateMyMcpServer(server.id, { toolIds: server.tools.map((tool) => tool.id).filter((id) => !remove.has(id)) });
+      return forAgent(await mcpServers.updateMyMcpServer(server.id, { toolIds: server.tools.map((tool) => tool.id).filter((id) => !remove.has(id)) }));
     },
   },
   {
@@ -325,36 +308,62 @@ const CORE_TOOLS: CoreTool[] = [
   },
 
   {
-    name: "kv_list",
-    description: "List KV entries in a workspace.",
+    name: "kv_list_projects",
+    description: "List KV projects with how many keys each holds. Every key belongs to one project; \"default\" always exists.",
     inputSchema: input({}),
-    run: async () => ((await kv.listKvEntries({})).items as { key: string; value: string; description: string | null }[]).map(({ key, value, description }) => ({ key, value, description })),
+    run: async () => {
+      const result = await kv.listKvProjects();
+      return result.items.map(({ id, name, description, keyCount }) => ({ id, name, description, keyCount }));
+    },
+  },
+  {
+    name: "kv_list",
+    description: "List KV entries. Pass project to list one project, or omit it to list every key with its project.",
+    inputSchema: input({ project: s(KV_PROJECT_HINT) }),
+    run: async (args) => {
+      const ref = optStr(args, "project")?.trim();
+      if (ref) await kv.requireKvProjectId(ref);
+      const names = new Map((await kv.listKvProjects()).items.map((p) => [p.id, p.name]));
+      const items = (await kv.listKvEntries({ sorts: "key", ...(ref ? { project: ref } : {}) })).items as { key: string; value: string; description: string | null; projectId: string }[];
+      return items.map(({ key, value, description, projectId }) => ({ project: names.get(projectId) ?? projectId, key, value, description }));
+    },
   },
   {
     name: "kv_get",
-    description: "Get a KV value.",
-    inputSchema: input({ key: s("Key like BASE_URL") }, ["key"]),
-    run: async (args) => (await kv.getKvByKey(str(args, "key")))?.value ?? null,
+    description: "Get a KV value. Returns null when the key is not set.",
+    inputSchema: input({ key: s("Key like BASE_URL"), project: s(KV_PROJECT_HINT) }, ["key"]),
+    run: async (args) => (await kv.getKvByKey(str(args, "key"), await kv.requireKvProjectId(optStr(args, "project"))))?.value ?? null,
   },
   {
     name: "kv_set",
-    description: "Create or update a KV entry. Keys match [A-Z][A-Z0-9_]*.",
-    inputSchema: input({ key: s("Key"), value: s("Value") }, ["key", "value"]),
+    description: "Create or update a KV entry. Keys match [A-Z][A-Z0-9_]*. A project that does not exist yet is created.",
+    inputSchema: input({ key: s("Key"), value: s("Value"), project: s(`${KV_PROJECT_HINT} Created if missing.`) }, ["key", "value"]),
     run: async (args) => {
-      const entry = await kv.upsertKvByKey({ key: str(args, "key"), value: typeof args.value === "string" ? args.value : JSON.stringify(args.value ?? "") });
-      return entry ? { key: entry.key, value: entry.value } : null;
+      const projectId = await kv.ensureKvProjectId(optStr(args, "project"));
+      const entry = await kv.upsertKvByKey({ key: str(args, "key"), value: typeof args.value === "string" ? args.value : JSON.stringify(args.value ?? ""), projectId });
+      return entry ? { project: optStr(args, "project")?.trim() || kv.DEFAULT_KV_PROJECT, key: entry.key, value: entry.value } : null;
     },
   },
   {
     name: "kv_delete",
     description: "Delete a KV entry.",
-    inputSchema: input({ key: s("Key") }, ["key"]),
-    run: async (args) => kv.deleteKvByKey(str(args, "key")),
+    inputSchema: input({ key: s("Key"), project: s(KV_PROJECT_HINT) }, ["key"]),
+    run: async (args) => kv.deleteKvByKey(str(args, "key"), await kv.requireKvProjectId(optStr(args, "project"))),
+  },
+  {
+    name: "kv_delete_project",
+    description: "Delete a KV project and every key in it. The default project cannot be deleted. Requires confirm=true.",
+    inputSchema: input({ project: s("Project id or name"), confirm: { type: "boolean" } }, ["project", "confirm"]),
+    run: async (args) => {
+      if (args.confirm !== true) throw new Error("Set confirm=true to delete the KV project and all its keys");
+      const projectId = await kv.requireKvProjectId(str(args, "project"));
+      return { ok: true, ...(await kv.deleteKvProject(projectId)) };
+    },
   },
 
   {
     name: "secret_list",
-    description: "List secret keys in a workspace (values are never returned).",
+    description: "List secret keys (values are never returned).",
     inputSchema: input({}),
     run: async () => ((await secrets.listSecrets({})).items as { key: string; description: string | null }[]).map(({ key, description }) => ({ key, description })),
   },
@@ -469,47 +478,155 @@ const CORE_TOOLS: CoreTool[] = [
   },
 
   {
+    name: "storage_list_spaces",
+    description: "List storage spaces with file count, total bytes and whether files are public.",
+    inputSchema: input({}),
+    run: async () => (await storage.listSpaces()).items.map(spaceSummary),
+  },
+  {
+    name: "storage_create_space",
+    description: "Create a storage space. Names are 2-63 lowercase letters, digits or -. public=true gives every file a link that works without login (publicUrl, /public/storage/<random token>/<file name>); links cannot be guessed or listed. Default private.",
+    inputSchema: input({ name: s("Space name, e.g. reports"), description: s("What the space holds, one short sentence"), public: { type: "boolean", description: "Serve files publicly without login. Default false." } }, ["name"]),
+    run: async (args) => spaceSummary(await storage.createSpace({ name: str(args, "name"), description: optStr(args, "description") ?? null, isPublic: args.public === true })),
+  },
+  {
+    name: "storage_update_space",
+    description: "Change a space's description or public flag. public=true makes every file readable by anyone who has its publicUrl; only do that when the user asked. Turning it off stops all its links; turning it on again brings back the same links.",
+    inputSchema: input({ space: s("Space name or id"), description: s("New description"), public: { type: "boolean" } }, ["space"]),
+    run: async (args) => {
+      const space = await storage.requireSpace(str(args, "space"));
+      if (typeof args.description !== "string" && typeof args.public !== "boolean") throw new Error("Pass description and/or public to update");
+      return spaceSummary(await storage.updateSpace(space.id, { ...(typeof args.description === "string" ? { description: args.description } : {}), ...(typeof args.public === "boolean" ? { isPublic: args.public } : {}) }));
+    },
+  },
+  {
+    name: "storage_delete_space",
+    description: "Delete a space and every file in it. Cannot be undone. Requires confirm=true.",
+    inputSchema: input({ space: s("Space name or id"), confirm: { type: "boolean" } }, ["space", "confirm"]),
+    run: async (args) => {
+      if (args.confirm !== true) throw new Error("Set confirm=true to delete the space and all its files");
+      const space = await storage.requireSpace(str(args, "space"));
+      return { ok: true, ...(await storage.deleteSpace(space.id)) };
+    },
+  },
+  {
+    name: "storage_list_files",
+    description: "List files in a space, sorted by key. Keys use / for folders; pass prefix (e.g. reports/2026/) to list one folder. folders=true lists only that level: sub-folders with their counts, plus the files directly in it.",
+    inputSchema: input({ space: s("Space name or id"), prefix: s("Only keys starting with this"), folders: { type: "boolean", description: "Group deeper keys into folders" }, limit: { type: "number", description: "Max 1000, default 200" }, offset: { type: "number" } }, ["space"]),
+    run: async (args) => {
+      const space = await storage.requireSpace(str(args, "space"));
+      if (args.folders === true) {
+        const view = await storage.browseFiles(space, optStr(args, "prefix") ?? "");
+        return { prefix: view.prefix, folders: view.folders, items: view.items.map(fileSummary) };
+      }
+      const result = await storage.listFiles(space, { prefix: optStr(args, "prefix"), limit: typeof args.limit === "number" ? args.limit : 200, offset: typeof args.offset === "number" ? args.offset : 0 });
+      return { total: result.total, items: result.items.map(fileSummary) };
+    },
+  },
+  {
+    name: "storage_put_file",
+    description: "Write a file to a space, replacing any file with the same key. Pass content (utf8 text, or base64 with encoding=base64) or url to download from (the server streams it to disk, any size; this can take a while for big files). The space is created (private) if it does not exist. No size limit.",
+    inputSchema: input(
+      {
+        space: s("Space name or id; created if missing"),
+        key: s("File path in the space, e.g. reports/2026-11.csv"),
+        content: s("File content"),
+        encoding: { type: "string", enum: ["utf8", "base64"], description: "How content is encoded. Default utf8." },
+        url: s("http(s) URL to download instead of content"),
+        content_type: s("MIME type. Default: guessed from the key's extension."),
+      },
+      ["space", "key"],
+    ),
+    run: async (args) => {
+      const hasContent = typeof args.content === "string";
+      const url = optStr(args, "url")?.trim();
+      if (hasContent === !!url) throw new Error("Pass exactly one of content or url");
+      let data: ReadableStream<Uint8Array> | Uint8Array;
+      let contentType = optStr(args, "content_type")?.trim() || null;
+      if (url) {
+        const fetched = await fetchForStorage(url);
+        data = fetched.data;
+        contentType ??= fetched.contentType;
+      } else {
+        const encoding = optStr(args, "encoding") ?? "utf8";
+        if (encoding !== "utf8" && encoding !== "base64") throw new Error('encoding must be "utf8" or "base64"');
+        data = encoding === "base64" ? new Uint8Array(Buffer.from(args.content as string, "base64")) : new TextEncoder().encode(args.content as string);
+      }
+      const space = await storage.ensureSpace(str(args, "space"));
+      return fileSummary(await storage.putFile(space, { key: str(args, "key"), data, contentType }));
+    },
+  },
+  {
+    name: "storage_get_file",
+    description: "Read a file. Text types come back as utf8, others as base64 (override with encoding). Files over 5 MB are not returned inline; use publicUrl or read them from a tool with agenthands.storage.",
+    inputSchema: input({ space: s("Space name or id"), key: s("File key"), encoding: { type: "string", enum: ["utf8", "base64"] } }, ["space", "key"]),
+    run: async (args) => {
+      const space = await storage.requireSpace(str(args, "space"));
+      const file = await storage.requireFile(space, str(args, "key"));
+      const meta = fileSummary({ ...file, space: space.name, publicUrl: space.isPublic ? storage.publicFileUrl(file) : null });
+      if (file.size > MAX_INLINE_BYTES) throw new Error(`${file.key} is ${file.size} bytes; storage_get_file returns at most 5 MB. Read it from a tool with agenthands.storage.space("${space.name}").get(key).`);
+      const encoding = optStr(args, "encoding") ?? (storage.isTextContentType(file.contentType) ? "utf8" : "base64");
+      const bytes = await storage.readFileBytes(file);
+      return { ...meta, encoding, content: encoding === "base64" ? Buffer.from(bytes).toString("base64") : new TextDecoder().decode(bytes) };
+    },
+  },
+  {
+    name: "storage_reset_public_link",
+    description: "Give one file a new publicUrl. The old link stops working at once. Use it when a link was shared too widely.",
+    inputSchema: input({ space: s("Space name or id"), key: s("File key") }, ["space", "key"]),
+    run: async (args) => {
+      const space = await storage.requireSpace(str(args, "space"));
+      return fileSummary(await storage.resetPublicLink(await storage.requireFile(space, str(args, "key"))));
+    },
+  },
+  {
+    name: "storage_delete_file",
+    description: "Delete one file from a space.",
+    inputSchema: input({ space: s("Space name or id"), key: s("File key") }, ["space", "key"]),
+    run: async (args) => {
+      const space = await storage.requireSpace(str(args, "space"));
+      const file = await storage.requireFile(space, str(args, "key"));
+      await storage.deleteFile(file);
+      return { ok: true, key: file.key };
+    },
+  },
+
+  {
     name: "list_sites",
-    description: "List sites in a workspace.",
+    description: "List sites.",
     inputSchema: input({}),
     run: async () => (await sites.listSites({})).items,
   },
   {
     name: "create_site",
-    description: "Create a site with starter files. Slug is lowercase-kebab and globally unique; it becomes /public/sites/<slug>.",
+    description: "Create a site with starter files. Slug is lowercase-kebab and unique; it becomes /public/sites/<slug>.",
     inputSchema: input({ name: s("Site name"), slug: s("URL slug") }, ["name", "slug"]),
     run: async (args) => sites.createSite({ name: str(args, "name"), slug: str(args, "slug") }),
   },
   {
     name: "get_site_files",
-    description: "Read app.tsx, backend.ts, styles.css and package.json from the draft (default) or prod tree.",
-    inputSchema: input({ site: s("Site id or slug"), tree: { type: "string", enum: ["draft", "prod"] } }, ["site"]),
-    run: async (args) => sites.getSiteFiles((await findSite(str(args, "site"))).id, optStr(args, "tree") === "prod" ? "prod" : "draft"),
+    description: "Read app.tsx, backend.ts, styles.css and package.json of a site.",
+    inputSchema: input({ site: s("Site id or slug") }, ["site"]),
+    run: async (args) => sites.getSiteFiles((await findSite(str(args, "site"))).id),
   },
   {
     name: "write_site_file",
-    description: "Write a draft file (app.tsx, backend.ts or styles.css). npm imports are installed automatically. See get_guide topic=sites.",
+    description: "Write a site file (app.tsx, backend.ts or styles.css). The change is live at once on the site URL, with no review step. npm imports are installed automatically. See get_guide topic=sites.",
     inputSchema: input({ site: s("Site id or slug"), file: { type: "string", enum: ["app.tsx", "backend.ts", "styles.css"] }, content: s("Full file content") }, ["site", "file", "content"]),
     run: async (args) => {
       const site = await findSite(str(args, "site"));
-      await sites.updateSiteFile(site.id, str(args, "file"), typeof args.content === "string" ? args.content : "", "draft");
+      await sites.updateSiteFile(site.id, str(args, "file"), typeof args.content === "string" ? args.content : "");
       return { ok: true };
     },
   },
   {
     name: "preview_site",
-    description: "Bundle the draft and run the backend GET. Returns the backend data or the build error.",
+    description: "Bundle the site and run the backend GET. Returns the backend data or the build error. Call it after write_site_file to check the change.",
     inputSchema: input({ site: s("Site id or slug") }, ["site"]),
     run: async (args) => {
       const preview = await sites.previewSite((await findSite(str(args, "site"))).id);
       return { ok: true, data: preview.data, appJsChars: preview.appJsChars };
     },
-  },
-  {
-    name: "approve_site",
-    description: "Promote the draft files to production.",
-    inputSchema: input({ site: s("Site id or slug") }, ["site"]),
-    run: async (args) => sites.approveSite((await findSite(str(args, "site"))).id),
   },
   {
     name: "publish_site",
@@ -533,7 +650,7 @@ const CORE_TOOLS: CoreTool[] = [
 
   {
     name: "list_jobs",
-    description: "List jobs in a workspace with status (scheduled, paused or manual) and nextRuns.",
+    description: "List jobs with status (scheduled, paused or manual) and nextRuns.",
     inputSchema: input({}),
     run: async () => ((await jobs.listJobs({})).items as Record<string, unknown>[]).map(({ code, draftCode, ...rest }) => rest),
   },
@@ -546,7 +663,7 @@ const CORE_TOOLS: CoreTool[] = [
   {
     name: "create_job",
     description: "Create a cron job. cron: 5-field expressions, one per line, in the app timezone; empty = manual only. Returns status and nextRuns so you can check the schedule. See get_guide topic=jobs.",
-    inputSchema: input({ name: s("Job name"), code: s("Bun/TypeScript script"), cron: s("Cron expression(s)"), description: s("Optional description"), timeout_ms: { type: "number" }, enabled: { type: "boolean", description: "Start paused with false. Default true when cron is set." } }, ["name", "code"]),
+    inputSchema: input({ name: s('Readable title people see in the jobs list, in plain words, e.g. "Sync GitHub issues". Not kebab-case.'), code: s("Bun/TypeScript script"), cron: s("Cron expression(s)"), description: s("Optional description"), timeout_ms: { type: "number", description: "Limit for one attempt. Default 300000 (5 min)." }, max_retries: { type: "number", description: "Run the whole script again this many times when it fails (0-5, default 0). Waits 5s, 10s, 20s… between attempts. Only for idempotent jobs." }, enabled: { type: "boolean", description: "Start paused with false. Default true when cron is set." } }, ["name", "code"]),
     run: async (args) =>
       jobs.createJob({
         name: str(args, "name"),
@@ -554,13 +671,14 @@ const CORE_TOOLS: CoreTool[] = [
         cron: optStr(args, "cron") ?? "",
         description: optStr(args, "description") ?? null,
         ...(typeof args.timeout_ms === "number" ? { timeoutMs: args.timeout_ms } : {}),
+        ...(typeof args.max_retries === "number" ? { maxRetries: args.max_retries } : {}),
         ...(typeof args.enabled === "boolean" ? { enabled: args.enabled } : {}),
       }),
   },
   {
     name: "update_job",
-    description: "Update a job's name, code, cron, description, timeout or enabled. A job paused by a person stays paused unless you pass enabled=true; resume only when the user asked.",
-    inputSchema: input({ job: s("Job id or name"), name: s("New name"), code: s("New script"), cron: s("New cron (empty string = manual only)"), description: s("New description"), timeout_ms: { type: "number" }, enabled: { type: "boolean", description: "false pauses the schedule, true resumes it" } }, ["job"]),
+    description: "Update a job's name, code, cron, description, timeout, retries or enabled. A job paused by a person stays paused unless you pass enabled=true; resume only when the user asked.",
+    inputSchema: input({ job: s("Job id or name"), name: s("New name"), code: s("New script"), cron: s("New cron (empty string = manual only)"), description: s("New description"), timeout_ms: { type: "number", description: "Limit for one attempt" }, max_retries: { type: "number", description: "0-5 whole-run retries on failure" }, enabled: { type: "boolean", description: "false pauses the schedule, true resumes it" } }, ["job"]),
     run: async (args) => {
       const job = await findJob(str(args, "job"));
       return jobs.updateJob(job.id, {
@@ -569,17 +687,18 @@ const CORE_TOOLS: CoreTool[] = [
         ...(typeof args.cron === "string" ? { cron: args.cron } : {}),
         ...(typeof args.description === "string" ? { description: args.description } : {}),
         ...(typeof args.timeout_ms === "number" ? { timeoutMs: args.timeout_ms } : {}),
+        ...(typeof args.max_retries === "number" ? { maxRetries: args.max_retries } : {}),
         ...(typeof args.enabled === "boolean" ? { enabled: args.enabled } : {}),
       });
     },
   },
   {
     name: "run_job",
-    description: "Run a job now. With wait=true, waits up to 120s and returns the run with logs.",
-    inputSchema: input({ job: s("Job id or name"), wait: { type: "boolean" } }, ["job"]),
+    description: "Run a job now. input (any JSON, up to 64KB) reaches the script as agenthands.run.input. With wait=true, waits up to 120s and returns the run with status, output, error and logs.",
+    inputSchema: input({ job: s("Job id or name"), input: { description: "Optional JSON value passed to the run" }, wait: { type: "boolean" } }, ["job"]),
     run: async (args) => {
       const job = await findJob(str(args, "job"));
-      const claimed = await jobs.tryClaimJob(job.id, "manual");
+      const claimed = await jobs.tryClaimJob(job.id, "manual", { input: args.input });
       if (!claimed) throw new Error("Job is already running");
       startClaimedRun(claimed.job.id, claimed.run.id, false);
       return args.wait === true ? waitForRun(claimed.run.id, 120_000) : claimed.run;
@@ -587,11 +706,20 @@ const CORE_TOOLS: CoreTool[] = [
   },
   {
     name: "get_job_runs",
-    description: "Recent runs of a job with logs.",
+    description: "Recent runs of a job: status, attempts, input, output, error and logs.",
     inputSchema: input({ job: s("Job id or name"), limit: { type: "number" } }, ["job"]),
     run: async (args) => {
       const job = await findJob(str(args, "job"));
       return jobs.listJobRuns(job.id, { limit: String(typeof args.limit === "number" ? args.limit : 5) });
+    },
+  },
+  {
+    name: "clear_job_runs",
+    description: "Delete the finished run history (logs, input, output) of a job. Queued or running runs are kept. The job and its schedule stay. Requires confirm=true.",
+    inputSchema: input({ job: s("Job id or name"), confirm: { type: "boolean" } }, ["job", "confirm"]),
+    run: async (args) => {
+      if (args.confirm !== true) throw new Error("Set confirm=true to delete this job's run history");
+      return jobs.clearJobRuns((await findJob(str(args, "job"))).id);
     },
   },
   {
@@ -607,12 +735,12 @@ const CORE_TOOLS: CoreTool[] = [
 
 const GROUP_RULES: [string, (name: string) => boolean][] = [
   ["Guide", (n) => n === "get_guide"],
-  ["Workspaces", (n) => n.includes("workspace")],
   ["Tools", (n) => n.endsWith("_tool") || n.endsWith("_tools")],
   ["MCP servers", (n) => n.includes("mcp_server")],
   ["KV", (n) => n.startsWith("kv_")],
   ["Secrets", (n) => n.startsWith("secret_")],
   ["Datatables", (n) => n.startsWith("datatable_")],
+  ["Storage", (n) => n.startsWith("storage_")],
   ["Sites", (n) => n.includes("site")],
   ["Jobs", (n) => n.includes("job")],
 ];
@@ -649,7 +777,7 @@ export const coreMcpServer: McpServerHandler = {
     const tool = CORE_TOOLS.find((t) => t.name === name);
     if (!tool) return textResult(`Unknown tool: ${name}`, true);
     try {
-      const value = tool.global ? await tool.run(args) : await runInWorkspace(await resolveWorkspaceId(args.workspace), () => tool.run(args));
+      const value = await tool.run(args);
       return textResult(formatResult(value), isFailedResult(value));
     } catch (err) {
       const message = err instanceof HttpException || err instanceof Error ? err.message : String(err);

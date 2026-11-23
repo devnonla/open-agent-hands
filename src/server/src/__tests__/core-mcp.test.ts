@@ -60,41 +60,41 @@ describe("Core MCP", () => {
 
   test("initialize and tools/list", async () => {
     const init = await rpc("initialize", { protocolVersion: "2025-06-18" });
-    expect(init.body.result?.instructions).toContain("workspace");
+    expect(init.body.result?.instructions).toContain("get_guide");
     const list = await rpc("tools/list");
-    const names = list.body.result?.tools?.map((t) => t.name) ?? [];
-    expect(names).toEqual(expect.arrayContaining(["get_guide", "list_workspaces", "create_tool", "run_tool", "create_mcp_server", "kv_set", "datatable_query", "create_site", "run_job"]));
+    const tools = list.body.result?.tools ?? [];
+    const names = tools.map((t) => t.name);
+    expect(names.some((n) => n.includes("workspace"))).toBe(false);
+    expect(JSON.stringify(tools)).not.toContain('"workspace"');
+    expect(names).toEqual(expect.arrayContaining(["get_guide", "create_tool", "run_tool", "create_mcp_server", "kv_set", "datatable_query", "create_site", "run_job"]));
   });
 
-  test("manages resources across workspaces", async () => {
-    const ws = await call("create_workspace", { name: "Lab" });
-    expect(ws.isError).toBe(false);
-
-    expect((await call("kv_set", { workspace: "Lab", key: "GREETING", value: "xin chao" })).isError).toBe(false);
-    expect((await call("kv_list")).value).toEqual([]);
-    expect((await call("kv_get", { workspace: "Lab", key: "GREETING" })).value).toBe("xin chao");
+  test("manages resources", async () => {
+    expect((await call("kv_set", { key: "GREETING", value: "xin chao" })).isError).toBe(false);
+    expect((await call("kv_list")).value).toEqual([expect.objectContaining({ key: "GREETING" })]);
+    expect((await call("kv_get", { key: "GREETING" })).value).toBe("xin chao");
 
     const code = "// @name Greeter\n// @description Read the greeting from KV\n// @param {string} name (required) - Who to greet\nimport agenthands from \"@agenthands/runtime\";\nexport default async function main(input: { name: string }) {\n  return { text: `${await agenthands.kv.get(\"GREETING\")} ${input.name}` };\n}\n";
-    const created = await call("create_tool", { workspace: "Lab", code });
+    const created = await call("create_tool", { code });
     expect(created.isError).toBe(false);
     expect((created.value as { name: string }).name).toBe("greeter");
-    expect((await call("list_tools")).value).toEqual([]);
+    expect((await call("list_tools")).value).toEqual([expect.objectContaining({ name: "greeter" })]);
 
-    const folder = await call("manage_tool_folder", { action: "create", workspace: "Lab", name: "Utils" });
+    const folder = await call("manage_tool_folder", { action: "create", name: "Utils" });
     expect(folder.isError).toBe(false);
-    expect((await call("manage_tool_folder", { action: "create", workspace: "Lab", name: "utils" })).isError).toBe(true);
-    expect((await call("manage_tool_folder", { action: "update", workspace: "Lab", folder: "Utils", name: "Helpers" })).isError).toBe(false);
-    const moved = await call("move_tool", { workspace: "Lab", tool: "greeter", folder: "Helpers" });
+    expect((await call("manage_tool_folder", { action: "create", name: "utils" })).isError).toBe(true);
+    expect((await call("manage_tool_folder", { action: "update", folder: "Utils", name: "Helpers" })).isError).toBe(false);
+    const moved = await call("move_tool", { tool: "greeter", folder: "Helpers" });
     expect((moved.value as { folderId: string }).folderId).toBe((folder.value as { id: string }).id);
-    expect(((await call("manage_tool_folder", { action: "list", workspace: "Lab" })).value as { toolIds: string[] }[])[0].toolIds).toHaveLength(1);
-    expect((await call("manage_tool_folder", { action: "delete", workspace: "Lab", folder: "Helpers" })).isError).toBe(true);
-    expect((await call("manage_tool_folder", { action: "delete", workspace: "Lab", folder: "Helpers", confirm: true })).value).toEqual({ ok: true, ungroupedTools: 1 });
-    expect(((await call("move_tool", { workspace: "Lab", tool: "greeter" })).value as { folderId: string | null }).folderId).toBeNull();
+    expect(((await call("manage_tool_folder", { action: "list" })).value as { toolIds: string[] }[])[0].toolIds).toHaveLength(1);
+    expect((await call("manage_tool_folder", { action: "delete", folder: "Helpers" })).isError).toBe(true);
+    expect((await call("manage_tool_folder", { action: "delete", folder: "Helpers", confirm: true })).value).toEqual({ ok: true, ungroupedTools: 1 });
+    expect(((await call("move_tool", { tool: "greeter" })).value as { folderId: string | null }).folderId).toBeNull();
 
-    const ran = await call("run_tool", { workspace: "Lab", tool: "greeter", input: { name: "Quy" } });
+    const ran = await call("run_tool", { tool: "greeter", input: { name: "Quy" } });
     expect(ran.value).toMatchObject({ ok: true, result: { text: "xin chao Quy" } });
 
-    const server = await call("create_mcp_server", { workspace: "Lab", name: "lab-mcp", tools: ["greeter"] });
+    const server = await call("create_mcp_server", { name: "lab-mcp", tools: ["greeter"] });
     const { endpoint, key } = server.value as { endpoint: string; key: string };
     const hosted = await app.request(endpoint, {
       method: "POST",
@@ -104,46 +104,66 @@ describe("Core MCP", () => {
     const hostedTools = ((await hosted.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
     expect(hostedTools).toEqual(["greeter"]);
 
-    await call("create_tool", { workspace: "Lab", code: "// @name Second\n// @description Second tool\nexport default async function main() {\n  return 2;\n}\n" });
-    const added = await call("add_tools_to_mcp_server", { workspace: "Lab", server: "lab-mcp", tools: ["second"] });
+    await call("create_tool", { code: "// @name Second\n// @description Second tool\nexport default async function main() {\n  return 2;\n}\n" });
+    const added = await call("add_tools_to_mcp_server", { server: "lab-mcp", tools: ["second"] });
     expect((added.value as { tools: { name: string }[] }).tools.map((t) => t.name).sort()).toEqual(["greeter", "second"]);
-    const removed = await call("remove_tools_from_mcp_server", { workspace: "Lab", server: "lab-mcp", tools: ["greeter"] });
+    const removed = await call("remove_tools_from_mcp_server", { server: "lab-mcp", tools: ["greeter"] });
     expect((removed.value as { tools: { name: string }[] }).tools.map((t) => t.name)).toEqual(["second"]);
 
-    const failing = await call("run_tool", { workspace: "Lab", tool: "second", code: "// @name Second\n// @description Second tool\nexport default async function main() {\n  throw new Error(\"boom\");\n}\n" });
+    const failing = await call("run_tool", { tool: "second", code: "// @name Second\n// @description Second tool\nexport default async function main() {\n  throw new Error(\"boom\");\n}\n" });
     expect(failing.isError).toBe(true);
     expect(failing.text).toContain("boom");
   }, 180_000);
 
+  test("tool icons are plain inline SVG", async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/></svg>';
+    const code = "// @name Iconic\n// @description Has an icon\nexport default async function main() {\n  return 1;\n}\n";
+    const created = await call("create_tool", { code, icon: svg });
+    expect(created.isError).toBe(false);
+    expect((created.value as { hasIcon: boolean }).hasIcon).toBe(true);
+    expect(((await call("get_tool", { tool: "iconic" })).value as { icon: string }).icon).toBe(svg);
+
+    const unsafe = await call("update_tool", { tool: "iconic", icon: '<svg onload="alert(1)"></svg>' });
+    expect(unsafe.isError).toBe(true);
+    expect(unsafe.text).toContain("plain SVG");
+    expect((await call("update_tool", { tool: "iconic", icon: "<div></div>" })).isError).toBe(true);
+    const noViewBox = await call("update_tool", { tool: "iconic", icon: '<svg width="24" height="24"><path d="M0 0"/></svg>' });
+    expect(noViewBox.isError).toBe(true);
+    expect(noViewBox.text).toContain("viewBox");
+
+    const cleared = await call("update_tool", { tool: "iconic", icon: "" });
+    expect((cleared.value as { hasIcon: boolean }).hasIcon).toBe(false);
+    expect((await call("update_tool", { tool: "iconic" })).isError).toBe(true);
+  });
+
   test("datatables and jobs", async () => {
-    await call("datatable_create_project", { workspace: "Lab", name: "crm" });
-    const schema = await call("datatable_create_table", { workspace: "Lab", project: "crm", name: "leads", columns: [{ name: "email", type: "text", required: true }, { name: "score", type: "number" }] });
+    await call("datatable_create_project", { name: "crm" });
+    const schema = await call("datatable_create_table", { project: "crm", name: "leads", columns: [{ name: "email", type: "text", required: true }, { name: "score", type: "number" }] });
     expect(schema.isError).toBe(false);
-    await call("datatable_insert_rows", { workspace: "Lab", project: "crm", table: "leads", rows: [{ email: "a@x.io", score: 5 }, { email: "b@x.io", score: 9 }] });
-    const hot = await call("datatable_query", { workspace: "Lab", project: "crm", table: "leads", where: { score: { $gt: 6 } } });
+    await call("datatable_insert_rows", { project: "crm", table: "leads", rows: [{ email: "a@x.io", score: 5 }, { email: "b@x.io", score: 9 }] });
+    const hot = await call("datatable_query", { project: "crm", table: "leads", where: { score: { $gt: 6 } } });
     expect(JSON.stringify(hot.value)).toContain("b@x.io");
     expect(JSON.stringify(hot.value)).not.toContain("a@x.io");
 
-    const job = await call("create_job", { workspace: "Lab", name: "hello", code: 'import agenthands from "@agenthands/runtime";\nawait agenthands.step("Main", async () => { agenthands.log.info("hi " + (await agenthands.kv.get("GREETING"))); });\n' });
+    const job = await call("create_job", { name: "hello", code: 'import agenthands from "@agenthands/runtime";\nawait agenthands.step("Main", async () => { agenthands.log.info("hi " + (await agenthands.kv.get("GREETING"))); });\n' });
     expect(job.isError).toBe(false);
-    const run = await call("run_job", { workspace: "Lab", job: "hello", wait: true });
+    const run = await call("run_job", { job: "hello", wait: true });
     const done = run.value as { status: string; logs: { message: string }[] };
     expect(done.status).toBe("success");
     expect(done.logs.map((l) => l.message)).toContain("hi xin chao");
   }, 180_000);
 
   test("sites, guides and errors", async () => {
-    const site = await call("create_site", { workspace: "Lab", name: "Lab site", slug: "lab-site" });
+    const site = await call("create_site", { name: "Lab site", slug: "lab-site" });
     expect(site.isError).toBe(false);
-    const files = (await call("get_site_files", { workspace: "Lab", site: "lab-site" })).value as { files: Record<string, string> };
+    const files = (await call("get_site_files", { site: "lab-site" })).value as { files: Record<string, string> };
     expect(files.files["backend.ts"]).toContain("export async function handle");
-    expect((await call("list_sites")).value).toEqual([]);
+    expect((await call("list_sites")).value).toEqual([expect.objectContaining({ slug: "lab-site" })]);
 
     expect((await call("get_guide", { topic: "tools" })).text).toContain("@param");
-    const missing = await call("kv_list", { workspace: "nope" });
+    const missing = await call("get_tool", { tool: "nope_missing" });
     expect(missing.isError).toBe(true);
     expect(missing.text).toContain("not found");
-    expect((await call("delete_workspace", { workspace_id: "default", confirm: true })).isError).toBe(true);
   });
 
   test("rotating the key invalidates the old one", async () => {

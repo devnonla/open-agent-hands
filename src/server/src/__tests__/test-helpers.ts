@@ -2,7 +2,6 @@ import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import type { Hono } from "hono";
 import { runMigrations } from "../common/db/client.js";
-import { runInWorkspace } from "../common/workspace/workspace-context.js";
 import * as schema from "../common/db/schema.js";
 
 function createTestDb() {
@@ -93,8 +92,4 @@ export async function authRequest(app: Hono, token: string, method: string, path
     options.body = JSON.stringify(body);
   }
   return app.request(path, options);
-}
-
-export function inDefaultWorkspace<T>(fn: () => T): T {
-  return runInWorkspace("default", fn);
 }

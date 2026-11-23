@@ -2,13 +2,35 @@
 @import "devnonla-ui/styles.css";
 @source "../node_modules/devnonla-ui/src";
 
+.nonla-ui {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-other: #5f5e59;
+  --nonla-switch-ring: color-mix(in oklab, var(--nonla-text-main) 45%, var(--nonla-bg));
+}
+
 .nonla-ui.light {
-  --nonla-bg: #f5f5f5; /* neutral-100 */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-other: #b4b3ad;
+  --nonla-switch-ring: color-mix(in oklab, var(--nonla-text-main) 45%, var(--nonla-bg));
 }
 
 @layer base {
   * {
-    @apply box-border m-0 p-0 border-border outline-none;
+    @apply box-border m-0 p-0 border-border;
+  }
+  :focus:not(:focus-visible),
+  [tabindex="-1"]:focus-visible {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--nonla-focus-ring);
+    outline-offset: 2px;
   }
   html {
     @apply overflow-hidden w-screen;
@@ -51,4 +73,16 @@ body,
 .schema-flow .react-flow__handle-left,
 .schema-flow .react-flow__handle-right {
   transform: translate(0, -50%);
+}
+
+@theme {
+  --animate-border-run: border-run 3s linear infinite;
+  @keyframes border-run {
+    from {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
 }

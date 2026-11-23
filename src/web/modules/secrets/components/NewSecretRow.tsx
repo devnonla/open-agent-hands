@@ -1,7 +1,5 @@
-import { Button, Tooltip } from "devnonla-ui";
-import { Plus, X } from "lucide-react";
+import { Button, Input, Tooltip, Icon } from "devnonla-ui";
 import { type KeyboardEvent, type ReactNode, type RefObject, createContext, useContext, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { cn } from "src/common/lib/cn";
 
 export interface NewSecretRowHandle {
   focusKey: () => void;
@@ -37,9 +35,6 @@ function useNewSecret() {
   if (!api) throw new Error("NewSecret cells must render inside NewSecretProvider");
   return api;
 }
-
-const fieldClass = (extra: string) =>
-  cn("w-full h-8 px-2.5 rounded text-xs font-mono", "bg-background/80 border border-border/60 hover:border-border text-foreground", "placeholder:text-muted-foreground/40 placeholder:font-normal", "focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/40 focus:bg-background transition-all", extra);
 
 export function NewSecretProvider({ onCreate, onCancel, active, handleRef, children }: NewSecretRowProps) {
   const [key, setKey] = useState("");
@@ -114,12 +109,12 @@ export function NewSecretProvider({ onCreate, onCancel, active, handleRef, child
 
 export function NewSecretKeyCell() {
   const { key, setKey, submitting, keyInputRef, onKeyKeyDown } = useNewSecret();
-  return <input ref={keyInputRef} type="text" value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} onKeyDown={onKeyKeyDown} placeholder="VARIABLE_NAME" disabled={submitting} className={fieldClass("font-sans font-medium")} />;
+  return <Input ref={keyInputRef} size="small" value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} onKeyDown={onKeyKeyDown} placeholder="VARIABLE_NAME" disabled={submitting} />;
 }
 
 export function NewSecretValueCell() {
   const { value, setValue, submitting, valueInputRef, onValueKeyDown } = useNewSecret();
-  return <input ref={valueInputRef} type="password" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onValueKeyDown} placeholder="Secret value..." disabled={submitting} className={fieldClass("")} />;
+  return <Input ref={valueInputRef} size="small" type="password" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onValueKeyDown} placeholder="Secret value..." disabled={submitting} />;
 }
 
 export function NewSecretActions() {
@@ -127,12 +122,10 @@ export function NewSecretActions() {
   return (
     <div className="flex items-center justify-end gap-1">
       <Tooltip title="Cancel (Esc)">
-        <Button type="text" size="small" onClick={cancel} disabled={submitting} aria-label="Cancel" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground">
-          <X size={14} />
-        </Button>
+        <Button type="icon" size="small" onClick={cancel} disabled={submitting} aria-label="Cancel" icon={<Icon name="close" />} />
       </Tooltip>
       <Tooltip title={canSubmit ? "Add secret (Enter)" : "Enter key and value to add"}>
-        <Button type="primary" size="small" onClick={submit} disabled={!canSubmit} loading={submitting} icon={submitting ? undefined : <Plus size={14} />} className="h-7 px-2.5 text-xs font-medium">
+        <Button type="primary" size="small" onClick={submit} disabled={!canSubmit} loading={submitting} icon={submitting ? undefined : <Icon name="add" size={12} />}>
           Add
         </Button>
       </Tooltip>

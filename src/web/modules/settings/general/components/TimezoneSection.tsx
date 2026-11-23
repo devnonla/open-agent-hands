@@ -1,9 +1,8 @@
-import { Icon, Select, message } from "devnonla-ui";
+import { Card, Select, message } from "devnonla-ui";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import { invalidateAppTimezoneCache } from "src/common/hooks/useAppTimezone";
-import { SectionCard } from "src/components/SectionCard";
 import { getSettingValues, saveSettingValues } from "src/modules/settings/common/settingsApi";
 
 export function TimezoneSection() {
@@ -22,11 +21,6 @@ export function TimezoneSection() {
       .finally(() => setLoadingTz(false));
   }, []);
 
-  const tzOptions = tzList.map(({ tz, offset }) => ({
-    value: tz,
-    label: `${tz} (${offset})`,
-  }));
-
   const selected = tzList.find((item) => item.tz === currentTz);
 
   const handleTzChange = useCallback(async (value: string) => {
@@ -41,16 +35,10 @@ export function TimezoneSection() {
   }, []);
 
   return (
-    <SectionCard title="Timezone" description="Used for scheduled jobs and time display.">
-      <div className="flex items-center gap-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-          <Icon name="clock" size={20} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <Select value={currentTz} onChange={handleTzChange} options={tzOptions} placeholder={loadingTz ? "Loading timezones…" : "Search timezone…"} disabled={loadingTz} showSearch={{ optionFilterProp: "label" }} className="w-full" />
-          {selected ? <p className="mt-2 mb-0 text-[11px] tabular-nums text-tertiary-foreground">Offset {selected.offset}</p> : null}
-        </div>
-      </div>
-    </SectionCard>
+    <Card title="Time">
+      <Card.Item label="Timezone" description={selected ? `Job schedules and every time in the app use it. Offset ${selected.offset}.` : "Job schedules and every time in the app use it."} align="center" split>
+        <Select value={currentTz} onChange={handleTzChange} options={tzList.map(({ tz, offset }) => ({ value: tz, label: `${tz} (${offset})` }))} placeholder={loadingTz ? "Loading timezones…" : "Search timezone…"} disabled={loadingTz} showSearch={{ optionFilterProp: "label" }} className="w-full" />
+      </Card.Item>
+    </Card>
   );
 }

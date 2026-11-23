@@ -5,9 +5,11 @@ export type JobLogEntry = {
   t: number;
   level: JobLogLevel;
   message: string;
-  /** Present for activity steps — bar spans [t, t+duration]. */
   duration?: number;
   kind?: JobLogKind;
+  error?: string;
+  data?: unknown;
+  attempts?: number;
 };
 
 const MAX_LOGS_BYTES = 500_000;
@@ -54,41 +56,41 @@ export function inferLogLevel(message: string, stream: "stdout" | "stderr"): Job
   return "info";
 }
 
-function parseRaEvent(line: string, startedAtMs: number): JobLogEntry | null {
+export type RuntimeEvent = { type: "entry"; entry: JobLogEntry } | { type: "output"; value: unknown };
+
+function offset(ms: number, startedAtMs: number): number {
+  return Math.max(0, Math.round(ms - startedAtMs));
+}
+
+function parseRaEvent(line: string, startedAtMs: number): RuntimeEvent | null {
   if (!line.startsWith(RA_EVENT_PREFIX)) return null;
   try {
     const raw = JSON.parse(line.slice(RA_EVENT_PREFIX.length)) as Record<string, unknown>;
-    const now = Date.now();
+    const ts = typeof raw.ts === "number" ? raw.ts : Date.now();
+    if (raw.kind === "output") return { type: "output", value: raw.value ?? null };
     if (raw.kind === "step") {
       const name = String(raw.name ?? "step");
-      if (raw.phase === "start") {
-        return {
-          t: Math.max(0, now - startedAtMs),
-          level: "step",
-          kind: "step",
-          message: name,
-        };
-      }
+      if (raw.phase === "start") return { type: "entry", entry: { t: offset(ts, startedAtMs), level: "step", kind: "step", message: name } };
       const duration = typeof raw.duration === "number" && raw.duration >= 0 ? raw.duration : 0;
-      const t = Math.max(0, now - startedAtMs - duration);
+      const start = typeof raw.startTs === "number" ? raw.startTs : ts - duration;
       const ok = raw.ok !== false;
       return {
-        t,
-        duration,
-        level: ok ? "step" : "error",
-        kind: "step",
-        message: name,
+        type: "entry",
+        entry: {
+          t: offset(start, startedAtMs),
+          duration,
+          level: ok ? "step" : "error",
+          kind: "step",
+          message: name,
+          ...(typeof raw.attempts === "number" && raw.attempts > 1 ? { attempts: raw.attempts } : {}),
+          ...(!ok && raw.error != null ? { error: String(raw.error) } : {}),
+        },
       };
     }
     if (raw.kind === "log") {
       const levelRaw = String(raw.level ?? "info");
       const level: JobLogLevel = levelRaw === "warn" || levelRaw === "error" ? levelRaw : "info";
-      return {
-        t: Math.max(0, now - startedAtMs),
-        level,
-        kind: "log",
-        message: String(raw.message ?? ""),
-      };
+      return { type: "entry", entry: { t: offset(ts, startedAtMs), level, kind: "log", message: String(raw.message ?? ""), ...(raw.data !== undefined ? { data: raw.data } : {}) } };
     }
   } catch {
     return null;
@@ -96,13 +98,24 @@ function parseRaEvent(line: string, startedAtMs: number): JobLogEntry | null {
   return null;
 }
 
-export function createLineBuffer(stream: "stdout" | "stderr", startedAtMs: number, onLines: (entries: JobLogEntry[]) => void) {
+const ANSI_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_PATTERN, "");
+}
+
+export function createLineBuffer(stream: "stdout" | "stderr", startedAtMs: number, onLines: (entries: JobLogEntry[]) => void, onOutput: (value: unknown) => void = () => {}) {
   let buf = "";
-  const emitLine = (line: string) => {
+  const emitLine = (rawLine: string) => {
+    const line = stripAnsi(rawLine).replace(/\s+$/, "");
     if (!line.trim()) return;
-    const structured = parseRaEvent(line, startedAtMs);
-    if (structured) {
-      onLines([structured]);
+    const event = parseRaEvent(line, startedAtMs);
+    if (event?.type === "output") {
+      onOutput(event.value);
+      return;
+    }
+    if (event) {
+      onLines([event.entry]);
       return;
     }
     onLines([

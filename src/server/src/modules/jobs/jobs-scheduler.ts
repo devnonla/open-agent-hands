@@ -1,4 +1,3 @@
-import { runInWorkspace } from "../../common/workspace/workspace-context.js";
 import { getInstanceId, sleepInterruptible, wakeScheduler } from "./jobs-events.js";
 import { startClaimedRun } from "./jobs-runner.js";
 import { getMinNextRunAt, healOrphanedRuns, listDueJobs, tryClaimJob } from "./jobs.service.js";
@@ -15,10 +14,8 @@ async function tickOnce() {
 
   const due = await listDueJobs(now);
   for (const job of due) {
-    await runInWorkspace(job.workspaceId, async () => {
-      const claimed = await tryClaimJob(job.id, "cron");
-      if (claimed) startClaimedRun(claimed.job.id, claimed.run.id, true);
-    });
+    const claimed = await tryClaimJob(job.id, "cron");
+    if (claimed) startClaimedRun(claimed.job.id, claimed.run.id, true);
   }
 }
 

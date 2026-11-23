@@ -83,6 +83,10 @@ export default defineConfig({
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,
       },
+      "/public/storage": {
+        target: `http://127.0.0.1:${apiPort}`,
+        changeOrigin: true,
+      },
       "/mcp/": {
         target: `http://127.0.0.1:${apiPort}`,
         changeOrigin: true,

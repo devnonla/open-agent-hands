@@ -59,21 +59,97 @@ function parseProjectTableCall(
   };
 }
 
-const agenthands = {
-  kv: {
+type StorageData = string | Uint8Array | ArrayBuffer | Blob | ReadableStream<Uint8Array>;
+
+function storageUrl(space: string, key: string): string {
+  const base = (process.env.AGENTHANDS_URL ?? "").replace(/\\/$/, "");
+  if (!base || !process.env.AGENTHANDS_TOKEN) throw new AgenthandsError("agenthands runtime is not configured");
+  return base + "/storage/" + encodeURIComponent(space) + "/" + String(key).replace(/^\\/+/, "").split("/").map(encodeURIComponent).join("/");
+}
+
+async function storageFailure(res: Response): Promise<never> {
+  let message = "storage call failed: HTTP " + res.status;
+  try {
+    const data = (await res.json()) as { error?: string };
+    if (data.error) message = data.error;
+  } catch {}
+  throw new AgenthandsError(message);
+}
+
+function storageSpace(name: string) {
+  if (typeof name !== "string" || !name.trim()) throw new AgenthandsError("storage.space(name) needs a space name");
+  const space = name.trim();
+  const auth = () => ({ "X-Agenthands-Token": process.env.AGENTHANDS_TOKEN ?? "" });
+  async function get(key: string): Promise<Uint8Array | null> {
+    const res = await fetch(storageUrl(space, key), { headers: auth() });
+    if (res.status === 404) return null;
+    if (!res.ok) await storageFailure(res);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  async function getText(key: string): Promise<string | null> {
+    const bytes = await get(key);
+    return bytes ? new TextDecoder().decode(bytes) : null;
+  }
+  return {
+    async put(key: string, data: StorageData, opts: { contentType?: string } = {}) {
+      const headers: Record<string, string> = { ...auth() };
+      if (opts.contentType) headers["Content-Type"] = opts.contentType;
+      const res = await fetch(storageUrl(space, key), { method: "PUT", headers, body: data as BodyInit });
+      if (!res.ok) await storageFailure(res);
+      return ((await res.json()) as { result: unknown }).result;
+    },
+    get,
+    getText,
+    async getJson(key: string): Promise<unknown> {
+      const text = await getText(key);
+      return text === null ? null : JSON.parse(text);
+    },
+    async stream(key: string): Promise<ReadableStream<Uint8Array> | null> {
+      const res = await fetch(storageUrl(space, key), { headers: auth() });
+      if (res.status === 404) return null;
+      if (!res.ok) await storageFailure(res);
+      return res.body;
+    },
+    async list(prefix?: string) {
+      return rpc("storage", "list", { space, prefix });
+    },
+    async delete(key: string) {
+      return rpc("storage", "delete", { space, key });
+    },
+  };
+}
+
+function kvClient(project?: string) {
+  return {
     async get(key: string, defaultValue: unknown = null) {
-      const result = await rpc("kv", "get", { key });
+      const result = await rpc("kv", "get", { key, project });
       return result ?? defaultValue;
     },
     async set(key: string, value: string) {
       if (typeof value !== "string") throw new AgenthandsError("value must be a string");
-      return rpc("kv", "set", { key, value });
+      return rpc("kv", "set", { key, value, project });
     },
     async list() {
-      return rpc("kv", "list");
+      return rpc("kv", "list", { project });
     },
     async delete(key: string) {
-      return rpc("kv", "delete", { key });
+      return rpc("kv", "delete", { key, project });
+    },
+  };
+}
+
+const agenthands = {
+  kv: {
+    ...kvClient(),
+    project(name: string) {
+      if (typeof name !== "string" || !name.trim()) throw new AgenthandsError("kv.project(name) needs a project name");
+      return kvClient(name.trim());
+    },
+  },
+  storage: {
+    space: storageSpace,
+    async list_spaces() {
+      return rpc("storage", "list_spaces");
     },
   },
   secrets: {

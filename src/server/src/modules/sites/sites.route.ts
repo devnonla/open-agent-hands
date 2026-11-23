@@ -45,12 +45,9 @@ app.get("/:id/files", async (c) => {
 app.put("/:id/files/:file", async (c) => {
   const id = c.req.param("id");
   await svc.requireSiteAccess(id);
-  const body = await c.req.json<{ content?: string; tree?: string }>();
+  const body = await c.req.json<{ content?: string }>();
   if (typeof body.content !== "string") throw new BadRequestException("content is required");
-  if (body.tree === "prod") {
-    throw new BadRequestException("Cannot write production files directly; edit draft and approve");
-  }
-  return c.json(await svc.updateSiteFile(id, c.req.param("file"), body.content, "draft"));
+  return c.json(await svc.updateSiteFile(id, c.req.param("file"), body.content));
 });
 
 app.post("/:id/install", async (c) => {
@@ -175,20 +172,6 @@ app.post("/:id/resolve-selection", async (c) => {
     outerHtml?: string;
   }>();
   return c.json(await svc.resolveSelection(id, body ?? {}));
-});
-
-app.post("/:id/approve", async (c) => {
-  const id = c.req.param("id");
-  await svc.requireSiteAccess(id);
-  const body = (await c.req.json().catch(() => ({}))) as { file?: string };
-  return c.json(await svc.approveSite(id, body.file));
-});
-
-app.post("/:id/discard", async (c) => {
-  const id = c.req.param("id");
-  await svc.requireSiteAccess(id);
-  const body = (await c.req.json().catch(() => ({}))) as { file?: string };
-  return c.json(await svc.discardSiteDraft(id, body.file));
 });
 
 export default app;

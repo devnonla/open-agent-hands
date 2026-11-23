@@ -1,5 +1,4 @@
-import { Icon, type IconName, Popover } from "devnonla-ui";
-import { ExternalLink, Pencil } from "lucide-react";
+import { Card, type IconName } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import type { Site } from "src/common/types";
 import { FeatureIcon } from "src/components/FeatureIcon";
@@ -16,9 +15,9 @@ export function siteVisibility(site: Site): SiteVisibility {
 
 export const SITE_VISIBILITY_META: Record<SiteVisibility, { label: string; description: string; icon: IconName }> = {
   unpublished: {
-    label: "Unpublished",
-    description: "Hidden from the public URL. Only editors can open it here.",
-    icon: "close",
+    label: "Private",
+    description: "Not shared. Only you can open it here in the app.",
+    icon: "pen",
   },
   protected: {
     label: "Protected",
@@ -32,7 +31,6 @@ export const SITE_VISIBILITY_META: Record<SiteVisibility, { label: string; descr
   },
 };
 
-/** Drop transparent gutters left by the preview capture, so cover fills the card. */
 async function cropToOpaque(blob: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   const source = document.createElement("canvas");
@@ -71,7 +69,7 @@ async function cropToOpaque(blob: Blob): Promise<Blob> {
   return cropped ?? blob;
 }
 
-function SiteThumbnail({ site, onEdit, publicPath }: { site: Site; onEdit: () => void; publicPath: string }) {
+function SiteThumbnail({ site }: { site: Site }) {
   const [thumbSrc, setThumbSrc] = useState<string | null>(null);
   const [thumbFailed, setThumbFailed] = useState(false);
 
@@ -100,7 +98,7 @@ function SiteThumbnail({ site, onEdit, publicPath }: { site: Site; onEdit: () =>
   }, [site.id, site.draftUpdatedAt, site.updatedAt]);
 
   return (
-    <div className="relative mx-2 mt-2 aspect-16/10 overflow-hidden rounded-lg border border-border bg-muted shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
+    <div className="relative m-1.5 aspect-16/10 overflow-hidden rounded-lg bg-muted">
       <RenderIf
         condition={!!thumbSrc && !thumbFailed}
         fallback={
@@ -111,69 +109,26 @@ function SiteThumbnail({ site, onEdit, publicPath }: { site: Site; onEdit: () =>
       >
         <img src={thumbSrc ?? undefined} alt="" draggable={false} className="absolute inset-0 h-full w-full" style={{ objectFit: "cover", objectPosition: "top center" }} />
       </RenderIf>
-      <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-        <button type="button" aria-label="Edit" title="Edit" onClick={onEdit} className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full border-0 bg-white/95 text-foreground shadow-sm">
-          <Pencil size={16} />
-        </button>
-        <a href={publicPath} target="_blank" rel="noopener noreferrer" aria-label="Open site" title="Open site" className="inline-flex size-9 items-center justify-center rounded-full bg-white/95 text-foreground shadow-sm">
-          <ExternalLink size={16} />
-        </a>
-      </div>
     </div>
-  );
-}
-
-export function SiteVisibilityIcon({ site }: { site: Site }) {
-  const meta = SITE_VISIBILITY_META[siteVisibility(site)];
-
-  return (
-    <Popover
-      trigger="hover"
-      placement="top"
-      arrow={{ pointAtCenter: true }}
-      mouseEnterDelay={0.2}
-      mouseLeaveDelay={0.1}
-      content={
-        <div className="max-w-55 p-0.5">
-          <p className="m-0 text-sm font-medium text-foreground">{meta.label}</p>
-          <p className="m-0 mt-0.5 text-xs text-muted-foreground">{meta.description}</p>
-        </div>
-      }
-    >
-      <span className="inline-flex size-5 shrink-0 cursor-help items-center justify-center" aria-label={meta.label} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <Icon name={meta.icon} size={16} />
-      </span>
-    </Popover>
   );
 }
 
 export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
-  const publicPath = `/public/sites/${site.slug}`;
-  const visibility = SITE_VISIBILITY_META[siteVisibility(site)];
-
   return (
-    <div className="group flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-card text-left transition-[border-color] duration-200 hover:border-brand/40">
-      <SiteThumbnail site={site} onEdit={onOpen} publicPath={publicPath} />
-
-      <div className="pt-3 pb-3">
-        <div className="px-3 truncate text-[16px] font-semibold text-foreground">{site.name}</div>
-
-        <div className="mt-2 flex flex-col gap-1 pt-2 border-t border-border-subtle">
-          {/*  */}
-          <div className="px-3 flex items-center gap-2 text-[11px] leading-4 py-1">
-            <span className="w-16 shrink-0 text-muted-foreground flex-1">Visibility</span>
-            <span className="inline-flex min-w-0 items-center gap-1 text-foreground">
-              <SiteVisibilityIcon site={site} />
-              {visibility.label}
-            </span>
-          </div>
-
-          <div className="px-3 flex items-center gap-2 text-[11px] leading-4 py-1">
-            <span className="flex-1 shrink-0 text-muted-foreground">Link</span>
-            <span className="truncate font-mono text-tertiary-foreground">{publicPath}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <Card
+      role="link"
+      tabIndex={0}
+      aria-label={`Open ${site.name}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        onOpen();
+      }}
+      className="min-w-0 cursor-pointer transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-focus-ring"
+    >
+      <SiteThumbnail site={site} />
+      <div className="truncate px-3 pt-1 pb-2.5 text-sm font-medium text-foreground">{site.name}</div>
+    </Card>
   );
 }

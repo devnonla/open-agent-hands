@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { clearSiteAccessTokenCookieHeader, parseCookieValue, siteAccessTokenCookieHeader, siteTokenCookieName } from "../../common/middleware/auth.middleware.js";
-import { loadPublicSiteData, renderPublicSite, runInSiteWorkspace, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "./sites.service.js";
+import { loadPublicSiteData, renderPublicSite, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "./sites.service.js";
 
 function siteAccessFromRequest(c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined; param: (name: string) => string } }, body?: { password?: string; token?: string }) {
   const slug = c.req.param("slug");
@@ -17,8 +17,6 @@ function siteAccessFromRequest(c: { req: { header: (name: string) => string | un
 
 const app = new Hono();
 
-app.use("/:slug/*", (c, next) => runInSiteWorkspace(c.req.param("slug"), () => next()));
-app.use("/:slug", (c, next) => runInSiteWorkspace(c.req.param("slug"), () => next()));
 
 app.get("/:slug", async (c) => {
   const access = siteAccessFromRequest(c);

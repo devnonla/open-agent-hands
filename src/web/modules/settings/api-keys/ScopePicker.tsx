@@ -1,5 +1,4 @@
-import { Checkbox, Input, Switch } from "devnonla-ui";
-import { Search } from "lucide-react";
+import { Card, Checkbox, Empty, SearchInput, Switch } from "devnonla-ui";
 import { type ReactNode, useMemo, useState } from "react";
 
 function toggleIds(current: string[], ids: string[], checked: boolean): string[] {
@@ -9,18 +8,6 @@ function toggleIds(current: string[], ids: string[], checked: boolean): string[]
     else next.delete(id);
   }
   return [...next];
-}
-
-export function UnrestrictedToggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
-      <div className="min-w-0">
-        <div className="text-[13px] font-medium text-foreground">Unrestricted</div>
-        <div className="text-[11px] text-muted-foreground">No limit — including items created later</div>
-      </div>
-      <Switch size="small" checked={checked} onChange={onChange} />
-    </div>
-  );
 }
 
 export function ScopePicker<T>({
@@ -61,24 +48,28 @@ export function ScopePicker<T>({
   const someChecked = checkedCount > 0 && !allChecked;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <UnrestrictedToggle checked={unrestricted} onChange={onUnrestrictedChange} />
+    <Card>
+      <Card.Item label="Unrestricted" description="No limit — including items created later" className="px-3 py-2">
+        <Switch size="small" checked={unrestricted} onChange={onUnrestrictedChange} />
+      </Card.Item>
       {unrestricted ? (
-        <p className="m-0 px-3 py-3 text-[12px] leading-relaxed text-muted-foreground">{unrestrictedHint}</p>
+        <Card.Item className="block px-3 py-3">
+          <p className="m-0 text-xs leading-relaxed text-muted-foreground">{unrestrictedHint}</p>
+        </Card.Item>
       ) : (
         <>
-          <div className="flex items-center gap-2 border-b border-border p-2">
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={searchPlaceholder} allowClear prefix={<Search size={14} className="text-muted-foreground" />} />
-            <span className="shrink-0 text-[11px] tabular-nums text-tertiary-foreground">{selectedIds.length} selected</span>
-          </div>
-          <div className="max-h-55 overflow-y-auto py-1">
+          <Card.Item className="gap-2 p-2">
+            <SearchInput defaultValue={query} onChange={setQuery} wait={0} placeholder={searchPlaceholder} />
+            <span className="shrink-0 text-2xs tabular-nums text-tertiary-foreground">{selectedIds.length} selected</span>
+          </Card.Item>
+          <Card.Item className="block max-h-55 overflow-y-auto px-0 py-1">
             {visible.length === 0 ? (
-              <p className="m-0 px-3 py-8 text-center text-sm text-muted-foreground">{items.length === 0 ? emptyText : "No matches"}</p>
+              <Empty bordered={false} icon={null} className="py-8" description={items.length === 0 ? emptyText : "No matches"} />
             ) : (
               <>
                 <div className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-muted/40" onClick={() => onChange(toggleIds(selectedIds, visibleIds, !allChecked))}>
                   <Checkbox checked={allChecked} indeterminate={someChecked} onClick={(e) => e.stopPropagation()} onChange={(checked) => onChange(toggleIds(selectedIds, visibleIds, checked))} />
-                  <span className="text-[12px] text-muted-foreground">Select all</span>
+                  <span className="text-xs text-muted-foreground">Select all</span>
                 </div>
                 {visible.map((item) => {
                   const id = getId(item);
@@ -86,15 +77,15 @@ export function ScopePicker<T>({
                   return (
                     <div key={id} className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-muted/40" onClick={() => onChange(toggleIds(selectedIds, [id], !checked))}>
                       <Checkbox checked={checked} onClick={(e) => e.stopPropagation()} onChange={(checked) => onChange(toggleIds(selectedIds, [id], checked))} />
-                      {renderItem ? renderItem(item) : <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{getLabel(item)}</span>}
+                      {renderItem ? renderItem(item) : <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{getLabel(item)}</span>}
                     </div>
                   );
                 })}
               </>
             )}
-          </div>
+          </Card.Item>
         </>
       )}
-    </div>
+    </Card>
   );
 }

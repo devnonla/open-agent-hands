@@ -1,4 +1,4 @@
-import { siteDir } from "../../common/workspace/workspace-paths.js";
+import { siteDir } from "../../common/utils/data-paths.js";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 
 function join(...parts: string[]): string {
@@ -23,7 +23,7 @@ const DEFAULT_BACKEND = `export async function handle({ request, agenthands, que
   if (request.method === "GET" || request.method === "HEAD") {
     return {
       title: "This site is a blank canvas",
-      message: "Tell the assistant what to build — describe the idea in chat and it will rewrite this page for you.",
+      message: "Ask your agent what to build. It rewrites app.tsx and backend.ts through the Core MCP.",
     };
   }
 
@@ -45,7 +45,7 @@ const DEFAULT_BACKEND = `export async function handle({ request, agenthands, que
 const DEFAULT_APP = `import { useEffect, useState } from "react";
 import { loadSiteData, siteAction } from "./site-api.js";
 
-export default async function App() {
+export default function App() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -116,7 +116,7 @@ export default async function App() {
           </button>
           {ponged ? <span className="pong">Backend replied ✓</span> : null}
         </div>
-        <p className="hint">This page + backend.ts are just a starter — describe your idea in chat and the assistant reshapes both.</p>
+        <p className="hint">This page and backend.ts are a starter. Ask your agent to reshape both with write_site_file.</p>
       </main>
     </div>
   );
@@ -410,11 +410,6 @@ function copySourceFiles(fromDir: string, toDir: string, files: readonly SiteSou
 /** Promote draft source → prod (does not copy node_modules). */
 export function promoteDraftToProd(siteId: string, files?: readonly SiteSourceFile[]): void {
   copySourceFiles(getTreeDir(siteId, "draft"), getTreeDir(siteId, "prod"), files);
-}
-
-/** Reset draft source from prod. */
-export function discardDraft(siteId: string, files?: readonly SiteSourceFile[]): void {
-  copySourceFiles(getTreeDir(siteId, "prod"), getTreeDir(siteId, "draft"), files);
 }
 
 export function removeSiteDir(siteId: string): void {

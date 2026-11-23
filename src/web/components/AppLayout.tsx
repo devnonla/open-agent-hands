@@ -4,7 +4,7 @@ import { AppSidebar } from "src/components/AppSidebar";
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const ownSidebar = pathname.startsWith("/datatables/") || pathname.startsWith("/jobs/");
+  const ownSidebar = pathname.startsWith("/datatables/") || pathname.startsWith("/jobs/") || pathname.startsWith("/sites/");
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">

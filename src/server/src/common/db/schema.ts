@@ -1,31 +1,12 @@
 import { sql } from "drizzle-orm";
 import { boolCol, integer, jsonCol, primaryKey, sqlNow, sqliteTable, text, tsCol } from "./columns.js";
 
-// ─── Workspaces ───────────────────────────────────────────────────────────────
-
-export const DEFAULT_WORKSPACE_ID = "default";
-
-export const workspaces = sqliteTable("workspaces", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: tsCol("created_at").notNull().default(sqlNow),
-  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
-});
-
-export type Workspace = typeof workspaces.$inferSelect;
-
-const workspaceIdCol = () => text("workspace_id").notNull().default(DEFAULT_WORKSPACE_ID);
-
 // ─── Tool Folders ─────────────────────────────────────────────────────────────
 
 export const toolFolders = sqliteTable("tool_folders", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -42,7 +23,6 @@ export const agentTools = sqliteTable("agent_tools", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   label: text("label").notNull(),
   description: text("description").notNull(),
@@ -112,11 +92,26 @@ export type NewRefreshToken = typeof refreshTokens.$inferInsert;
 
 // ─── KV Store ─────────────────────────────────────────────────────────────────
 
+export const kvProjects = sqliteTable("kv_projects", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  createdAt: tsCol("created_at").notNull().default(sqlNow),
+  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
+});
+
+export type KvProject = typeof kvProjects.$inferSelect;
+
 export const kvStore = sqliteTable("kv_store", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
+  projectId: text("project_id")
+    .notNull()
+    .default("default")
+    .references(() => kvProjects.id, { onDelete: "cascade" }),
   key: text("key").notNull(),
   value: text("value").notNull(),
   description: text("description"),
@@ -133,7 +128,6 @@ export const secrets = sqliteTable("secrets", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   key: text("key").notNull(),
   value: text("value").notNull(),
   description: text("description"),
@@ -153,7 +147,6 @@ export const datatableProjects = sqliteTable("datatable_projects", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   createdAt: tsCol("created_at").notNull().default(sqlNow),
   updatedAt: tsCol("updated_at").notNull().default(sqlNow),
@@ -216,7 +209,6 @@ export const sites = sqliteTable("sites", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   isPublished: boolCol("is_published").notNull().default(false),
@@ -236,7 +228,7 @@ export type NewSite = typeof sites.$inferInsert;
 
 // ─── Jobs (global cron + Bun/TS scripts) ──────────────────────────────────────
 
-export const JOB_RUN_STATUSES = ["running", "success", "failed"] as const;
+export const JOB_RUN_STATUSES = ["queued", "running", "success", "failed"] as const;
 export type JobRunStatus = (typeof JOB_RUN_STATUSES)[number];
 
 export const JOB_RUN_TRIGGERS = ["cron", "manual"] as const;
@@ -246,7 +238,6 @@ export const jobs = sqliteTable("jobs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   code: text("code").notNull().default(""),
@@ -254,6 +245,7 @@ export const jobs = sqliteTable("jobs", {
   cron: text("cron").notNull(),
   enabled: boolCol("enabled").notNull().default(false),
   timeoutMs: integer("timeout_ms").notNull().default(300_000),
+  maxRetries: integer("max_retries").notNull().default(0),
   nextRunAt: tsCol("next_run_at"),
   lastRunAt: tsCol("last_run_at"),
   leaseOwner: text("lease_owner"),
@@ -276,6 +268,10 @@ export const jobRuns = sqliteTable("job_runs", {
   trigger: text("trigger").notNull().$type<JobRunTrigger>().default("cron"),
   logs: text("logs").notNull().default(""),
   error: text("error"),
+  input: text("input"),
+  output: text("output"),
+  attempts: integer("attempts").notNull().default(1),
+  scheduledFor: tsCol("scheduled_for"),
   instanceId: text("instance_id"),
   startedAt: tsCol("started_at").notNull().default(sqlNow),
   finishedAt: tsCol("finished_at"),
@@ -290,7 +286,6 @@ export const apiKeys = sqliteTable("api_keys", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   keyPrefix: text("key_prefix").notNull(),
   keyHash: text("key_hash").notNull().unique(),
@@ -341,7 +336,6 @@ export const myMcpServers = sqliteTable("my_mcp_servers", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  workspaceId: workspaceIdCol(),
   name: text("name").notNull(),
   description: text("description"),
   isActive: boolCol("is_active").notNull().default(true),
@@ -369,3 +363,36 @@ export const myMcpServerTools = sqliteTable(
 );
 
 export type MyMcpServerTool = typeof myMcpServerTools.$inferSelect;
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+export const storageSpaces = sqliteTable("storage_spaces", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  isPublic: boolCol("is_public").notNull().default(false),
+  createdAt: tsCol("created_at").notNull().default(sqlNow),
+  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
+});
+
+export type StorageSpace = typeof storageSpaces.$inferSelect;
+
+export const storageFiles = sqliteTable("storage_files", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  spaceId: text("space_id")
+    .notNull()
+    .references(() => storageSpaces.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  size: integer("size").notNull().default(0),
+  contentType: text("content_type").notNull().default("application/octet-stream"),
+  etag: text("etag"),
+  publicToken: text("public_token").notNull().unique(),
+  createdAt: tsCol("created_at").notNull().default(sqlNow),
+  updatedAt: tsCol("updated_at").notNull().default(sqlNow),
+});
+
+export type StorageFile = typeof storageFiles.$inferSelect;

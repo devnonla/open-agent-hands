@@ -11,9 +11,9 @@ export default function NotFoundPage() {
         }}
       />
       <div className="relative w-full max-w-md text-center">
-        <p className="m-0 font-mono text-[72px] font-semibold leading-none tracking-tight text-muted-foreground/40">404</p>
-        <h1 className="mt-4 mb-2 text-[18px] font-semibold text-foreground">Page not found</h1>
-        <p className="m-0 mb-8 text-[14px] leading-relaxed text-muted-foreground">The page you are looking for does not exist or has been moved.</p>
+        <p className="m-0 font-mono text-[72px] font-semibold leading-none tracking-tight text-tertiary-foreground">404</p>
+        <h1 className="mt-4 mb-2 text-lg font-semibold text-foreground">Page not found</h1>
+        <p className="m-0 mb-8 text-sm leading-relaxed text-muted-foreground">The page you are looking for does not exist or has been moved.</p>
         <Link to="/">
           <Button type="primary" icon={<Icon name="arrow-left" size={14} />}>
             Back to home
