@@ -3,4 +3,5 @@ export enum SettingKey {
   // General
   Timezone = "timezone",
   SandboxEnabled = "sandbox_enabled",
+  PublicUrl = "public_url",
 }

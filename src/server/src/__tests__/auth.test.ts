@@ -29,6 +29,16 @@ describe("Auth API", () => {
   let adminToken = "";
   let adminRefreshToken = "";
 
+  test("POST /api/auth/setup — rejects a bad public URL before creating the account", async () => {
+    const res = await app.request("/api/auth/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin", name: "Admin User", password: "password123", timezone: "Asia/Ho_Chi_Minh", publicUrl: "nope" }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await (await app.request("/api/auth/setup-status")).json()) as { needsSetup: boolean }).needsSetup).toBe(true);
+  });
+
   test("POST /api/auth/setup — create first admin", async () => {
     const res = await app.request("/api/auth/setup", {
       method: "POST",
@@ -38,6 +48,7 @@ describe("Auth API", () => {
         name: "Admin User",
         password: "password123",
         timezone: "Asia/Ho_Chi_Minh",
+        publicUrl: "https://hands.example.com/",
       }),
     });
 
@@ -52,6 +63,10 @@ describe("Auth API", () => {
 
     adminToken = data.token;
     adminRefreshToken = data.refreshToken;
+
+    const info = (await (await authRequest(app, adminToken, "GET", "/api/settings/public-url")).json()) as { configured: string; source: string };
+    expect(info).toMatchObject({ configured: "https://hands.example.com", source: "setting" });
+    await authRequest(app, adminToken, "PATCH", "/api/settings", { public_url: "" });
   });
 
   test("GET /api/auth/setup-status — needsSetup=false after setup", async () => {

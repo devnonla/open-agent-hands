@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { cn } from "src/common/lib/cn";
 import { AppSidebar } from "src/components/AppSidebar";
+import { PublicUrlSetupDialog } from "src/modules/settings/general/components/PublicUrlSetupDialog";
 
 export function AppLayout() {
   const { pathname } = useLocation();
@@ -16,6 +17,7 @@ export function AppLayout() {
       <main className={cn("h-full min-h-0 min-w-0 flex-1", ownSidebar ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")}>
         <Outlet />
       </main>
+      <PublicUrlSetupDialog />
     </div>
   );
 }

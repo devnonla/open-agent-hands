@@ -7,6 +7,7 @@ import { type User, appSettings, getDb, refreshTokens, users } from "../../commo
 import { qall, qone, qrun } from "../../common/db/query.js";
 import { BadRequestException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { type JwtPayload, signToken } from "../../common/middleware/auth.middleware.js";
+import { PUBLIC_URL_SETTING_KEY, normalizePublicUrl, setConfiguredPublicUrl } from "../../common/utils/public-url.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,8 +94,10 @@ export async function setupFirstAdmin(body: {
   name: string;
   password: string;
   timezone: string;
+  publicUrl?: string;
 }): Promise<AuthTokens> {
   const { username, name, password, timezone } = body;
+  const publicUrl = normalizePublicUrl(body.publicUrl ?? "");
 
   // Only allow setup when no users exist
   const { needsSetup } = await checkSetupStatus();
@@ -141,6 +144,16 @@ export async function setupFirstAdmin(body: {
       .values({ key: "timezone", value: timezone, updatedAt: now })
       .onConflictDoUpdate({ target: appSettings.key, set: { value: timezone, updatedAt: now } }),
   );
+
+  if (publicUrl) {
+    await qrun(
+      db
+        .insert(appSettings)
+        .values({ key: PUBLIC_URL_SETTING_KEY, value: publicUrl, updatedAt: now })
+        .onConflictDoUpdate({ target: appSettings.key, set: { value: publicUrl, updatedAt: now } }),
+    );
+    setConfiguredPublicUrl(publicUrl);
+  }
 
   // Auto-login — generate JWT + refresh
   const user = await qone(db.select().from(users).where(eq(users.id, id)));

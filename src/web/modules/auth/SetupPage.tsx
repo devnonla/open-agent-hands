@@ -2,7 +2,7 @@
  * SetupPage — initial admin setup page.
  *
  * Shown when the app is freshly installed and no admin exists.
- * Creates the first admin account + sets system timezone.
+ * Creates the first admin account + sets system timezone and public URL.
  */
 
 import { Button, EFormItemType, SchemaForm, type TFormItemProps, message } from "devnonla-ui";
@@ -23,9 +23,10 @@ type SetupValues = {
   password: string;
   confirmPassword: string;
   timezone: string;
+  publicUrl: string;
 };
 
-const EMPTY: SetupValues = { name: "", username: "", password: "", confirmPassword: "", timezone: "" };
+const EMPTY: SetupValues = { name: "", username: "", password: "", confirmPassword: "", timezone: "", publicUrl: window.location.origin };
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -125,11 +126,23 @@ export default function SetupPage() {
         rules: { required: "Please select a timezone" },
         options: { placeholder: "Select timezone...", searchable: true, disabled: loading },
       },
+      {
+        type: EFormItemType.Input,
+        name: "publicUrl",
+        label: "Public URL",
+        colSpan: 12,
+        helps: [{ text: "Links to public files and sites start with this address." }],
+        rules: {
+          required: "Public URL is required",
+          validate: (value: unknown) => (typeof value === "string" && /^https?:\/\/\S+$/.test(value.trim()) ? true : "Use a full address like https://hands.example.com"),
+        },
+        options: { placeholder: "https://hands.example.com", disabled: loading },
+      },
     ],
     [timezoneChoices, loading],
   );
 
-  const onSubmit = form.handleSubmit(async ({ name, username, password, timezone }) => {
+  const onSubmit = form.handleSubmit(async ({ name, username, password, timezone, publicUrl }) => {
     setLoading(true);
     try {
       const result = await apiClient.post<{ token: string; refreshToken: string; user: User }>("/api/auth/setup", {
@@ -137,6 +150,7 @@ export default function SetupPage() {
         name: name.trim(),
         password,
         timezone,
+        publicUrl: publicUrl.trim(),
       });
       setAuthToken(result.token, result.refreshToken);
       message.success(`Welcome, ${result.user.name}! Setup complete.`);
@@ -151,7 +165,7 @@ export default function SetupPage() {
   if (checking) return null;
 
   return (
-    <AuthShell title="Set up Open Agent Hands" subtitle="Create your account and pick your timezone." className="max-w-110">
+    <AuthShell title="Set up Open Agent Hands" subtitle="Create your account, then set the timezone and public URL." className="max-w-110">
       <form onSubmit={onSubmit}>
         <div className="mb-1 flex items-center gap-2">
           <div className="h-px flex-1 bg-border" />

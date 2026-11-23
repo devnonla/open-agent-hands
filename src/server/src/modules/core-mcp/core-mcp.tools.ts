@@ -1,4 +1,5 @@
 import { HttpException, NotFoundException } from "../../common/exceptions/http.exception.js";
+import { absoluteUrl } from "../../common/utils/public-url.js";
 import { type McpServerHandler, type McpToolDescriptor, textResult } from "../../common/mcp/json-rpc.js";
 import * as datatables from "../datatables/datatables.service.js";
 import type { OrderByItem, WhereFilter } from "../datatables/datatable-where.util.js";
@@ -485,14 +486,14 @@ const CORE_TOOLS: CoreTool[] = [
   },
   {
     name: "storage_create_space",
-    description: "Create a storage space. Names are 2-63 lowercase letters, digits or -. public=true gives every file a link that works without login (publicUrl, /public/storage/<random token>/<file name>); links cannot be guessed or listed. Default private.",
+    description: "Create a storage space. Names are 2-63 lowercase letters, digits or -. public=true gives every file a full link that works without login (publicUrl, <public URL>/public/storage/<random token>/<file name>); links cannot be guessed or listed. Default private.",
     inputSchema: input({ name: s("Space name, e.g. reports"), description: s("What the space holds, one short sentence"), public: { type: "boolean", description: "Serve files publicly without login. Default false." } }, ["name"]),
     run: async (args) => spaceSummary(await storage.createSpace({ name: str(args, "name"), description: optStr(args, "description") ?? null, isPublic: args.public === true })),
   },
   {
     name: "storage_update_space",
     description: "Change a space's description or public flag. public=true makes every file readable by anyone who has its publicUrl; only do that when the user asked. Turning it off stops all its links; turning it on again brings back the same links.",
-    inputSchema: input({ space: s("Space name or id"), description: s("New description"), public: { type: "boolean" } }, ["space"]),
+    inputSchema: input({ space: s("Space name or id"), description: s("New description"), public: { type: "boolean", description: "true: every file gets a publicUrl anyone can open. false: private." } }, ["space"]),
     run: async (args) => {
       const space = await storage.requireSpace(str(args, "space"));
       if (typeof args.description !== "string" && typeof args.public !== "boolean") throw new Error("Pass description and/or public to update");
@@ -599,9 +600,12 @@ const CORE_TOOLS: CoreTool[] = [
   },
   {
     name: "create_site",
-    description: "Create a site with starter files. Slug is lowercase-kebab and unique; it becomes /public/sites/<slug>.",
+    description: "Create a site with starter files. Slug is lowercase-kebab and unique; it becomes /public/sites/<slug>. Returns the full url.",
     inputSchema: input({ name: s("Site name"), slug: s("URL slug") }, ["name", "slug"]),
-    run: async (args) => sites.createSite({ name: str(args, "name"), slug: str(args, "slug") }),
+    run: async (args) => {
+      const site = await sites.createSite({ name: str(args, "name"), slug: str(args, "slug") });
+      return { ...site, url: absoluteUrl(`/public/sites/${site.slug}`) };
+    },
   },
   {
     name: "get_site_files",
@@ -635,7 +639,7 @@ const CORE_TOOLS: CoreTool[] = [
     run: async (args) => {
       const site = await findSite(str(args, "site"));
       const updated = await sites.updateSite(site.id, { isPublished: args.published === true, ...(typeof args.password === "string" ? { publicPassword: args.password || null } : {}) });
-      return { ...updated, url: `/public/sites/${site.slug}` };
+      return { ...updated, url: absoluteUrl(`/public/sites/${site.slug}`) };
     },
   },
   {

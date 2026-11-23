@@ -185,6 +185,7 @@ agenthands.example.com {
 
 - **Create your account right away.** The first visit to `/setup` creates the only account, and it has full access. Do this before anyone else finds the URL.
 - **Sandbox.** Tools and jobs run in bubblewrap, which Docker's default seccomp profile blocks. The compose file sets `seccomp:unconfined` for that reason. Without it, they run unsandboxed.
+- **Public URL.** Links to public files and sites that tools and agents get start with this address. The app asks you to confirm it after you sign in, filled in with the address you opened it from. Change it in **Settings → General**.
 - **Connect your agent** to `https://agenthands.example.com/mcp/core` with the key from the app, as in "Connect your agent".
 
 ### Update

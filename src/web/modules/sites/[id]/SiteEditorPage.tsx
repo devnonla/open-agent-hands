@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { wsClient } from "src/common/api/wsClient";
+import { usePublicUrl } from "src/common/hooks/usePublicUrl";
 import type { Site } from "src/common/types";
 import { normalizeSlugInput, slugify } from "src/common/utils/slug";
 import RenderIf from "src/components/RenderIf";
@@ -55,6 +56,7 @@ function SiteSettingsModal({
   const form = useForm<SiteSettingsValues>({ defaultValues: { name: site.name, slug: site.slug }, mode: "onSubmit" });
   const rootError = form.formState.errors.root?.message;
   const slugValue = form.watch("slug");
+  const base = usePublicUrl()?.effective ?? window.location.origin;
 
   const onSubmit = form.handleSubmit(async ({ name, slug }) => {
     const n = name.trim();
@@ -84,7 +86,7 @@ function SiteSettingsModal({
             if (normalized !== all.slug) form.setValue("slug", normalized);
           }}
         />
-        <p className="-mt-2 mb-3 text-xs text-muted-foreground">Public URL: /public/sites/{slugValue || "…"}</p>
+        <p className="-mt-2 mb-3 text-xs text-muted-foreground">Public URL: {base}/public/sites/{slugValue || "…"}</p>
         {rootError ? <p className="mb-0 text-sm text-destructive">{rootError}</p> : null}
       </form>
       <div className="mt-5 flex items-center justify-between gap-4 rounded-lg border border-destructive/30 px-4 py-3">
@@ -103,6 +105,7 @@ function SiteSettingsModal({
 export default function SiteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const publicBase = usePublicUrl()?.effective;
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [site, setSite] = useState<Site | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -232,7 +235,7 @@ export default function SiteEditorPage() {
   }
 
   const publicPath = `/public/sites/${site.slug}`;
-  const publicLink = `${window.location.origin}${publicPath}`;
+  const publicLink = `${publicBase ?? window.location.origin}${publicPath}`;
   const previewSrc = previewAuthReady ? `/api/sites/${id}/live?t=${previewEpoch}` : undefined;
   const passwordDirty = passwordTouched;
   const hasPassword = !!site.hasPublicPassword;

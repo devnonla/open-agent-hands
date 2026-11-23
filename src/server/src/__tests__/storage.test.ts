@@ -94,7 +94,7 @@ describe("Storage", () => {
     const updated = await call("storage_update_space", { space: "scratch", public: true });
     expect(updated.value.public).toBe(true);
     const url = (await call("storage_list_files", { space: "scratch" })).value.items[0].publicUrl as string;
-    expect(url).toMatch(/^\/public\/storage\/[A-Za-z0-9_-]{32}\/note\.txt$/);
+    expect(url).toMatch(/^http:\/\/127\.0\.0\.1:8429\/public\/storage\/[A-Za-z0-9_-]{32}\/note\.txt$/);
 
     const res = await app.request(url);
     expect(res.status).toBe(200);
@@ -118,6 +118,18 @@ describe("Storage", () => {
     expect((await app.request(reset.value.publicUrl)).status).toBe(404);
     await call("storage_update_space", { space: "scratch", public: true });
     expect((await app.request(reset.value.publicUrl)).status).toBe(200);
+  });
+
+  test("public links start with the configured public URL", async () => {
+    const save = await authRequest(app, token, "PATCH", "/api/settings", { public_url: "https://hands.example.com/" });
+    expect(save.status).toBe(200);
+    const url = (await call("storage_list_files", { space: "scratch" })).value.items[0].publicUrl as string;
+    expect(url).toMatch(/^https:\/\/hands\.example\.com\/public\/storage\/[A-Za-z0-9_-]{32}\/note\.txt$/);
+    const info = (await (await authRequest(app, token, "GET", "/api/settings/public-url")).json()) as { effective: string; source: string };
+    expect(info).toMatchObject({ effective: "https://hands.example.com", source: "setting" });
+    expect((await authRequest(app, token, "PATCH", "/api/settings", { public_url: "not a url" })).status).toBe(400);
+    await authRequest(app, token, "PATCH", "/api/settings", { public_url: "" });
+    expect(((await call("storage_list_files", { space: "scratch" })).value.items[0].publicUrl as string).startsWith("http://127.0.0.1:8429/")).toBe(true);
   });
 
   test("UI routes upload, browse, download and delete", async () => {
@@ -171,6 +183,32 @@ export default async function main() {
     expect((await call("create_tool", { code })).isError).toBe(false);
     const run = await call("run_tool", { tool: "storage_roundtrip" });
     expect(run.value).toMatchObject({ ok: true, result: { json: { n: 1 }, bytes: [1, 2, 3], streamed: "abc", keys: ["bytes.bin", "dir/a.json", "streamed.txt"], missing: null, deleted: { deleted: true } } });
+  }, 120_000);
+
+  test("tools get the full public link from put and list", async () => {
+    await authRequest(app, token, "PATCH", "/api/settings", { public_url: "https://hands.example.com" });
+    expect((await call("storage_create_space", { name: "shared-files", public: true })).isError).toBe(false);
+    const code = `// @name Upload Report
+// @description Upload a report and return its link
+import agenthands from "@agenthands/runtime";
+export default async function main() {
+  const files = agenthands.storage.space("shared-files");
+  const saved = await files.put("reports/q4.pdf", "pdf bytes", { contentType: "application/pdf" });
+  const listed = await files.list("reports/");
+  const privateFile = await agenthands.storage.space("tool-private").put("note.txt", "hi");
+  return { putUrl: saved.publicUrl, listUrl: listed[0].publicUrl, privateUrl: privateFile.publicUrl };
+}
+`;
+    expect((await call("create_tool", { code })).isError).toBe(false);
+    const run = await call("run_tool", { tool: "upload_report" });
+    const result = run.value.result as { putUrl: string; listUrl: string; privateUrl: string | null };
+    expect(result.putUrl).toMatch(/^https:\/\/hands\.example\.com\/public\/storage\/[A-Za-z0-9_-]{32}\/q4\.pdf$/);
+    expect(result.listUrl).toBe(result.putUrl);
+    expect(result.privateUrl).toBeNull();
+    const res = await app.request(result.putUrl);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("pdf bytes");
+    await authRequest(app, token, "PATCH", "/api/settings", { public_url: "" });
   }, 120_000);
 
   test("delete_space needs confirm and removes files", async () => {

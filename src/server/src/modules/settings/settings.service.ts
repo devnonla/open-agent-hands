@@ -2,6 +2,7 @@ import { SANDBOX_SETTING_KEY, invalidateSandboxSetting } from "../../common/sand
 import { inArray } from "drizzle-orm";
 import { appSettings, getDb } from "../../common/db/client.js";
 import { qall, qrun } from "../../common/db/query.js";
+import { PUBLIC_URL_SETTING_KEY, normalizePublicUrl, setConfiguredPublicUrl } from "../../common/utils/public-url.js";
 import { getConfiguredTimezone } from "../../common/utils/cronHelper.js";
 import { recalculateAllJobSchedules } from "../jobs/jobs.service.js";
 
@@ -19,10 +20,12 @@ export async function saveSettings(body: Record<string, string>) {
   const db = getDb();
   const now = new Date();
   let timezoneChanged = false;
+  if (PUBLIC_URL_SETTING_KEY in body) body = { ...body, [PUBLIC_URL_SETTING_KEY]: normalizePublicUrl(String(body[PUBLIC_URL_SETTING_KEY] ?? "")) };
   for (const [key, value] of Object.entries(body)) {
     if (HIDDEN_SETTINGS_KEYS.has(key)) continue;
     if (key === "timezone") timezoneChanged = true;
     if (key === SANDBOX_SETTING_KEY) invalidateSandboxSetting();
+    if (key === PUBLIC_URL_SETTING_KEY) setConfiguredPublicUrl(String(value));
     await qrun(
       db
         .insert(appSettings)

@@ -86,7 +86,7 @@ function FileMenu({ file, onDelete }: { file: StorageFile; onDelete: (file: Stor
             ),
             onClick: () => {
               void navigator.clipboard
-                .writeText(`${window.location.origin}${file.publicUrl}`)
+                .writeText(file.publicUrl as string)
                 .then(() => message.success("Public link copied"))
                 .catch(() => message.error("Copy failed"));
             },

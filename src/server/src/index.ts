@@ -2,6 +2,7 @@ import rootPkg from "../../../package.json" with { type: "json" };
 import { closeDb, initDb } from "./common/db/client.js";
 import { migrateLegacyDataLayout } from "./common/utils/legacy-layout.js";
 import { getDataDir } from "./common/utils/data-dir.js";
+import { loadPublicUrlSetting, setListenAddress } from "./common/utils/public-url.js";
 import { createAppServer } from "./common/ws/create-app-server.js";
 import { startJobsScheduler, stopJobsScheduler } from "./modules/jobs/jobs-scheduler.js";
 import { publishPendingSiteDrafts } from "./modules/sites/sites.service.js";
@@ -22,10 +23,12 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
   process.env.DATA_DIR = dataDir;
   await initDb(dataDir);
   migrateLegacyDataLayout();
+  await loadPublicUrlSetting();
   void publishPendingSiteDrafts().catch((err) => console.error("[sites] publishing pending drafts failed", err));
   startJobsScheduler();
 
   const server = createAppServer({ port, host });
+  setListenAddress(host, server.port ?? port);
   console.log(`agenthands ${rootPkg.version} listening on http://${host}:${server.port} (data: ${dataDir})`);
 
   const shutdown = async () => {

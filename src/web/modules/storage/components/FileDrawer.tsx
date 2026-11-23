@@ -101,7 +101,7 @@ function PreviewBody({ kind, preview, loading, tooBig, object }: ReturnType<type
 
 export function FileDrawer({ object, onClose, onDownload, onDelete, onResetLink }: { object: StorageFile | null; onClose: () => void; onDownload: (object: StorageFile) => void; onDelete: (object: StorageFile) => Promise<void>; onResetLink: (object: StorageFile) => Promise<void> }) {
   const previewState = usePreview(object);
-  const publicLink = object?.publicUrl ? `${window.location.origin}${object.publicUrl}` : null;
+  const publicLink = object?.publicUrl ?? null;
 
   return (
     <Drawer

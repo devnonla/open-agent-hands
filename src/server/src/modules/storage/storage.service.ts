@@ -7,6 +7,7 @@ import { type StorageSpace, type StorageFile, executeRaw, getDb, storageSpaces, 
 import { qall, qone, qrun } from "../../common/db/query.js";
 import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { storageSpaceDir, storageFilePath } from "../../common/utils/data-paths.js";
+import { absoluteUrl } from "../../common/utils/public-url.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 const SPACE_NAME_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
@@ -51,7 +52,7 @@ export function newPublicToken(): string {
 }
 
 export function publicFileUrl(file: Pick<StorageFile, "key" | "publicToken">): string {
-  return `/public/storage/${file.publicToken}/${encodeURIComponent(file.key.split("/").pop() || "file")}`;
+  return absoluteUrl(`/public/storage/${file.publicToken}/${encodeURIComponent(file.key.split("/").pop() || "file")}`);
 }
 
 function toPublic(file: StorageFile, space: StorageSpace): PublicStorageFile {

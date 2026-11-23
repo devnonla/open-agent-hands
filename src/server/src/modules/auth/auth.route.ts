@@ -23,6 +23,7 @@ app.post("/setup", async (c) => {
     name: string;
     password: string;
     timezone: string;
+    publicUrl?: string;
   }>();
   const result = await setupFirstAdmin(body);
   return c.json(result);

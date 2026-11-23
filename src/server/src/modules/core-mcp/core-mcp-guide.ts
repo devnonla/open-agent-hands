@@ -30,7 +30,7 @@ All calls are async.
   - list(prefix?) -> { key, size, contentType, updatedAt, publicUrl }[] (up to 1000, sorted by key)
   - delete(key) -> { deleted: boolean }
 - agenthands.storage.list_spaces()
-  Keys are paths like "reports/2026-11.csv". There is no size limit: bodies stream to disk, so pass Bun.file(path) or a ReadableStream for big files and read them back with stream(key). publicUrl is the file's own unguessable link (/public/storage/<random token>/<file name>) when the space is public, else null. Always hand out publicUrl as is; never build a link from space and key.`;
+  Keys are paths like "reports/2026-11.csv". There is no size limit: bodies stream to disk, so pass Bun.file(path) or a ReadableStream for big files and read them back with stream(key). publicUrl is the file's own unguessable full link (<public URL>/public/storage/<random token>/<file name>, where the public URL is set in Settings → General) when the space is public, else null. A tool that hands out links needs the space made first with storage_create_space(public=true), since put into a missing space makes it private. Always hand out publicUrl as is; never build a link from space and key.`;
 
 const TOOLS = `## Tools
 
@@ -112,7 +112,7 @@ Files:
 - styles.css: plain CSS, applied to the page automatically.
 - package.json is generated from imports. Do not hand-edit dependencies.
 
-Workflow: create_site -> write_site_file (app.tsx, backend.ts, styles.css) -> preview_site (checks the bundle and backend GET; fix any error right away, since visitors already see the change) -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password.
+Workflow: create_site -> write_site_file (app.tsx, backend.ts, styles.css) -> preview_site (checks the bundle and backend GET; fix any error right away, since visitors already see the change) -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password; create_site and publish_site return its full url.
 
 ${RUNTIME}`;
 
