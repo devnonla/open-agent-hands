@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-23
+
+**Workspaces are gone.** Everything now lives in one shared space. Your data is merged when you upgrade, and names that clash get the old workspace name added (see Removed). Back up `~/.open-agent-hands` (or the Docker volume) first: you can't go back to 0.4 after the upgrade.
+
+### Added
+
+- **Storage.** Keep files in spaces, Drive-style: reports, images, exports, any size. Agents use nine `storage_*` tools and code uses `agenthands.storage.space(name)` with `put`, `get`, `stream`, `list` and `delete`. In the UI you browse files by folder, preview them, upload and download. A public space gives each file its own link that can't be guessed. You can reset a link to stop the old one working.
+- **KV projects.** KV keys are grouped into projects. Code without a project uses `default`, and `agenthands.kv.project(name)` reaches another one. `kv_set` creates a project when it doesn't exist yet. New tools: `kv_list_projects` and `kv_delete_project`.
+- **Jobs can take input, return output and retry.**
+  - `run_job` takes an `input` (any JSON). The script reads it in `agenthands.run`, along with `lastSuccessAt`, `scheduledFor`, `trigger` and the attempt number.
+  - `agenthands.output(value)` stores a result on the run, which `run_job wait=true` and `get_job_runs` return.
+  - `agenthands.step(name, fn, { retries })` retries one flaky step. `max_retries` on the job re-runs the whole script.
+  - A job never overlaps itself, and extra runs wait as `queued`.
+  - A new run view shows each step as a bar with its duration, next to the logs.
+  - `clear_job_runs` and a button in the UI clear a job's run history.
+- **Tool icons.** Agents can give a tool an inline SVG icon with `create_tool` or `update_tool`. It shows in the tools list and cards.
+- **MCP server pages.** Each hosted MCP server has its own page with its tools, connection snippets and an on/off switch for each tool.
+- **Docker image.** Each release publishes `ghcr.io/devnonla/open-agent-hands` for `amd64` and `arm64`, and `docker-compose.yml` uses it. To update, run `docker compose pull && docker compose up -d`. If you used the old compose file that builds from source, download the new one once.
+- **New version notice.** When a newer release is out, the sidebar shows **Update available**, and **Settings → General** shows the command that updates your install (Docker or `install.sh`). The server checks GitHub at most every 6 hours. Set `AGENTHANDS_UPDATE_REPO=off` to turn it off. The Mac app keeps its own updater.
+
+### Changed
+
+- **Sites have no review step.** Every `write_site_file` goes live on the site right away. Check each change with `preview_site`.
+- **A lighter, simpler UI.** Pages have a white header with tabs inside. The page background is brighter, and the user menu is shorter.
+- **A flatter data folder.** Sites live in `sites/<id>/` and generated tool folders in `tools/<id>/`. They are moved out of the old `workspaces/<id>/` folders when the server starts.
+
+### Removed
+
+- **Workspaces.** The workspace picker, **Settings → Workspace**, the `workspace` argument and the `list_workspaces`, `create_workspace`, `update_workspace` and `delete_workspace` tools are gone. On upgrade, every workspace is merged into one space. When a name already exists, the one from another workspace gets the workspace name added:
+  - tools get `_<workspace>`, e.g. `send_email` from workspace "Client A" becomes `send_email_client_a`;
+  - KV and secret keys get `_<WORKSPACE>`, e.g. `API_TOKEN_CLIENT_A`;
+  - datatable projects, folders, MCP servers, jobs and API keys get ` (<Workspace>)`.
+
+  Existing MCP server URLs and keys keep working. API keys made inside one workspace now reach everything, so review them under **Settings → API keys**.
+- **`approve_site`.** There is no draft to approve any more.
+
 ## [0.4.2] - 2026-11-21
 
 ### Fixed

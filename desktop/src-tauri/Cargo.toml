@@ -1,6 +1,6 @@
 [package]
 name = "agenthands-desktop"
-version = "0.4.2"
+version = "0.5.0"
 description = "Open Agent Hands desktop app"
 license = "MIT"
 edition = "2021"
