@@ -1,9 +1,11 @@
 import { Card, Empty, Skeleton, Tabs, message } from "devnonla-ui";
+import { LayoutGrid } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Site } from "src/common/types";
-import { AskClaudeHint } from "src/components/AskClaudeHint";
+import { ConnectAgentEmpty } from "src/components/ConnectAgentEmpty";
 import { PageHeader } from "src/components/PageHeader";
+import { TabCount } from "src/components/TabCount";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
@@ -18,6 +20,12 @@ const FILTERS: { label: string; value: VisibilityFilter }[] = [
   { label: "Protected", value: "protected" },
   { label: "Private", value: "unpublished" },
 ];
+
+function VisibilityIcon({ filter }: { filter: VisibilityFilter }) {
+  if (filter === "all") return <LayoutGrid size={15} className="text-muted-foreground" />;
+  const { icon: Glyph, tone } = SITE_VISIBILITY_META[filter];
+  return <Glyph size={15} className={tone} />;
+}
 
 export default function SitesPage() {
   const dispatch = useAppDispatch();
@@ -65,10 +73,11 @@ export default function SitesPage() {
             onChange={(key) => setVisibilityFilter(key as VisibilityFilter)}
             items={FILTERS.map((filter) => ({
               key: filter.value,
+              icon: <VisibilityIcon filter={filter.value} />,
               label: (
                 <span className="inline-flex items-center gap-1.5">
                   {filter.label}
-                  <span className="text-xs tabular-nums text-muted-foreground">{counts[filter.value]}</span>
+                  <TabCount value={counts[filter.value]} />
                 </span>
               ),
             }))}
@@ -80,14 +89,12 @@ export default function SitesPage() {
       <RenderIf
         condition={items.length > 0 || loading}
         fallback={
-          <Empty className="py-16" description="No sites yet">
-            <AskClaudeHint what="site" tool="create_site" />
-          </Empty>
+          <ConnectAgentEmpty title="No sites yet" what="site" tool="create_site" />
         }
       >
         <RenderIf condition={loading && items.length === 0}>
           <div className="@container">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-5 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-5 @min-[480px]:grid-cols-2 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
               {["a", "b"].map((key) => (
                 <Card key={key}>
                   <Skeleton.Input className="mx-2 mt-2 aspect-16/10 h-auto w-auto rounded-lg" />
@@ -99,7 +106,7 @@ export default function SitesPage() {
         </RenderIf>
         <RenderIf condition={filtered.length > 0}>
           <div className="@container">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-5 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-5 @min-[480px]:grid-cols-2 @min-[700px]:grid-cols-3 @min-[960px]:grid-cols-4 @min-[1200px]:grid-cols-5">
               {filtered.map((site) => (
                 <SiteCard key={site.id} site={site} onOpen={() => navigate(`/sites/${site.id}`)} />
               ))}

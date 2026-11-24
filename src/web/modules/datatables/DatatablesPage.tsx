@@ -1,7 +1,7 @@
-import { Card, Empty, Skeleton, message } from "devnonla-ui";
+import { Card, Skeleton, message } from "devnonla-ui";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AskClaudeHint } from "src/components/AskClaudeHint";
+import { ConnectAgentEmpty } from "src/components/ConnectAgentEmpty";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
@@ -35,7 +35,7 @@ export default function DatatablesPage() {
     <PageShell header={<PageHeader title="Datatables" icon="datatables" description="Tables your agents build. Browse and edit rows here." className="mb-0 pb-0" bordered={false} />}>
       <RenderIf condition={loading && items.length === 0}>
         <div className="@container">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 @min-[900px]:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">
             {["a", "b", "c"].map((key) => (
               <Card key={key}>
                 <div className="flex min-h-40 flex-col gap-4 p-5">
@@ -49,14 +49,12 @@ export default function DatatablesPage() {
       </RenderIf>
 
       <RenderIf condition={!loading && items.length === 0}>
-        <Empty className="py-16" description="No projects yet">
-          <AskClaudeHint what="datatable project" tool="datatable_create_project" />
-        </Empty>
+        <ConnectAgentEmpty title="No projects yet" what="datatable project" tool="datatable_create_project" />
       </RenderIf>
 
       <RenderIf condition={items.length > 0}>
         <div className="@container">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 @min-[900px]:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">
             {items.map((project) => (
               <ProjectCard key={project.id} project={project} onOpen={() => navigate(`/datatables/${project.id}`)} />
             ))}

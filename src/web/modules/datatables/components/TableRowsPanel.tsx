@@ -372,7 +372,7 @@ export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
               className="h-full min-h-60 px-8 py-16"
               description={
                 <>
-                  Ask your agent to add columns with <code className="font-mono text-xs">datatable_add_column</code>.
+                  Ask your agent to add columns with <code className="font-mono text-xs">datatable_add_columns</code>.
                 </>
               }
             />

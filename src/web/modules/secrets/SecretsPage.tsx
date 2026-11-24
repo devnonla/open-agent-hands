@@ -107,7 +107,7 @@ export default function SecretsPage() {
   }, [adding]);
 
   return (
-    <PageShell className="box-border h-full min-h-0 overflow-hidden" header={<PageHeader title="Secrets" icon="secrets" description="Encrypted keys your tools read. Values never pass through chat." className="mb-0 pb-0" bordered={false} />}>
+    <PageShell fill header={<PageHeader title="Secrets" icon="secrets" description="Encrypted keys your tools read. Values never pass through chat." className="mb-0 pb-0" bordered={false} />}>
       <SecretsToolbar search={filterSearch} onSearchChange={handleSearch} onAddClick={handleAddClick} selectedCount={selectedRowKeys.length} onDeleteSelected={handleDeleteSelected} />
 
       <SecretsTable

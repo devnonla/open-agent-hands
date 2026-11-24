@@ -1,9 +1,11 @@
-import { Card, type IconName } from "devnonla-ui";
+import { Card } from "devnonla-ui";
+import { EyeOff, Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Site } from "src/common/types";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
 import { sitesApi } from "../common/sitesApi";
+import { CARD_HOVER } from "src/components/card-hover";
 
 export type SiteVisibility = "unpublished" | "protected" | "public";
 
@@ -13,21 +15,24 @@ export function siteVisibility(site: Site): SiteVisibility {
   return "public";
 }
 
-export const SITE_VISIBILITY_META: Record<SiteVisibility, { label: string; description: string; icon: IconName }> = {
+export const SITE_VISIBILITY_META: Record<SiteVisibility, { label: string; description: string; icon: LucideIcon; tone: string }> = {
   unpublished: {
     label: "Private",
     description: "Not shared. Only you can open it here in the app.",
-    icon: "pen",
+    icon: EyeOff,
+    tone: "text-muted-foreground",
   },
   protected: {
     label: "Protected",
     description: "Published with a password. Visitors must unlock to view.",
-    icon: "shield-check",
+    icon: KeyRound,
+    tone: "text-amber-500",
   },
   public: {
     label: "Public",
     description: "Anyone with the link can view this site.",
-    icon: "globe",
+    icon: Globe,
+    tone: "text-emerald-500",
   },
 };
 
@@ -125,7 +130,7 @@ export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
         e.preventDefault();
         onOpen();
       }}
-      className="min-w-0 cursor-pointer transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-focus-ring"
+      className={`min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-focus-ring ${CARD_HOVER}`}
     >
       <SiteThumbnail site={site} />
       <div className="truncate px-3 pt-1 pb-2.5 text-sm font-medium text-foreground">{site.name}</div>

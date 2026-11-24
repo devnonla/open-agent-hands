@@ -18,7 +18,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",
-    "devnonla-ui": "^0.20.0",
+    "devnonla-ui": "^0.20.1",
     "framer-motion": "^12.36.0",
     "html-to-image": "^1.11.13",
     "lodash": "^4.18.1",
@@ -27,7 +27,6 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.87.0",
-    "react-nice-avatar": "^1.5.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.1",
     "tailwind-merge": "^3.5.0"

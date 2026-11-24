@@ -67,7 +67,8 @@ export function SecretsTable({ items, page, pageSize, total, onPageChange, onUpd
     {
       title: "Value",
       key: "value",
-      flex: 1,
+      ellipsis: true,
+      minWidth: 200,
       render: (_, row) => {
         if (isNewRow(row)) return <NewSecretValueCell />;
         const editingValue = editing?.id === row.id && editing.field === "value";
@@ -104,7 +105,7 @@ export function SecretsTable({ items, page, pageSize, total, onPageChange, onUpd
             showTotal: (count, [from, to]) => `${from}–${to} of ${count}`,
             onChange: onPageChange,
           }}
-          scroll={{ y: scrollY }}
+          scroll={{ x: "max-content", y: scrollY }}
           rowSelection={{
             type: "checkbox",
             selectedRowKeys,

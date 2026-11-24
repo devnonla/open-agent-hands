@@ -523,7 +523,7 @@ export default function SpacePage() {
                     <div className="flex flex-col items-center gap-2 py-10 text-center">
                       <CloudUpload size={28} className="text-muted-foreground" />
                       <span className="text-sm text-foreground">{prefix ? "This folder is empty" : `No files in ${activeSpace.name} yet`}</span>
-                      <span className="max-w-sm text-xs text-muted-foreground">Drop files here or click Upload. Agents write here with storage_put_file or agenthands.storage.space("{activeSpace.name}").put(key, data).</span>
+                      <span className="max-w-sm text-xs text-muted-foreground">Drop files here or click Upload. Agents write here with storage_upload_link or agenthands.storage.space("{activeSpace.name}").put(key, data).</span>
                     </div>
                   ),
                 }}

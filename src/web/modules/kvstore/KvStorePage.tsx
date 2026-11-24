@@ -203,7 +203,6 @@ export default function KvStorePage() {
       title: "Key",
       dataIndex: "key",
       key: "key",
-      flex: 1,
       render: (_, row) => {
         if (isNewRow(row)) return <NewKvKeyCell />;
         return (
@@ -217,7 +216,8 @@ export default function KvStorePage() {
       title: "Value",
       dataIndex: "value",
       key: "value",
-      flex: 2,
+      ellipsis: true,
+      minWidth: 240,
       render: (v: string, row) => {
         if (isNewRow(row)) return <NewKvValueCell />;
         return (
@@ -254,15 +254,8 @@ export default function KvStorePage() {
 
   return (
     <PageShell
-      className="box-border h-full min-h-0 overflow-hidden"
-      header={
-        <PageHeader
-          title="KV Store"
-          icon="kv-store"
-          className="mb-0 pb-0"
-          bordered={false}
-        />
-      }
+      fill
+      header={<PageHeader title="KV Store" icon="kv-store" className="mb-0 pb-0" bordered={false} />}
       tabs={
         <Tabs
           aria-label="KV projects"
@@ -310,7 +303,7 @@ export default function KvStorePage() {
               showTotal: (count, [from, to]) => `${from}–${to} of ${count}`,
               onChange: handlePageChange,
             }}
-            scroll={{ y: scrollY }}
+            scroll={{ x: "max-content", y: scrollY }}
             rowSelection={{
               type: "checkbox",
               selectedRowKeys,

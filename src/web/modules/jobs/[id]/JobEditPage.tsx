@@ -1,4 +1,4 @@
-import { Button, Spin, Tabs, Tag, message, Icon } from "devnonla-ui";
+import { Button, Spin, Tabs, message, Icon } from "devnonla-ui";
 import { Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -9,6 +9,7 @@ import type { Job, JobRun } from "src/common/types";
 import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { DraftReviewBar } from "src/components/DraftReviewBar";
 import { PageHeader } from "src/components/PageHeader";
+import { TabCount } from "src/components/TabCount";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
 import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
@@ -42,7 +43,7 @@ function JobSectionTabs({ value, live, runCount, onChange }: { value: JobTab; li
         label: (
           <span className="inline-flex items-center gap-1.5">
             {tab.label}
-            {tab.value === "activities" && runCount > 0 ? <Tag className="h-4.5! px-1.5!">{runCount}</Tag> : null}
+            {tab.value === "activities" && runCount > 0 ? <TabCount value={runCount} /> : null}
             {tab.value === "activities" && live ? <span className="size-1.5 rounded-full bg-link motion-safe:animate-pulse" aria-label="A run is in progress" /> : null}
           </span>
         ),
@@ -334,7 +335,7 @@ export default function JobEditPage() {
           title={jobTitle}
           icon="jobs"
           bordered={false}
-          className="mb-0 shrink-0 bg-card px-8 pt-5 pb-0"
+          className="mb-0 shrink-0 bg-card px-3 pt-5 pb-0 sm:px-6 lg:px-8"
           description={job.description || undefined}
           actions={
             activeRunId ? (

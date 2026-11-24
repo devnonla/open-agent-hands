@@ -2,6 +2,7 @@ import { Card, Tag } from "devnonla-ui";
 import { FeatureIcon } from "src/components/FeatureIcon";
 import RenderIf from "src/components/RenderIf";
 import type { DatatableProjectListItem } from "../common/datatableProjectsSlice";
+import { CARD_HOVER } from "src/components/card-hover";
 
 export function ProjectCard({ project, onOpen }: { project: DatatableProjectListItem; onOpen: () => void }) {
   const names = project.tableNames ?? [];
@@ -21,9 +22,9 @@ export function ProjectCard({ project, onOpen }: { project: DatatableProjectList
           onOpen();
         }
       }}
-      className="group cursor-pointer text-left transition-transform duration-200 hover:-translate-y-0.5"
+      className={`h-full cursor-pointer text-left [&>div]:flex-1 ${CARD_HOVER}`}
     >
-      <div className="flex min-h-40 flex-col rounded-xl p-5 transition-colors duration-200 group-hover:bg-muted">
+      <div className="flex min-h-40 flex-col p-5">
         <FeatureIcon name="datatables" size={28} variant="sticker" />
         <h2 className="mt-4 mb-0 truncate text-lg font-semibold text-foreground">{project.name}</h2>
         <p className="mt-1 mb-0 text-sm text-muted-foreground">

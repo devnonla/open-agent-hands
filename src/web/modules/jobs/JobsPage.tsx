@@ -1,12 +1,13 @@
-import { Empty, Select, Skeleton, Tabs, message } from "devnonla-ui";
+import { Select, Skeleton, Tabs, message } from "devnonla-ui";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
 import { useNow } from "src/common/hooks/useNow";
 import type { Job } from "src/common/types";
-import { AskClaudeHint } from "src/components/AskClaudeHint";
+import { ConnectAgentEmpty } from "src/components/ConnectAgentEmpty";
 import { PageHeader } from "src/components/PageHeader";
-import { PageBand } from "src/components/PageShell";
+import { TabCount } from "src/components/TabCount";
+import { PageBand, PAGE_GUTTER } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { fetchJobs, removeJobLocal, updateJobLocal, upsertJobLocal } from "./common/jobsSlice";
@@ -15,7 +16,7 @@ import { JOB_FILTERS, JOB_SORTS, type JobFilter, type JobSort, JobsList, groupJo
 
 function JobsSkeleton() {
   return (
-    <div className="px-10 pb-6">
+    <div className={`pb-6 ${PAGE_GUTTER}`}>
       <Skeleton active title={false} paragraph={{ rows: 6 }} />
     </div>
   );
@@ -99,15 +100,7 @@ export default function JobsPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageBand
-        header={
-          <PageHeader
-            title="Jobs"
-            icon="jobs"
-            className="mb-0 pb-0"
-            bordered={false}
-            actions={items.length > 0 ? <Select value={sort} onChange={(next: JobSort) => setParam("sort", next, "next")} options={JOB_SORTS.map((s) => ({ value: s.key, label: `Sort: ${s.label}` }))} className="w-48" /> : undefined}
-          />
-        }
+        header={<PageHeader title="Jobs" icon="jobs" className="mb-0 pb-0" bordered={false} actions={items.length > 0 ? <Select value={sort} onChange={(next: JobSort) => setParam("sort", next, "next")} options={JOB_SORTS.map((s) => ({ value: s.key, label: `Sort: ${s.label}` }))} className="w-48" /> : undefined} />}
         tabs={
           items.length > 0 ? (
             <Tabs
@@ -119,7 +112,7 @@ export default function JobsPage() {
                 label: (
                   <span className="inline-flex items-center gap-1.5">
                     {f.label}
-                    <span className="text-xs tabular-nums text-muted-foreground">{counts[f.key]}</span>
+                    <TabCount value={counts[f.key]} />
                   </span>
                 ),
               }))}
@@ -131,10 +124,8 @@ export default function JobsPage() {
       <RenderIf
         condition={items.length > 0 || loading}
         fallback={
-          <div className="px-10 pb-8">
-            <Empty className="rounded-2xl border border-dashed border-border px-5 py-16" description="No jobs yet">
-              <AskClaudeHint what="job" tool="create_job" />
-            </Empty>
+          <div className={`pt-5 pb-8 ${PAGE_GUTTER}`}>
+            <ConnectAgentEmpty className="mx-auto max-w-5xl" title="No jobs yet" what="job" tool="create_job" />
           </div>
         }
       >
@@ -142,7 +133,7 @@ export default function JobsPage() {
           <JobsSkeleton />
         </RenderIf>
         <RenderIf condition={items.length > 0}>
-          <div className="min-h-0 flex-1 overflow-y-auto px-10 pt-5 pb-6">
+          <div className={`min-h-0 flex-1 overflow-y-auto pt-5 pb-6 ${PAGE_GUTTER}`}>
             <div className="mx-auto w-full max-w-5xl">
               <JobsList groups={groups} filter={filter} sort={sort} now={now} onOpen={(job) => navigate(`/jobs/${job.id}`)} />
             </div>

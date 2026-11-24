@@ -9,7 +9,6 @@ import { useAppDispatch } from "src/store/store";
 
 interface BasicInfoSectionProps {
   user: User;
-  avatar: string;
 }
 
 type BasicInfoValues = { username: string; name: string };
@@ -33,7 +32,7 @@ const ITEMS: TFormItemProps[] = [
   },
 ];
 
-export function BasicInfoSection({ user, avatar }: BasicInfoSectionProps) {
+export function BasicInfoSection({ user }: BasicInfoSectionProps) {
   const dispatch = useAppDispatch();
   const [saving, setSaving] = useState(false);
   const form = useForm<BasicInfoValues>({
@@ -44,7 +43,7 @@ export function BasicInfoSection({ user, avatar }: BasicInfoSectionProps) {
   const onSubmit = form.handleSubmit(async ({ name }) => {
     setSaving(true);
     try {
-      await apiClient.patch("/api/auth/update-profile", { name: name.trim(), avatar });
+      await apiClient.patch("/api/auth/update-profile", { name: name.trim() });
       await dispatch(fetchCurrentUser()).unwrap();
       message.success("Profile updated successfully");
     } catch (error: unknown) {

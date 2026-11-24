@@ -5,6 +5,7 @@ import { cn } from "src/common/lib/cn";
 import type { Job } from "src/common/types";
 import { formatDateTime, relativeTime } from "src/common/utils/date";
 import { describeCron, jobIsScheduled, parseJobCronExpressions } from "../common/schedule";
+import { CARD_HOVER } from "src/components/card-hover";
 
 export type JobGroup = "running" | "upcoming" | "idle";
 export type JobFilter = "all" | JobGroup;
@@ -164,7 +165,7 @@ function RunningBorder() {
 function JobCard({ job, now, onOpen }: { job: Job; now: number; onOpen: () => void }) {
   const running = jobIsRunning(job, now);
   return (
-    <div className="relative min-w-0 rounded-xl transition-transform duration-150 hover:-translate-y-0.5">
+    <div className="relative min-w-0 rounded-xl">
       <Card
         role="link"
         tabIndex={0}
@@ -175,7 +176,7 @@ function JobCard({ job, now, onOpen }: { job: Job; now: number; onOpen: () => vo
           e.preventDefault();
           onOpen();
         }}
-        className="relative min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-focus-ring"
+        className={`relative min-w-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-focus-ring ${CARD_HOVER}`}
       >
         <div className="flex min-w-0 flex-col gap-1 px-3.5 pt-3 pb-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -235,7 +236,7 @@ export function JobsList({ groups, filter, sort, now, onOpen }: { groups: Record
 
   return (
     <div className="@container">
-      <div className="grid grid-cols-1 gap-4 @min-[560px]:grid-cols-2 @min-[860px]:grid-cols-3 @min-[1200px]:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 @min-[560px]:grid-cols-2">
         {rows.map((job) => (
           <JobCard key={job.id} job={job} now={now} onOpen={() => onOpen(job)} />
         ))}

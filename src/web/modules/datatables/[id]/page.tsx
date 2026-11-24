@@ -1,12 +1,11 @@
 import { Empty, Spin, Splitter, message } from "devnonla-ui";
 import { useCallback, useEffect, useState } from "react";
 import { useMatch, useNavigate, useParams } from "react-router-dom";
-import type { DatatableColumn, DatatableProject, DatatableTable } from "src/common/types";
+import type { DatatableColumn, DatatableTable } from "src/common/types";
 import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { type DatatableProjectListItem, fetchDatatableProjects, setDatatableProjectTables } from "../common/datatableProjectsSlice";
 import { datatablesApi } from "../common/datatablesApi";
-import { DatatableProjectHeader } from "../components/DatatableProjectHeader";
 import { DatatablesSidebar } from "../components/DatatablesSidebar";
 import { ProjectSettingsPage } from "../components/ProjectSettingsPage";
 import { SchemaFlow } from "../components/SchemaFlow";
@@ -41,7 +40,6 @@ export default function DatatableProjectPage() {
   const navigate = useNavigate();
   const items = useAppSelector((s) => s.datatableProjects.items) as DatatableProjectListItem[];
   const [projectsLoading, setProjectsLoading] = useState(items.length === 0);
-  const [project, setProject] = useState<DatatableProject | null>(null);
   const [tables, setTables] = useState<DatatableTable[]>([]);
   const [columnsMap, setColumnsMap] = useState<Record<string, DatatableColumn[]>>({});
   const [schemaFor, setSchemaFor] = useState<string | null>(null);
@@ -53,7 +51,6 @@ export default function DatatableProjectPage() {
   const visibleTables = schemaReady ? tables : [];
   const resolvedTableId = visibleTables.some((table) => table.id === selectedTableId) ? selectedTableId : (visibleTables[0]?.id ?? null);
   const listProject = items.find((item) => item.id === projectId) ?? null;
-  const currentTableName = visibleTables.find((table) => table.id === resolvedTableId)?.name ?? listProject?.tables?.find((table) => table.id === selectedTableId)?.name ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +72,6 @@ export default function DatatableProjectPage() {
     (id: string, schema: Awaited<ReturnType<typeof datatablesApi.getProjectSchema>>) => {
       const nextTables = schema.tables.map(({ columns: _columns, ...table }) => table);
       const sorted = sortTablesByName(nextTables);
-      setProject(schema.project);
       setTables(nextTables);
       setColumnsMap(Object.fromEntries(schema.tables.map((table) => [table.id, table.columns])));
       setSchemaFor(id);
@@ -87,7 +83,6 @@ export default function DatatableProjectPage() {
 
   useEffect(() => {
     if (!projectId) {
-      setProject(null);
       setTables([]);
       setColumnsMap({});
       setSchemaFor(null);
@@ -146,7 +141,6 @@ export default function DatatableProjectPage() {
             <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
               {projectId ? (
                 <>
-                  <DatatableProjectHeader projectName={listProject?.name ?? project?.name ?? "…"} projectTo={`/datatables/${projectId}`} tableName={currentTableName} settings={!!settingsProjectId} schema={!!schemaProjectId} />
                   {settingsProjectId ? (
                     <ProjectSettingsPage projectId={settingsProjectId} loading={projectsLoading} />
                   ) : (

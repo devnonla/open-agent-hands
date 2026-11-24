@@ -232,7 +232,7 @@ export function JobOverview({ job, runs, now, toggling, onToggle, onDelete, onOp
   const successRate = finished.length > 0 ? Math.round(((finished.length - failedCount) / finished.length) * 100) : null;
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain px-8 pt-6 pb-12">
+    <div className="h-full overflow-y-auto overscroll-contain px-3 pt-6 pb-12 sm:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card>

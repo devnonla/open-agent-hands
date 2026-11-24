@@ -1,5 +1,4 @@
 import { Tabs } from "devnonla-ui";
-import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, clearAuthToken, getRefreshToken } from "src/common/api";
 import { PageHeader } from "src/components/PageHeader";
@@ -20,7 +19,6 @@ function isProfileTab(value: string | null): value is ProfileTabKey {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const user = useAppSelector((s) => s.auth.user);
-  const [avatar, setAvatar] = useState(user?.avatar || "");
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const activeTab: ProfileTabKey = isProfileTab(tabParam) ? tabParam : "general";
@@ -40,23 +38,29 @@ export default function ProfilePage() {
   };
 
   return (
-    <PageShell className="h-full min-h-0 overflow-y-auto" header={<PageHeader title="Profile" description="Your account, theme and password." className="mb-0 pb-0" bordered={false} />}>
-
+    <PageShell
+      header={<PageHeader title="Profile" className="mb-0 pb-0" bordered={false} />}
+      tabs={
+        <Tabs
+          aria-label="Profile sections"
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          items={[
+            { key: "general", label: "General" },
+            { key: "appearance", label: "Appearance" },
+            { key: "security", label: "Security" },
+          ]}
+        />
+      }
+    >
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[300px_1fr]">
         <div className="lg:sticky lg:top-0">
-          <IdentityCard user={user} avatar={avatar} onAvatarChange={setAvatar} onLogout={handleLogout} />
+          <IdentityCard user={user} onLogout={handleLogout} />
         </div>
         <div className="min-w-0">
-          <Tabs
-            aria-label="Profile sections"
-            activeKey={activeTab}
-            onChange={handleTabChange}
-            items={[
-              { key: "general", label: "General", children: <BasicInfoSection user={user} avatar={avatar} /> },
-              { key: "appearance", label: "Appearance", children: <AppearanceSection /> },
-              { key: "security", label: "Security", children: <SecuritySection /> },
-            ]}
-          />
+          {activeTab === "general" ? <BasicInfoSection user={user} /> : null}
+          {activeTab === "appearance" ? <AppearanceSection /> : null}
+          {activeTab === "security" ? <SecuritySection /> : null}
         </div>
       </div>
     </PageShell>
