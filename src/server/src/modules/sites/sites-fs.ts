@@ -116,7 +116,7 @@ export default function App() {
           </button>
           {ponged ? <span className="pong">Backend replied ✓</span> : null}
         </div>
-        <p className="hint">This page and backend.ts are a starter. Ask your agent to reshape both with write_site_file.</p>
+        <p className="hint">This page and backend.ts are a starter. Ask your agent to reshape both with edit_site_file.</p>
       </main>
     </div>
   );

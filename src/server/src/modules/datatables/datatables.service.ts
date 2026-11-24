@@ -31,7 +31,7 @@ function assertName(name: string, label: string) {
   return n;
 }
 
-function assertColumnName(name: string) {
+export function assertColumnName(name: string) {
   const n = name?.trim() ?? "";
   if (!COLUMN_NAME_RE.test(n)) {
     throw new BadRequestException("Column name must match [a-z][a-z0-9_]*");
@@ -39,7 +39,7 @@ function assertColumnName(name: string) {
   return n;
 }
 
-function assertColumnType(type: string): ColumnType {
+export function assertColumnType(type: string): ColumnType {
   if (!(COLUMN_TYPES as readonly string[]).includes(type)) {
     throw new BadRequestException(`Invalid column type "${type}"`);
   }
@@ -595,11 +595,17 @@ export async function insertRows(tableId: string, rows: Record<string, unknown>[
   const now = new Date();
   const created: DatatableRow[] = [];
   const db = getDb();
-  for (const raw of rows) {
+  const validated = rows.map((raw, i) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      throw new BadRequestException("Each row must be an object");
+      throw new BadRequestException(`rows[${i}] must be an object`);
     }
-    const data = validateRowData(columns, raw as Record<string, unknown>, false);
+    try {
+      return validateRowData(columns, raw as Record<string, unknown>, false);
+    } catch (err) {
+      throw new BadRequestException(`rows[${i}]: ${err instanceof Error ? err.message : String(err)}. No rows were inserted.`);
+    }
+  });
+  for (const data of validated) {
     const entry: NewDatatableRow = {
       id: crypto.randomUUID(),
       tableId,

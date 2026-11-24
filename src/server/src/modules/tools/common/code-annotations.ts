@@ -55,12 +55,7 @@ function parseEnumValues(rawType: string): string[] {
     .filter(Boolean);
 }
 
-function parseAnnotations(code: string): RawAnnotation[] {
-  const annotations: RawAnnotation[] = [];
-
-  // Extract only the leading comment/annotation block.
-  // Stops at the first non-comment, non-blank line to handle cases
-  // where @param annotations are immediately followed by code (no blank line).
+function headerLinesOf(code: string): string[] {
   const headerLines: string[] = [];
   for (const line of code.split("\n")) {
     const trimmed = line.trim();
@@ -70,7 +65,12 @@ function parseAnnotations(code: string): RawAnnotation[] {
       break;
     }
   }
-  const headerBlock = headerLines.join("\n");
+  return headerLines;
+}
+
+function parseAnnotations(code: string): RawAnnotation[] {
+  const annotations: RawAnnotation[] = [];
+  const headerBlock = headerLinesOf(code).join("\n");
 
   for (const match of headerBlock.matchAll(ANNOTATION_REGEX)) {
     annotations.push({
@@ -84,6 +84,18 @@ function parseAnnotations(code: string): RawAnnotation[] {
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
+
+const PLAIN_PARAM_TYPES = ["string", "number", "integer", "boolean", "object", "string[]", "number[]", "boolean[]", "object[]"];
+
+const PARAM_LINE_REGEX = /@param\s+\{[^}]+\}\s+[\w.\[\]]+/;
+
+export function paramAnnotationError(code: string): string | null {
+  const malformed = headerLinesOf(code).map((line) => line.trim()).filter((line) => /^\/\/\s*@param\b/.test(line) && !PARAM_LINE_REGEX.test(line));
+  if (malformed.length) return `Malformed @param line: ${malformed.map((line) => `"${line}"`).join(", ")}. Write // @param {type} name (required|optional) - description, e.g. // @param {string} city (required) - City name.`;
+  const bad = parseAnnotations(code).filter((a) => !PLAIN_PARAM_TYPES.includes(a.rawType) && !(a.rawType.startsWith("enum:") && parseEnumValues(a.rawType).length > 0));
+  if (!bad.length) return null;
+  return `Invalid @param type: ${bad.map((a) => `${a.name} {${a.rawType}}`).join(", ")}. Use ${PLAIN_PARAM_TYPES.join(", ")} or enum:a|b with no quotes, e.g. {enum:loud|quiet}.`;
+}
 
 export function isAnnotationComment(trimmedLine: string): boolean {
   return trimmedLine.startsWith("//") || trimmedLine.startsWith("/*") || trimmedLine.startsWith("*") || trimmedLine.startsWith("*/");

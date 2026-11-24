@@ -11,6 +11,7 @@ claude mcp add --transport http <name> http://127.0.0.1:8429/mcp/<id> --header "
 ```
 
 - The client sees each assigned tool with the name (the snake_case `@name`), description and input schema from its header. Good `@description` and `@param` text is what makes the tools usable. See [tools.md](tools.md).
+- Every server result lists `tools` as tool names, with `endpoint`, `isActive`, `keyPrefix` and `lastUsedAt`.
 - `add_tools_to_mcp_server` and `remove_tools_from_mcp_server` change the list incrementally. `update_mcp_server` with `tools` REPLACES the whole list, so use it only when you mean that.
 - `update_mcp_server active=false` disables the server without deleting it.
 - Removing a tool from a server never deletes the tool. Deleting a tool removes it from every server.

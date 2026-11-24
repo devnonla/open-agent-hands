@@ -35,7 +35,7 @@ agenthands.output({ synced: issues.length });
 ## Schedule
 - `cron`: 5 fields (`min hour day-of-month month day-of-week`), several expressions separated by new lines, in the app timezone. Empty cron means manual only.
 - An invalid cron is rejected. `enabled=true` with no cron is rejected.
-- `create_job`, `update_job`, `list_jobs` and `get_job` return `status` (`scheduled`, `paused` or `manual`) and `nextRuns` (the next 3 times, ISO). Check them against what the user asked for.
+- `create_job`, `update_job`, `list_jobs` and `get_job` return `status` (`scheduled`, `paused` or `manual`) and `nextRuns` (the next 3 times, ISO; empty when paused or manual). Check them against what the user asked for.
 - A person can pause a job in the UI. A paused job keeps its cron and stays paused when you change the cron. Pass `enabled=true` to resume, only when the user asked. `enabled=false` pauses.
 
 ## Running
@@ -43,8 +43,9 @@ agenthands.output({ synced: issues.length });
 - `max_retries` (0-5, default 0) re-runs the whole script when it fails or times out, waiting 5 s, 10 s, 20 s… between attempts. Use it only when the script is safe to run twice. Otherwise retry inside a step.
 - A job never overlaps itself. `run_job` fails with "Job is already running" while a run is queued or running.
 - Up to 3 runs execute at the same time. Others wait with status `queued`.
-- `run_job` takes an optional `input` (any JSON, up to 64 KB) and returns right away. With `wait=true` it waits up to 120 seconds and returns the run with `status`, `attempts`, `output`, `error` and logs. If it is still running after that, call `get_job_runs`.
-- `get_job_runs` returns recent runs (default 5). Read them after every change to confirm it works.
+- `run_job` takes an optional `input` (any JSON, up to 64 KB) and returns right away. With `wait=true` it waits up to 120 seconds and returns the run with `status`, `attempts`, `output`, `error`, `logCount` and its last 50 log lines. If it is still running after that, call `get_job_runs`.
+- `get_job_runs(job)` lists recent runs, newest first (default 5, max 20), with `status`, `error`, a short `output` and `logCount`, but no logs. Pass `run` (a run id) for that run with `input`, `output` and its last 50 log lines; `log_offset` and `log_limit` (max 500) page through the rest. Read them after every change to confirm it works.
+- Long log lines are cut to 500 characters and big `input`/`output` to 20000 characters of JSON (an `outputTruncated` field says so).
 - `clear_job_runs` with `confirm=true` deletes the finished run history of a job. Queued and running runs stay. Use it only when the user asks.
 - Run it once with `run_job wait=true` before telling the user a job is done.
 - Config agents write (cron, code, timeout, retries) is read-only in the UI. People pause, resume, start runs and clear run history.

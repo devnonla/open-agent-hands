@@ -9,6 +9,9 @@ import { BadRequestException, NotFoundException } from "../../common/exceptions/
 import { storageSpaceDir, storageFilePath } from "../../common/utils/data-paths.js";
 import { absoluteUrl } from "../../common/utils/public-url.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { SNIFF_BYTES, baseType, detectContentType, isTextLike } from "./storage-sniff.js";
+
+export { baseType };
 
 const SPACE_NAME_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
 const DEFAULT_CONTENT_TYPE = "application/octet-stream";
@@ -43,8 +46,7 @@ export function guessContentType(key: string): string {
 }
 
 export function isTextContentType(type: string): boolean {
-  const base = type.split(";")[0].trim().toLowerCase();
-  return base.startsWith("text/") || /\/(json|xml|javascript|typescript|x-yaml|yaml|csv|sql|x-sh|svg\+xml)$/.test(base) || base.endsWith("+json") || base.endsWith("+xml");
+  return isTextLike(baseType(type));
 }
 
 export function newPublicToken(): string {
@@ -161,7 +163,7 @@ export async function updateSpace(id: string, body: { description?: string | nul
   return updated;
 }
 
-export async function deleteSpace(id: string): Promise<{ deletedObjects: number }> {
+export async function deleteSpace(id: string): Promise<{ deletedFiles: number }> {
   const current = await getSpace(id);
   if (!current) throw new NotFoundException("Space not found");
   const stats = (await spaceStats(id)).get(id);
@@ -169,7 +171,7 @@ export async function deleteSpace(id: string): Promise<{ deletedObjects: number 
   await qrun(getDb().delete(storageSpaces).where(eq(storageSpaces.id, id)));
   rmSync(storageSpaceDir(id), { recursive: true, force: true });
   wsHub.emit("storage:space-deleted", { id });
-  return { deletedObjects: stats?.fileCount ?? 0 };
+  return { deletedFiles: stats?.fileCount ?? 0 };
 }
 
 // ─── Objects ──────────────────────────────────────────────────────────────────
@@ -227,6 +229,13 @@ export async function requireFile(space: StorageSpace, key: string): Promise<Sto
   const file = await getFileByKey(space.id, normalized);
   if (!file) throw new NotFoundException(`File "${normalized}" not found in space "${space.name}". Call storage_list_files to see the keys.`);
   return file;
+}
+
+export function isPassiveMedia(contentType: string): boolean {
+  const type = baseType(contentType);
+  if (type === "application/pdf") return true;
+  if (type.startsWith("image/")) return !type.includes("svg");
+  return type.startsWith("audio/") || type.startsWith("video/");
 }
 
 export function fileBlob(file: StorageFile) {
@@ -296,7 +305,8 @@ export function stagingPath(spaceId: string): string {
 
 export async function commitFile(space: StorageSpace, body: { key: string; tmpPath: string; size: number; etag: string; contentType?: string | null }): Promise<PublicStorageFile> {
   const key = normalizeKey(body.key);
-  const contentType = body.contentType?.trim() || guessContentType(key);
+  const head = new Uint8Array(await Bun.file(body.tmpPath).slice(0, SNIFF_BYTES).arrayBuffer());
+  const contentType = detectContentType(head, body.contentType?.trim() || guessContentType(key));
   const existing = await getFileByKey(space.id, key);
   const id = existing?.id ?? crypto.randomUUID();
   await rename(body.tmpPath, storageFilePath(space.id, id));
@@ -346,4 +356,62 @@ export async function resetPublicLink(file: StorageFile): Promise<PublicStorageF
   const updated = toPublic((await getFile(file.id)) as StorageFile, space);
   wsHub.emit("storage:file-updated", updated);
   return updated;
+}
+
+// ─── One-time links ──────────────────────────────────────────────────────────
+
+export const LINK_TTL_MS = 60 * 60 * 1000;
+
+type UploadLink = { spaceId: string; key: string; contentType: string | null; expiresAt: number };
+type DownloadLink = { fileId: string; expiresAt: number };
+
+function oneTimeLinks<T extends { expiresAt: number }>() {
+  const links = new Map<string, T>();
+  const prune = () => {
+    const now = Date.now();
+    for (const [token, link] of links) if (link.expiresAt <= now) links.delete(token);
+  };
+  return {
+    create(value: Omit<T, "expiresAt">): { token: string; expiresAt: Date } {
+      prune();
+      const token = newPublicToken();
+      const expiresAt = Date.now() + LINK_TTL_MS;
+      links.set(token, { ...value, expiresAt } as T);
+      return { token, expiresAt: new Date(expiresAt) };
+    },
+    peek(token: string): T | null {
+      prune();
+      return links.get(token) ?? null;
+    },
+    take(token: string): T | null {
+      prune();
+      const link = links.get(token) ?? null;
+      links.delete(token);
+      return link;
+    },
+  };
+}
+
+const uploadLinks = oneTimeLinks<UploadLink>();
+const downloadLinks = oneTimeLinks<DownloadLink>();
+
+export function createUploadLink(space: StorageSpace, body: { key: string; contentType?: string | null }): { token: string; key: string; expiresAt: Date } {
+  const key = normalizeKey(body.key);
+  return { key, ...uploadLinks.create({ spaceId: space.id, key, contentType: body.contentType?.trim() || null }) };
+}
+
+export function takeUploadLink(token: string): UploadLink | null {
+  return uploadLinks.take(token);
+}
+
+export function createDownloadLink(file: StorageFile): { token: string; expiresAt: Date } {
+  return downloadLinks.create({ fileId: file.id });
+}
+
+export function takeDownloadLink(token: string): DownloadLink | null {
+  return downloadLinks.take(token);
+}
+
+export function peekDownloadLink(token: string): DownloadLink | null {
+  return downloadLinks.peek(token);
 }

@@ -25,7 +25,7 @@ All calls are async.
   Field value is a literal (equality) or { $eq | $neq | $gt | $gte | $lt | $lte | $in | $nin | $contains | $exists: value }.
   order_by: [{ key: "column", dir: "asc" | "desc" }].
 - agenthands.storage.space(name) -> files in one storage space:
-  - put(key, data: string | Uint8Array | ArrayBuffer | Blob | ReadableStream, { contentType? }) -> { key, size, contentType, updatedAt, publicUrl }. Creates the space (private) if missing and replaces a file with the same key.
+  - put(key, data: string | Uint8Array | ArrayBuffer | Blob | ReadableStream, { contentType? }) -> { key, size, contentType, updatedAt, publicUrl }. Creates the space (private) if missing and replaces a file with the same key. contentType is detected from the bytes; the one you pass (or the key's extension) is kept only when the bytes agree.
   - get(key) -> Uint8Array | null; getText(key) -> string | null; getJson(key) -> parsed JSON | null; stream(key) -> ReadableStream | null
   - list(prefix?) -> { key, size, contentType, updatedAt, publicUrl }[] (up to 1000, sorted by key)
   - delete(key) -> { deleted: boolean }
@@ -47,11 +47,12 @@ export default async function main(input: { city: string; days?: number; tags?: 
 }
 
 - The snake_case tool name comes from @name. It must be unique.
-- Param types: string, number, boolean, object, string[], number[], enum like "a"|"b".
+- Param types: string, number, integer, boolean, object, string[], number[], boolean[], object[], enum:a|b (no quotes, no spaces).
 - Return any JSON-serializable value. Throw to report an error.
 - npm packages are installed automatically from import specifiers. If the npm name differs from the import path, add a trailing comment: import x from "x/sub" // bun: real-package
-- Use run_tool with "code" to test a draft before saving it with update_tool.
-- Optional icon: pass "icon" to create_tool or update_tool as one inline SVG string (update_tool with only icon keeps the code; icon="" removes it). It is shown as-is, no background or tint, at 18px in lists and 28px in cards, so use few bold shapes. currentColor becomes the grey UI text color; set explicit fill/stroke colors for a colored icon. Needs a square viewBox, under 8000 characters, plain SVG elements only (gradients, clipPath and mask are fine; no <script>, <style>, <image>, <foreignObject>, on* handlers or external href). Without a valid icon the UI shows the default Tools icon.
+- Change saved code with edit_tool_code: edits [{ old_string, new_string, replace_all? }] for exact-text replacements (in order, all or nothing; read the code with get_tool { tools } first), or code for a full rewrite. Test a draft first with run_tool { code }.
+- run_tool calls any saved tool by name right away, including one created in this session; no MCP reconnect is needed. Saved tools are not MCP tools of this session, so never call them by name. Read the input schemas first with get_tool_schema, which takes many tools at once.
+- Optional icon: pass "icon" to create_tool, or change it later with update_tool { tool, icon } (icon="" removes it). It is shown as-is, no background or tint, at 18px in lists and 28px in cards, so use few bold shapes. currentColor becomes the grey UI text color; set explicit fill/stroke colors for a colored icon. Needs a square viewBox, under 8000 characters, plain SVG elements only (gradients, clipPath and mask are fine; no <script>, <style>, <image>, <foreignObject>, on* handlers or external href). Without a valid icon the UI shows the default Tools icon.
 - To expose tools to an MCP client, create a hosted MCP server with create_mcp_server and assign the tools.
 
 ${RUNTIME}`;
@@ -85,7 +86,8 @@ Output
 - agenthands.output(value) records a JSON result (up to 256KB) on the run. The last call wins. run_job wait=true and get_job_runs return it. Store large data in a datatable and output a summary.
 
 Running and limits
-- run_job starts a run now, optionally with input. With wait=true it returns status, output, error and logs when the run finishes (up to 120s).
+- run_job starts a run now, optionally with input. With wait=true it returns status, output, error and the last 50 log lines when the run finishes (up to 120s).
+- get_job_runs lists runs without logs; pass run=<id> for one run with its logs, and log_offset / log_limit to page.
 - timeout_ms caps one attempt (default 300000).
 - clear_job_runs (confirm=true) deletes the finished run history. Only when the user asks.
 - max_retries (0-5) re-runs the whole script when it fails or times out, waiting 5s, 10s, 20s… Each attempt sees agenthands.run.attempt. Use it only when the script is safe to run twice; otherwise retry inside a step.
@@ -97,7 +99,7 @@ ${RUNTIME}`;
 
 const SITES = `## Sites
 
-A site is a small React app with a backend. There is no draft or review step: write_site_file changes the live site at once.
+A site is a small React app with a backend. There is no draft or review step: edit_site_file changes the live site at once.
 
 Files:
 - app.tsx: export default function App() { ... }. Import data helpers from "./site-api.js":
@@ -112,7 +114,7 @@ Files:
 - styles.css: plain CSS, applied to the page automatically.
 - package.json is generated from imports. Do not hand-edit dependencies.
 
-Workflow: create_site -> write_site_file (app.tsx, backend.ts, styles.css) -> preview_site (checks the bundle and backend GET; fix any error right away, since visitors already see the change) -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password; create_site and publish_site return its full url.
+Workflow: create_site -> get_site_files -> edit_site_file (app.tsx, backend.ts, styles.css; edits for exact-text replacements, content for a whole file) -> preview_site (checks the bundle and backend GET; fix any error right away, since visitors already see the change) -> publish_site. A published site is served at /public/sites/<slug>, optionally behind a password; create_site and publish_site return its full url.
 
 ${RUNTIME}`;
 

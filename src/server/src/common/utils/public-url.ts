@@ -52,3 +52,10 @@ export function publicBaseUrl(): string {
 export function absoluteUrl(path: string): string {
   return `${publicBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+export function requestOrigin(request: Request): string {
+  const url = new URL(request.url);
+  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || request.headers.get("host") || url.host;
+  return `${proto === "http" || proto === "https" ? proto : url.protocol.slice(0, -1)}://${host}`;
+}

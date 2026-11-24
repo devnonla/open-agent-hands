@@ -67,20 +67,27 @@ describe("KV projects", () => {
   });
 
   test("Core MCP reads and writes per project", async () => {
-    expect((await call("kv_get", { key: "BASE_URL" })).value).toBe("default");
-    expect((await call("kv_get", { key: "BASE_URL", project: "crm" })).value).toBe("crm");
+    expect((await call("kv_get", { keys: ["BASE_URL"] })).value).toEqual({ project: "default", values: { BASE_URL: "default" } });
+    expect((await call("kv_get", { keys: ["BASE_URL", "UNSET"], project: "crm" })).value).toEqual({ project: "crm", values: { BASE_URL: "crm", UNSET: null } });
 
-    const missing = await call("kv_get", { key: "BASE_URL", project: "nope" });
+    const missing = await call("kv_get", { keys: ["BASE_URL"], project: "nope" });
     expect(missing.isError).toBe(true);
     expect(missing.text).toContain("kv_list_projects");
 
-    expect((await call("kv_set", { key: "LAST_RUN", value: "1", project: "reports" })).isError).toBe(false);
+    expect((await call("kv_set", { entries: [{ key: "LAST_RUN", value: "1" }], project: "reports" })).value).toEqual({ project: "reports", saved: ["LAST_RUN"] });
     const listed = (await call("kv_list_projects")).value as { name: string; keyCount: number }[];
     expect(listed.map((p) => p.name)).toEqual(["default", "crm", "reports"]);
 
     const all = (await call("kv_list")).value as { project: string; key: string }[];
     expect(all.map((e) => `${e.project}/${e.key}`).sort()).toEqual(["crm/BASE_URL", "default/BASE_URL", "reports/LAST_RUN"]);
     expect(((await call("kv_list", { project: "reports" })).value as unknown[]).length).toBe(1);
+
+    await call("kv_set", { entries: [{ key: "LONG", value: "v".repeat(5000) }], project: "reports" });
+    const long = ((await call("kv_list", { project: "reports" })).value as { key: string; value: string; valueChars?: number }[]).find((e) => e.key === "LONG");
+    expect(long?.valueChars).toBe(5000);
+    expect(long?.value.length).toBeLessThan(260);
+    expect(((await call("kv_get", { keys: ["LONG"], project: "reports" })).value as { values: { LONG: string } }).values.LONG.length).toBe(5000);
+    await call("kv_delete", { keys: ["LONG"], project: "reports", confirm: true });
 
     expect((await call("kv_delete_project", { project: "reports" })).isError).toBe(true);
     expect((await call("kv_delete_project", { project: "reports", confirm: true })).value).toEqual({ ok: true, deletedKeys: 1 });

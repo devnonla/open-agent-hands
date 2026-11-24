@@ -19,8 +19,8 @@ import secretsRoute from "./modules/secrets/secrets.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
 import publicSitesRoute from "./modules/sites/public-sites.route.js";
 import sitesRoute from "./modules/sites/sites.route.js";
-import storageRoute, { contentDisposition } from "./modules/storage/storage.route.js";
-import { getPublicFile, fileEtag, fileBlob } from "./modules/storage/storage.service.js";
+import storageRoute, { contentDisposition, publicStorageLinksRoute } from "./modules/storage/storage.route.js";
+import { getPublicFile, fileEtag, fileBlob, isPassiveMedia } from "./modules/storage/storage.service.js";
 import { getPublicSiteAsset, renderPublicSiteDocument } from "./modules/sites/sites.service.js";
 import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
@@ -100,6 +100,7 @@ export function createApp(): Hono {
   app.route("/api/sites", sitesRoute);
   app.route("/api/public/sites", publicSitesRoute);
   app.route("/api/storage", storageRoute);
+  app.route("/api/public/storage", publicStorageLinksRoute);
   app.route("/api/jobs", jobsRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/api-keys", apiKeysRoute);
@@ -171,11 +172,11 @@ export function createApp(): Hono {
       "Content-Type": file.contentType,
       "Content-Disposition": contentDisposition("inline", file.key),
       "Cache-Control": "private, max-age=60",
-      "Content-Security-Policy": "sandbox",
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow, noarchive",
       "Referrer-Policy": "no-referrer",
       ETag: etag,
+      ...(isPassiveMedia(file.contentType) ? {} : { "Content-Security-Policy": "sandbox" }),
     };
     if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers });
     return new Response(fileBlob(file), { headers: { ...headers, "Content-Length": String(file.size) } });

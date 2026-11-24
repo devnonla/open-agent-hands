@@ -6,7 +6,7 @@ import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { slugify } from "../../common/utils/slug.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { normalizeToolIcon } from "./common/tool-icon.js";
-import { buildJsonSchemaFromCode, isAnnotationComment, parseMetaFromCode, syncAnnotationHeader } from "./common/code-annotations.js";
+import { buildJsonSchemaFromCode, isAnnotationComment, paramAnnotationError, parseMetaFromCode, syncAnnotationHeader } from "./common/code-annotations.js";
 import { executeTool, removeToolSandbox } from "./common/tool-runner.js";
 
 async function nextSortOrder(folderId: string | null): Promise<number> {
@@ -93,7 +93,7 @@ export async function updateTool(id: string, body: Partial<NewAgentTool>) {
 
   // Derive metadata from // @name / // @description / // @param comments, then
   // canonicalize those headers in the stored code so share/export stays self-describing.
-  if (body.codeContent) {
+  if (typeof body.codeContent === "string") {
     const submittedCode = body.codeContent;
     const code = submittedCode;
     const meta = parseMetaFromCode(code);
@@ -115,9 +115,10 @@ export async function updateTool(id: string, body: Partial<NewAgentTool>) {
     if (errors.length > 0) {
       throw new BadRequestException(`Missing required: ${errors.join(", ")}`);
     }
+    const typeError = paramAnnotationError(code);
+    if (typeError) throw new BadRequestException(typeError);
 
-    const schemaFromCode = buildJsonSchemaFromCode(code);
-    const parameters = body.parameters ?? (Object.keys(schemaFromCode.properties).length > 0 ? schemaFromCode : existing.parameters);
+    const parameters = body.parameters ?? buildJsonSchemaFromCode(code);
 
     body.label = label;
     if (!body.name) body.name = meta.name || slugify(label, "_");

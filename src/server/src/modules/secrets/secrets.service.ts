@@ -16,7 +16,7 @@ export type SecretMeta = {
   updatedAt: Date;
 };
 
-function assertKey(key: string) {
+export function assertKey(key: string) {
   if (!KEY_RE.test(key)) {
     throw new BadRequestException("Key must match [A-Z][A-Z0-9_]* (e.g. API_TOKEN)");
   }

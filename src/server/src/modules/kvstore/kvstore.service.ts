@@ -9,7 +9,7 @@ const KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 const PROJECT_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const DEFAULT_KV_PROJECT = "default";
 
-function assertKey(key: string) {
+export function assertKey(key: string) {
   if (!KEY_RE.test(key)) {
     throw new BadRequestException("Key must match [A-Z][A-Z0-9_]* (e.g. BASE_URL)");
   }
