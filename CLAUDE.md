@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Agent Hands (`agenthands`) is a local, single-binary server for **tools, MCP, KV, secrets, datatables, file storage and cron jobs**. AI coding agents (Claude Code, Codex) connect to it over MCP. Stack: Bun + Hono API, React 19/Vite UI, SQLite via Drizzle. Bun workspaces are `src/server` and `src/web`. Requires Bun ≥ 1.4.3.
+Agent Hands (`agenthands`) is a local, single-binary server for **tools, MCP, KV, secrets, datatables, file storage and cron jobs**. AI coding agents (Claude Code, Codex) connect to it over MCP. Stack: Bun + Hono API, React 19/Vite UI, SQLite via Drizzle. Bun workspaces are `src/server`, `src/web` and `src/cli`. Requires Bun ≥ 1.4.3.
 
 It has no in-app LLM agents. The agent, chat, provider, skill and team features, the outbound remote MCP client, multi-user management and roles, workspaces, plus Postgres, were removed on purpose. The root `Dockerfile` and `docker-compose.yml` only package the single binary for a VPS; keep them that thin. The `Dockerfile` default target builds from source, and its `release` target wraps a prebuilt linux binary for the GHCR image that `docker-compose.yml` pulls. It is single-user: one account created at `/setup`, and every authenticated request has full access. Don't reintroduce them.
 
@@ -28,17 +28,19 @@ bun run build                  # vite build web, then compile single binary → 
 bun run build:binary:all       # cross-compile dist/agenthands-{darwin,linux}-{arm64,x64}
 bun run build:desktop          # binary + Tauri app → desktop/src-tauri/target/release/bundle/{macos,dmg} (needs Rust; --skip-binary, --debug)
 bun run start                  # run server from source
-bun run test                   # bun test src/server/src/__tests__/
+bun run test                   # bun test src/server/src/__tests__/ src/cli/test/
 bun test src/server/src/__tests__/tools.test.ts -t "name"   # single file / test
 bun run lint                   # biome lint (web only)
 bun run typecheck              # web (cd src/web && bun check)
 bun run typecheck:server       # server (cd src/server && bun check)
+bun run typecheck:cli          # oahctl CLI (cd src/cli && bun check)
+bun run build:cli              # dist/oahctl.js, the oahctl client (Node 18+ or Bun)
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, both typechecks and tests. Use Conventional Commits (`feat(scope): …`) and branches named `feat/`, `fix/`, `docs/`, `refactor/` or `chore/`.
 
 **Releasing:** always follow the `release` skill (`.claude/skills/release/SKILL.md`), every gate, in order. Pushing a `v*` tag runs `release.yml`:
-- an ubuntu job builds the 4 binaries and `install.sh`, and creates the release with notes taken from the matching `CHANGELOG.md` section;
+- an ubuntu job builds the 4 binaries, the `oahctl` client (`dist/oahctl.js`) and `install.sh`, and creates the release with notes taken from the matching `CHANGELOG.md` section;
 - a `docker` job wraps the linux binaries in the `Dockerfile` `release` target and pushes `ghcr.io/devnonla/open-agent-hands` (`X.Y.Z`, `X.Y`, `latest`; amd64 + arm64);
 - a `macos-latest` job reuses the darwin binaries from that job and adds `OpenAgentHands-darwin-{arm64,x64}.app.tar.gz`.
 
@@ -52,6 +54,7 @@ Dry-run with `gh workflow run Release --ref main` before tagging. Never retag a 
 - `index.ts` is the CLI entry (`--port/--host/--data-dir`). It runs `initDb` (applies migrations), then `startJobsScheduler`, then `createAppServer` (`common/ws/create-app-server.ts`: Bun HTTP + `/ws` WebSocket for UI live updates via `wsHub`). `app.ts` mounts the routers and serves the SPA.
 - Feature code lives in `modules/<feature>/*.route.ts` + `*.service.ts`. The features are tools, tool-folders, my-mcp-servers (hosted MCP), sites, kvstore, secrets, datatables, storage, jobs, settings, auth, api-keys and v1.
 - **Core MCP** (`modules/core-mcp/`): a built-in admin MCP server at `POST /mcp/core`, authenticated with a single `ah_core_…` Bearer key. The key is generated on first use and stored encrypted in `configurations.core_mcp_key`; `/api/core-mcp` shows it and `/api/core-mcp/rotate` replaces it. `core-mcp.tools.ts` is the tool catalog. Each tool calls the existing services directly. `core-mcp-guide.ts` holds the authoring guide that `get_guide` returns. When you add a feature, add matching core tools.
+- **CLI `oahctl`** (`src/cli/`, its own workspace): a small client, separate from the server binary, that only speaks HTTP to `POST /mcp/core`. It must stay Node 18+ compatible (no Bun APIs; its tsconfig has only node types) and is built by `scripts/build-cli.ts` into one file, `dist/oahctl.js`, shipped as a release asset and installed by `install.sh` (`AGENTHANDS_CLI_ONLY=1` for the client alone). It saves several servers (`login`/`logout`/`servers`/`use`, `~/.config/agenthands/credentials.json`, mode 600) and picks one by `-s/--server`, `AGENTHANDS_SERVER`, `AGENTHANDS_URL`+`AGENTHANDS_KEY`, the nearest `.agenthands.json` (`pin`), then the default. Every other command is a Core MCP tool: the CLI reads `tools/list` and turns `inputSchema` into positionals and flags (`args.ts`), so a new core tool is a CLI command with no CLI change. Help groups tools by `_meta["agenthands/group"]`, which the server sets from `core-mcp-groups.ts`. `upload`/`download` wrap the storage link tools. Tests are in `src/cli/test/` and run against the real app.
 - **MCP plumbing**: `common/mcp/json-rpc.ts` is the shared stateless JSON-RPC/Streamable-HTTP handler used by both Core MCP and hosted MCP servers.
 - **Hosted MCP**: `modules/my-mcp-servers/mcp-http.route.ts` is a stateless JSON-RPC Streamable HTTP endpoint at `POST /mcp/:id`, authenticated with a per-server `ra_mcp_…` Bearer key. It exposes the tools assigned to that server and runs them through `executeTool`.
 - **Tool execution**: `modules/tools/common/tool-runner.ts` writes the tool code into a per-tool sandbox dir under `DATA_DIR`. It `bun add`s any detected imports, then spawns `process.execPath` wrapped by `common/sandbox` (bubblewrap on Linux, Seatbelt on macOS, otherwise unsandboxed). Tool metadata and the JSON schema come from `// @name`, `// @description` and `// @param` annotations (`common/code-annotations.ts`).

@@ -56,15 +56,9 @@ Then open **http://127.0.0.1:8429**, create your account. Everything stays on yo
 
 ## Connect your agent
 
-1. In the app, open **MCP Servers**.
-2. Copy the command from the **Core MCP** card and run it in a terminal:
-
-   ```bash
-   claude mcp add --transport http agenthands http://127.0.0.1:8429/mcp/core --scope user \
-     --header "Authorization: Bearer <core-key>"
-   ```
-
-3. Install the skill so Claude Code knows the exact formats for tools, jobs, sites and datatables, and reads only the part it needs:
+1. In the app, open **Connect**.
+2. On the **CLI** tab (recommended), click **Copy setup prompt** and paste it into your agent. It installs `oahctl`, logs in to this server and checks that it works. Agents that can't run shell commands use the **MCP** tab instead, which has the endpoint, the key and an MCP setup prompt.
+3. The prompt also installs the skill in Claude Code, so it knows the exact formats for tools, jobs, sites and datatables. To do it by hand:
 
    ```bash
    claude plugin marketplace add devnonla/open-agent-hands
@@ -79,12 +73,48 @@ The agent reads the built-in guide, writes the tool, runs it until it works and 
 
 To use those tools from **another** client (Cursor, Claude Desktop, another agent), click **Connect** on the server card. You get the URL, a private token and a ready-to-paste config. Each server exposes only the tools assigned to it.
 
+## Use it from the command line
+
+`oahctl` is a small command line client (about 20 KB, runs on Node 18+ or Bun), separate from the server. `install.sh` installs it next to the app. Any agent that can run shell commands can use it with no MCP setup, and one `oahctl` can talk to several servers.
+
+On a machine that only needs the client:
+
+```bash
+curl -fsSL https://github.com/devnonla/open-agent-hands/releases/latest/download/install.sh | AGENTHANDS_CLI_ONLY=1 sh
+```
+
+```bash
+oahctl login                                           # the local app; asks for the Core MCP key
+oahctl login ah_core_…                                 # or pass the key right away
+oahctl login https://hands.example.com ah_core_… --name vps
+oahctl servers                                          # saved servers and which one applies here
+```
+
+The **Connect** page in the app has a setup prompt to paste into your agent, plus the server address, key and login command.
+
+Every Core MCP tool is a command, with the same name and arguments:
+
+```bash
+oahctl list_tools
+oahctl tools create --code-file ./weather.ts            # --<arg>-file reads a value from a file
+oahctl run_tool weather --input '{"city":"Hanoi"}'
+oahctl kv set BASE_URL=https://api.example.com
+oahctl upload reports ./q3.pdf ./charts/                # files or folders, any size
+oahctl download reports q3.pdf --out ./tmp
+oahctl help kv_set                                      # a command's arguments
+```
+
+Pick the server with `-s vps`, `AGENTHANDS_SERVER=vps`, or pin a project folder with `oahctl pin vps` (writes `.agenthands.json`). Otherwise the default is used, set with `oahctl use <name>`. Each call prints the server it talks to on stderr, and results are JSON on stdout. Keys are kept in `~/.config/agenthands/credentials.json` (mode 600). In CI, set `AGENTHANDS_URL` and `AGENTHANDS_KEY` instead of logging in.
+
+In Claude Code, allow the commands once so it does not ask every time: add `"Bash(oahctl:*)"` to `permissions.allow` in `~/.claude/settings.json`.
+
 ## Day to day
 
 Agents create things. You mostly look, and step in when needed.
 
 | Area | What you do here |
 | --- | --- |
+| **Connect** | Copy the setup prompt for your agent (CLI or MCP), see the key, rotate it |
 | **MCP Servers** | Copy connect info, turn a server on or off, rotate its token |
 | **Tools** | Read and fix code, group tools into folders |
 | **Jobs** | See the schedule in plain words and the next runs, pause or resume, run now, read the logs |
@@ -100,17 +130,17 @@ Things you might ask an agent:
 - *"Add a tool that converts text to a URL slug and put it on the Everyday server."*
 
 <details>
-<summary><b>Everything the Core MCP can do</b> (58 tools)</summary>
+<summary><b>Everything the Core MCP can do</b> (59 tools)</summary>
 
 | Group | Tools |
 | --- | --- |
 | Guide | `get_guide` |
-| Tools | `list_tools` `get_tool` `create_tool` `update_tool` `run_tool` `delete_tool` `manage_tool_folder` `move_tool` |
+| Tools | `list_tools` `get_tool_schema` `get_tool` `create_tool` `edit_tool_code` `update_tool` `run_tool` `delete_tool` `manage_tool_folder` `move_tool` |
 | MCP servers | `list_mcp_servers` `create_mcp_server` `update_mcp_server` `add_tools_to_mcp_server` `remove_tools_from_mcp_server` `delete_mcp_server` |
 | KV & secrets | `kv_list_projects` `kv_list` `kv_get` `kv_set` `kv_delete` `kv_delete_project` `secret_list` `secret_set` `secret_delete` |
-| Datatables | `datatable_list_projects` `datatable_create_project` `datatable_get_schema` `datatable_create_table` `datatable_add_column` `datatable_query` `datatable_insert_rows` `datatable_update_row` `datatable_delete_rows` `datatable_delete_project` |
-| Storage | `storage_list_spaces` `storage_create_space` `storage_update_space` `storage_delete_space` `storage_list_files` `storage_put_file` `storage_get_file` `storage_delete_file` `storage_reset_public_link` |
-| Sites | `list_sites` `create_site` `get_site_files` `write_site_file` `preview_site` `publish_site` `delete_site` |
+| Datatables | `datatable_list_projects` `datatable_create_project` `datatable_get_schema` `datatable_create_table` `datatable_add_columns` `datatable_query` `datatable_insert_rows` `datatable_update_rows` `datatable_delete_rows` `datatable_delete_project` |
+| Storage | `storage_list_spaces` `storage_create_space` `storage_update_space` `storage_delete_space` `storage_list_files` `storage_upload_link` `storage_download_link` `storage_get_file` `storage_delete_file` `storage_reset_public_link` |
+| Sites | `list_sites` `create_site` `get_site_files` `edit_site_file` `preview_site` `publish_site` `delete_site` |
 | Jobs | `list_jobs` `get_job` `create_job` `update_job` `run_job` `get_job_runs` `clear_job_runs` `delete_job` |
 
 The code agents write uses a small runtime SDK:
@@ -254,7 +284,7 @@ Something else is listening on 8429. Find it with `lsof -nP -iTCP:8429 -sTCP:LIS
 <summary><b>My agent can't connect</b></summary>
 
 - Check that the app (or `agenthands`) is running: open http://127.0.0.1:8429.
-- Copy the command again from the **Core MCP** card. If you rotated the key, the old one stops working.
+- Copy the setup prompt again from **Connect**. If you rotated the key, the old one stops working.
 - For a hosted server, check it is turned **on** and use its own token from **Connect**.
 
 </details>
