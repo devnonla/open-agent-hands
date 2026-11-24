@@ -59,6 +59,18 @@ describe("API Keys", () => {
     expect(row?.keyPrefix).toBe(rawKey.slice(0, 12));
   });
 
+  test("GET /api/api-keys/:id — detail names the KV keys it can reach", async () => {
+    const entry = (await (await authRequest(app, adminToken, "POST", "/api/kvstore", { key: "DETAIL_KEY", value: "v" })).json()) as { id: string };
+    const created = (await (await authRequest(app, adminToken, "POST", "/api/api-keys", { name: "Scoped", kvEntryIds: [entry.id] })).json()) as { id: string };
+    const res = await authRequest(app, adminToken, "GET", `/api/api-keys/${created.id}`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data).toMatchObject({ name: "Scoped", datatableProjects: [], kvEntries: [{ id: entry.id, key: "DETAIL_KEY", projectName: "default" }] });
+    expect(data).not.toHaveProperty("keyHash");
+    expect(data).not.toHaveProperty("key");
+    expect((await authRequest(app, adminToken, "GET", "/api/api-keys/missing")).status).toBe(404);
+  });
+
   test("PUT /api/api-keys/:id — update name and scope", async () => {
     const res = await authRequest(app, adminToken, "PUT", `/api/api-keys/${keyId}`, {
       name: "Prod key v2",

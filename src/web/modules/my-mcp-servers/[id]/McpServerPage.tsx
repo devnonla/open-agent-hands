@@ -1,7 +1,6 @@
 import { Empty, Spin } from "devnonla-ui";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { apiClient } from "src/common/api";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import type { MyMcpServer } from "src/common/types";
 import { ContentBreadcrumb, ContentHeader } from "src/components/ContentBreadcrumb";
 import { FeatureIcon } from "src/components/FeatureIcon";
@@ -10,27 +9,10 @@ import { WindowHeaderBackButton } from "src/components/WindowHeaderBackButton";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { CORE_KEY } from "../common/constants";
 import { fetchOneMyMcpServer, toMyMcpServerListItem, upsertMyMcpServerLocal } from "../common/myMcpServersSlice";
-import { CoreMcpDetail, type CoreMcpInfo } from "../components/CoreMcpDetail";
 import { McpServerDetail } from "../components/McpServerDetail";
 import { MyMcpTokenDialog } from "../components/MyMcpTokenDialog";
 
 const LIST_PATH = "/mcp-servers";
-
-function CorePanel() {
-  const [core, setCore] = useState<CoreMcpInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiClient
-      .get<CoreMcpInfo>("/api/core-mcp")
-      .then(setCore)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load the core MCP"));
-  }, []);
-
-  if (error) return <Empty className="py-16" description={error} />;
-  if (!core) return <Spin className="flex justify-center py-16" />;
-  return <CoreMcpDetail info={core} onKeyRotated={(key) => setCore((prev) => (prev ? { ...prev, key } : prev))} />;
-}
 
 function ServerPanel({ id }: { id: string }) {
   const navigate = useNavigate();
@@ -73,7 +55,9 @@ function ServerPanel({ id }: { id: string }) {
 
 export default function McpServerPage() {
   const { id = CORE_KEY } = useParams<{ id: string }>();
-  const name = useAppSelector((s) => (id === CORE_KEY ? "Core MCP" : ((s.myMcpServers.items as MyMcpServer[]).find((item) => item.id === id)?.name ?? "MCP server")));
+  const name = useAppSelector((s) => (s.myMcpServers.items as MyMcpServer[]).find((item) => item.id === id)?.name ?? "MCP server");
+
+  if (id === CORE_KEY) return <Navigate to="/connect/mcp" replace />;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -85,7 +69,7 @@ export default function McpServerPage() {
           </div>
         }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto">{id === CORE_KEY ? <CorePanel /> : <ServerPanel id={id} />}</div>
+      <div className="flex min-h-0 flex-1 flex-col"><ServerPanel id={id} /></div>
     </div>
   );
 }

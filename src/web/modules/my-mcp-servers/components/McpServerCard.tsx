@@ -1,5 +1,6 @@
 import { Card, Tag } from "devnonla-ui";
 import type { ReactNode } from "react";
+import { CARD_HOVER } from "src/components/card-hover";
 
 export function McpServerCard({ icon, name, meta, description, tag, onOpen }: { icon: ReactNode; name: string; meta: string; description: string; tag?: ReactNode; onOpen: () => void }) {
   return (
@@ -13,7 +14,7 @@ export function McpServerCard({ icon, name, meta, description, tag, onOpen }: { 
         e.preventDefault();
         onOpen();
       }}
-      className="h-full min-w-0 cursor-pointer transition-transform [&>div]:flex-1 duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-focus-ring"
+      className={`h-full min-w-0 cursor-pointer [&>div]:flex-1 focus-visible:outline-2 focus-visible:outline-focus-ring ${CARD_HOVER}`}
     >
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-3">
@@ -30,6 +31,6 @@ export function McpServerCard({ icon, name, meta, description, tag, onOpen }: { 
   );
 }
 
-export function OffTag() {
-  return <Tag>Off</Tag>;
+export function DisabledTag() {
+  return <Tag>Disabled</Tag>;
 }

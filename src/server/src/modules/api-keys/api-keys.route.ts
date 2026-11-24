@@ -1,13 +1,15 @@
 import { Hono } from "hono";
 import type { User } from "../../common/db/client.js";
 import { requireAuth } from "../../common/middleware/auth.middleware.js";
-import { type ApiKeyWriteBody, createApiKey, deleteApiKey, listApiKeys, revokeApiKey, updateApiKey } from "./api-keys.service.js";
+import { type ApiKeyWriteBody, createApiKey, deleteApiKey, getApiKey, listApiKeys, revokeApiKey, updateApiKey } from "./api-keys.service.js";
 
 const app = new Hono();
 
 app.use("*", requireAuth);
 
 app.get("/", async (c) => c.json(await listApiKeys()));
+
+app.get("/:id", async (c) => c.json(await getApiKey(c.req.param("id"))));
 
 app.post("/", async (c) => {
   const user = (c as any).get("user") as User;

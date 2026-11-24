@@ -221,6 +221,11 @@ export interface ApiKey {
   key?: string;
 }
 
+export interface ApiKeyDetail extends ApiKey {
+  datatableProjects: { id: string; name: string }[];
+  kvEntries: { id: string; key: string; projectId: string; projectName: string }[];
+}
+
 export type SiteSourceFile = "app.tsx" | "backend.ts" | "styles.css" | "package.json";
 
 export interface Site {

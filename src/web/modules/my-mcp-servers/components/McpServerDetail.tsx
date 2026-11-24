@@ -1,5 +1,5 @@
 import { Alert, Button, ButtonCopy, Card, CodeBlock, Icon, PageHeader, Popconfirm, Switch, message } from "devnonla-ui";
-import { PageBand } from "src/components/PageShell";
+import { PageBand, PAGE_GUTTER, PageScroll } from "src/components/PageShell";
 import { useState } from "react";
 import { apiClient } from "src/common/api";
 import { nameAccent } from "src/common/lib/accent";
@@ -72,70 +72,71 @@ export function McpServerDetail({ server, onRotated, onDeleted }: { server: MyMc
             description={server.description?.trim() ? <span className="block pl-13">{server.description.trim()}</span> : undefined}
             extra={
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                {server.isActive ? "On" : "Off"}
-                <Switch checked={server.isActive} disabled={isPending(server.id)} onChange={(checked) => void toggle(server, checked)} aria-label={server.isActive ? "Turn off" : "Turn on"} />
+                {server.isActive ? "Active" : "Disabled"}
+                <Switch checked={server.isActive} disabled={isPending(server.id)} onChange={(checked) => void toggle(server, checked)} aria-label={server.isActive ? "Disable server" : "Activate server"} />
               </span>
             }
           />
         }
       />
-      <div className="@container mx-auto flex w-full max-w-3xl flex-col gap-6 px-10 pt-6 pb-12">
+      <PageScroll>
+        <div className={`@container mx-auto flex w-full max-w-3xl flex-col gap-6 pt-6 pb-12 ${PAGE_GUTTER}`}>
+          <RenderIf condition={!server.isActive}>
+            <Alert type="warning" showIcon description="This server is off. Clients are rejected until you turn it on." />
+          </RenderIf>
 
-      <RenderIf condition={!server.isActive}>
-        <Alert type="warning" showIcon description="This server is off. Clients are rejected until you turn it on." />
-      </RenderIf>
+          <Card title="Connect" caption="The token is shown only once, so the agent asks you for it. Lost it? Get a new token.">
+            <Card.Item label="Setup prompt" description="For Claude Code, Codex or Cursor. The agent adds the server and checks it." align="center" className="flex-col items-stretch! gap-3 @lg:flex-row @lg:items-center!">
+              <span className="flex items-center justify-end gap-2">
+                <Button size="small" type="text" onClick={() => setShowPrompt((v) => !v)}>
+                  {showPrompt ? "Hide" : "Preview"}
+                </Button>
+                <Button size="small" type="primary" icon={<Icon name="copy" size={13} />} onClick={() => void copyText(prompt, "Setup prompt copied. Paste it into your agent.")}>
+                  Copy prompt
+                </Button>
+              </span>
+            </Card.Item>
+            <RenderIf condition={showPrompt}>
+              <div className="px-4 pb-3">
+                <CodeBlock code={prompt} language="plaintext" title="Setup prompt" wordWrap className="max-h-64 overflow-auto" />
+              </div>
+            </RenderIf>
+            <Card.Item label="Endpoint" description={<code className="font-mono text-xs break-all">{url}</code>} align="center">
+              <ButtonCopy text={url} label="Copy endpoint" />
+            </Card.Item>
+            <Card.Item label="Token" description={<code className="font-mono text-xs">{server.keyPrefix}…</code>} align="center">
+              <Popconfirm title="Get a new token?" description="The current token stops working right away. You get a new one, with a prompt that already includes it." okText="Get new token" onConfirm={() => void handleRotate()}>
+                <Button size="small" icon={<Icon name="refresh" size={12} />} loading={rotating}>
+                  New token
+                </Button>
+              </Popconfirm>
+            </Card.Item>
+          </Card>
 
-      <Card title="Connect" caption="The token is shown only once, so the agent asks you for it. Lost it? Get a new token.">
-        <Card.Item label="Setup prompt" description="For Claude Code, Codex or Cursor. The agent adds the server and checks it." align="center" className="flex-col items-stretch! gap-3 @lg:flex-row @lg:items-center!">
-          <span className="flex items-center justify-end gap-2">
-            <Button size="small" type="text" onClick={() => setShowPrompt((v) => !v)}>
-              {showPrompt ? "Hide" : "Preview"}
-            </Button>
-            <Button size="small" type="primary" icon={<Icon name="copy" size={13} />} onClick={() => void copyText(prompt, "Setup prompt copied. Paste it into your agent.")}>
-              Copy prompt
-            </Button>
-          </span>
-        </Card.Item>
-        <RenderIf condition={showPrompt}>
-          <div className="px-4 pb-3">
-            <CodeBlock code={prompt} language="plaintext" title="Setup prompt" wordWrap className="max-h-64 overflow-auto" />
-          </div>
-        </RenderIf>
-        <Card.Item label="Endpoint" description={<code className="font-mono text-xs break-all">{url}</code>} align="center">
-          <ButtonCopy text={url} label="Copy endpoint" />
-        </Card.Item>
-        <Card.Item label="Token" description={<code className="font-mono text-xs">{server.keyPrefix}…</code>} align="center">
-          <Popconfirm title="Get a new token?" description="The current token stops working right away. You get a new one, with a prompt that already includes it." okText="Get new token" onConfirm={() => void handleRotate()}>
-            <Button size="small" icon={<Icon name="refresh" size={12} />} loading={rotating}>
-              New token
-            </Button>
-          </Popconfirm>
-        </Card.Item>
-      </Card>
+          <Card title={`Tools (${tools.length})`} caption="Switch a tool on to expose it on this server. Changes apply right away.">
+            <McpServerToolTree server={server} />
+          </Card>
 
-      <Card title={`Tools (${tools.length})`} caption="Switch a tool on to expose it on this server. Changes apply right away.">
-        <McpServerToolTree server={server} />
-      </Card>
+          <Card title="Activity">
+            <Card.Item label="Last used" align="center">
+              <span className="text-muted-foreground">{server.lastUsedAt ? relativeTime(server.lastUsedAt) : "Never"}</span>
+            </Card.Item>
+            <Card.Item label="Created" align="center">
+              <span className="tabular-nums text-muted-foreground">{formatDateTime(server.createdAt)}</span>
+            </Card.Item>
+          </Card>
 
-      <Card title="Activity">
-        <Card.Item label="Last used" align="center">
-          <span className="text-muted-foreground">{server.lastUsedAt ? relativeTime(server.lastUsedAt) : "Never"}</span>
-        </Card.Item>
-        <Card.Item label="Created" align="center">
-          <span className="tabular-nums text-muted-foreground">{formatDateTime(server.createdAt)}</span>
-        </Card.Item>
-      </Card>
-
-      <Card title="Danger zone">
-        <Card.Item label="Delete server" description="Clients using this URL and token stop working. The tools themselves are kept." align="center">
-          <Popconfirm title={`Delete ${server.name}?`} description="This cannot be undone." okText="Delete" okType="danger" onConfirm={() => void handleDelete()}>
-            <Button danger icon={<Icon name="trash" size={14} />}>
-              Delete server
-            </Button>
-          </Popconfirm>
-        </Card.Item>
-      </Card>
-      </div>
+          <Card title="Danger zone">
+            <Card.Item label="Delete server" description="Clients using this URL and token stop working. The tools themselves are kept." align="center">
+              <Popconfirm title={`Delete ${server.name}?`} description="This cannot be undone." okText="Delete" okType="danger" onConfirm={() => void handleDelete()}>
+                <Button danger icon={<Icon name="trash" size={14} />}>
+                  Delete server
+                </Button>
+              </Popconfirm>
+            </Card.Item>
+          </Card>
+        </div>
+      </PageScroll>
     </>
   );
 }

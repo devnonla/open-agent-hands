@@ -9,6 +9,8 @@ import { useAppDispatch } from "./store/store";
 import "./index.css";
 
 const ToolsPage = lazy(() => import("./modules/tools/ToolsPage"));
+const ConnectPage = lazy(() => import("./modules/connect/ConnectPage"));
+const ApiKeyPage = lazy(() => import("./modules/connect/api-keys/[id]/ApiKeyPage"));
 const SettingsPage = lazy(() => import("./modules/settings/SettingsPage"));
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"));
 const SetupPage = lazy(() => import("./modules/auth/SetupPage"));
@@ -84,6 +86,8 @@ function AppContent() {
           <Route path="/workspaces" element={<Navigate to="/tools" replace />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/tools" replace />} />
+            <Route path="/connect/api/:id" element={<ApiKeyPage />} />
+            <Route path="/connect/*" element={<ConnectPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/tools/:id" element={<EditToolPage />} />
             <Route path="/mcp-servers" element={<MyMcpServersPage />} />

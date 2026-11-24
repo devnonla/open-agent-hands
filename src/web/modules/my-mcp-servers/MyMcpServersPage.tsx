@@ -1,22 +1,38 @@
-import { Card, Empty, SearchInput, Skeleton, Tag } from "devnonla-ui";
+import { Card, Empty, SearchInput, Skeleton, Tabs } from "devnonla-ui";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiClient } from "src/common/api";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { nameAccent } from "src/common/lib/accent";
 import { cn } from "src/common/lib/cn";
 import type { MyMcpServer } from "src/common/types";
-import { AppMark } from "src/components/AppLogo";
 import { AskClaudeHint } from "src/components/AskClaudeHint";
 import { PageHeader } from "src/components/PageHeader";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
+import { TabCount } from "src/components/TabCount";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-import { CORE_KEY } from "./common/constants";
 import { fetchMyMcpServers } from "./common/myMcpServersSlice";
 import { McpLogo } from "./components/McpLogo";
-import { McpServerCard, OffTag } from "./components/McpServerCard";
+import { McpServerCard, DisabledTag } from "./components/McpServerCard";
 
 const GRID = "grid grid-cols-1 gap-4 @min-[560px]:grid-cols-2 @min-[880px]:grid-cols-3";
+
+type ServerFilter = "all" | "active" | "disabled";
+
+const SERVER_FILTERS: { key: ServerFilter; label: string; empty: string }[] = [
+  { key: "all", label: "All", empty: "No servers" },
+  { key: "active", label: "Active", empty: "No server is active" },
+  { key: "disabled", label: "Disabled", empty: "Every server is active" },
+];
+
+function isServerFilter(value: string | null): value is ServerFilter {
+  return SERVER_FILTERS.some((f) => f.key === value);
+}
+
+function matchesFilter(server: MyMcpServer, filter: ServerFilter) {
+  if (filter === "active") return server.isActive;
+  if (filter === "disabled") return !server.isActive;
+  return true;
+}
 
 function toolCountLabel(count: number) {
   return `${count} ${count === 1 ? "tool" : "tools"}`;
@@ -27,23 +43,37 @@ export default function MyMcpServersPage() {
   const dispatch = useAppDispatch();
   const servers = useAppSelector((s) => s.myMcpServers.items) as MyMcpServer[];
   const [loading, setLoading] = useState(servers.length === 0);
-  const [coreToolCount, setCoreToolCount] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusParam = searchParams.get("status");
+  const filter: ServerFilter = isServerFilter(statusParam) ? statusParam : "all";
 
   useEffect(() => {
     void Promise.resolve(dispatch(fetchMyMcpServers())).finally(() => setLoading(false));
-    apiClient
-      .get<{ toolCount: number }>("/api/core-mcp")
-      .then((info) => setCoreToolCount(info.toolCount))
-      .catch(() => setCoreToolCount(null));
   }, [dispatch]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const sorted = [...servers].sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name));
+    const sorted = servers.filter((s) => matchesFilter(s, filter)).sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name));
     if (!q) return sorted;
     return sorted.filter((s) => s.name.toLowerCase().includes(q) || (s.description ?? "").toLowerCase().includes(q) || (s.tools ?? []).some((t) => t.name.toLowerCase().includes(q) || t.label.toLowerCase().includes(q)));
-  }, [servers, query]);
+  }, [servers, query, filter]);
+
+  const counts = useMemo(() => {
+    const active = servers.filter((s) => s.isActive).length;
+    return { all: servers.length, active, disabled: servers.length - active };
+  }, [servers]);
+
+  const setFilter = (next: string) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "all") params.delete("status");
+        else params.set("status", next);
+        return params;
+      },
+      { replace: true },
+    );
 
   const open = (id: string) => navigate(`/mcp-servers/${id}`);
 
@@ -53,34 +83,33 @@ export default function MyMcpServersPage() {
         <PageHeader
           title="MCP servers"
           icon="mcp"
-          description={servers.length > 6 ? undefined : "Expose your tools to AI apps."}
+          description={servers.length > 0 ? undefined : "Expose your tools to AI apps."}
           className="mb-0 pb-0"
           bordered={false}
           actions={servers.length > 6 ? <SearchInput placeholder="Find a server or tool" onChange={setQuery} wait={120} className="w-60" /> : undefined}
         />
       }
+      tabs={
+        servers.length > 0 ? (
+          <Tabs
+            aria-label="Filter servers"
+            activeKey={filter}
+            onChange={setFilter}
+            items={SERVER_FILTERS.map((f) => ({
+              key: f.key,
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  {f.label}
+                  <TabCount value={counts[f.key]} />
+                </span>
+              ),
+            }))}
+          />
+        ) : undefined
+      }
     >
-
       <div className="@container flex flex-col gap-8">
         <section className="flex flex-col gap-3">
-          <h2 className="m-0 text-sm font-medium text-muted-foreground">Built in</h2>
-          <div className={GRID}>
-            <McpServerCard
-              icon={<AppMark size={40} />}
-              name="Core MCP"
-              meta={coreToolCount != null ? toolCountLabel(coreToolCount) : "Admin server"}
-              description="Lets your agent create and manage tools, jobs, sites, data and secrets."
-              tag={<Tag color="brand">Admin</Tag>}
-              onOpen={() => open(CORE_KEY)}
-            />
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <h2 className="m-0 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            Your servers
-            <span className="tabular-nums text-tertiary-foreground">{servers.length}</span>
-          </h2>
           <RenderIf condition={!loading || servers.length > 0} fallback={<div className={GRID}>{["a", "b", "c"].map((key) => <Card key={key}><Skeleton active className="p-4" paragraph={{ rows: 2 }} /></Card>)}</div>}>
             <RenderIf
               condition={servers.length > 0}
@@ -90,7 +119,7 @@ export default function MyMcpServersPage() {
                 </Empty>
               }
             >
-              <RenderIf condition={visible.length > 0} fallback={<Empty className="py-10" description={`Nothing matches "${query}".`} />}>
+              <RenderIf condition={visible.length > 0} fallback={<Empty className="py-10" description={query.trim() ? `Nothing matches "${query}".` : SERVER_FILTERS.find((f) => f.key === filter)?.empty} />}>
                 <div className={GRID}>
                   {visible.map((server) => {
                     const accent = nameAccent(server.name);
@@ -105,7 +134,7 @@ export default function MyMcpServersPage() {
                         name={server.name}
                         meta={toolCountLabel(server.tools?.length ?? server.toolCount ?? 0)}
                         description={server.description?.trim() || ""}
-                        tag={server.isActive ? undefined : <OffTag />}
+                        tag={server.isActive ? undefined : <DisabledTag />}
                         onOpen={() => open(server.id)}
                       />
                     );

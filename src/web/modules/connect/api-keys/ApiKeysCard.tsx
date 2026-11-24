@@ -1,11 +1,11 @@
-import { Button, Empty, Popconfirm, Table, Tag, message, Icon } from "devnonla-ui";
+import { Button, Card, Empty, Icon, Popconfirm, Table, Tag, message } from "devnonla-ui";
 import type { ColumnsType } from "devnonla-ui";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import type { ApiKey, DatatableProject, KvProject, KvStoreEntry } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
+import { useNavigate } from "react-router-dom";
 import { ApiKeyFormDialog } from "./ApiKeyFormDialog";
-import { CreatedKeyDialog } from "./CreatedKeyDialog";
 
 function scopeLabel(unrestricted: boolean, count: number, singular: string, plural: string): string | null {
   if (unrestricted) return `All ${plural}`;
@@ -26,7 +26,8 @@ function AccessTags({ row }: { row: ApiKey }) {
   );
 }
 
-export function ApiKeysPage() {
+export function ApiKeysCard() {
+  const navigate = useNavigate();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [datatableProjects, setDatatableProjects] = useState<DatatableProject[]>([]);
   const [kvEntries, setKvEntries] = useState<KvStoreEntry[]>([]);
@@ -34,12 +35,16 @@ export function ApiKeysPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editKey, setEditKey] = useState<ApiKey | null>(null);
-  const [created, setCreated] = useState<ApiKey | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [keyResult, projectResult, kvResult, kvProjectResult] = await Promise.all([apiClient.get<{ items: ApiKey[] }>("/api/api-keys"), apiClient.get<DatatableProject[]>("/api/datatables/projects"), apiClient.get<{ items: KvStoreEntry[] }>("/api/kvstore", { sorts: "key" }), apiClient.get<{ items: KvProject[] }>("/api/kvstore/projects")]);
+      const [keyResult, projectResult, kvResult, kvProjectResult] = await Promise.all([
+        apiClient.get<{ items: ApiKey[] }>("/api/api-keys"),
+        apiClient.get<DatatableProject[]>("/api/datatables/projects"),
+        apiClient.get<{ items: KvStoreEntry[] }>("/api/kvstore", { sorts: "key" }),
+        apiClient.get<{ items: KvProject[] }>("/api/kvstore/projects"),
+      ]);
       setKeys(keyResult.items);
       setDatatableProjects(projectResult);
       setKvEntries(kvResult.items);
@@ -55,12 +60,9 @@ export function ApiKeysPage() {
     void load();
   }, [load]);
 
-  const withoutSecret = (row: ApiKey): ApiKey => ({ ...row, key: undefined });
-
   const handleCreated = (key: ApiKey) => {
-    setKeys((prev) => [withoutSecret(key), ...prev]);
     setShowCreate(false);
-    setCreated(key);
+    navigate(`/connect/api/${key.id}`, { state: { secret: key.key } });
   };
 
   const handleUpdated = (key: ApiKey) => {
@@ -101,7 +103,7 @@ export function ApiKeysPage() {
       width: 84,
       align: "right",
       render: (_, row) => (
-        <div className="flex items-center justify-end gap-0.5">
+        <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
           <Button type="icon" size="small" icon={<Icon name="pen" />} onClick={() => setEditKey(row)} aria-label={`Edit ${row.name}`} />
           <Popconfirm title="Delete this key?" okText="Delete" okType="danger" onConfirm={() => void handleDelete(row.id)}>
             <Button type="icon" size="small" icon={<Icon name="trash" />} aria-label={`Delete ${row.name}`} />
@@ -112,40 +114,32 @@ export function ApiKeysPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="m-0 text-sm text-muted-foreground">
-          {keys.length} key{keys.length !== 1 ? "s" : ""}
-        </p>
-        <Button type="primary" icon={<Icon name="add" size={14} />} onClick={() => setShowCreate(true)}>
-          New API key
-        </Button>
-      </div>
-
-      <Table
-        className="rounded-xl bg-card [&_th]:bg-card!"
-        rowKey="id"
-        columns={columns}
-        dataSource={keys}
-        loading={loading}
-        pagination={false}
-        locale={{
-          emptyText: (
-            <Empty
-              bordered={false}
-              icon="shield-check"
-              title="No API keys yet"
-              description="Create a key to access datatables and KV over HTTP."
-              className="py-8"
-              action={
-                <Button type="primary" size="small" icon={<Icon name="add" size={12} />} onClick={() => setShowCreate(true)}>
-                  New API key
-                </Button>
-              }
-            />
-          ),
-        }}
-      />
+    <>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <span className="text-sm leading-5 font-medium text-foreground">
+            API keys <span className="tabular-nums text-xs font-normal text-tertiary-foreground">{keys.length}</span>
+          </span>
+          <Button type="primary" size="small" icon={<Icon name="add" size={12} />} onClick={() => setShowCreate(true)}>
+            New API key
+          </Button>
+        </div>
+        <Card caption="Each key reaches only the datatables and KV keys you pick. Open a key for its prompt.">
+          <Table
+            className="rounded-xl [&_th]:bg-card!"
+            rowKey="id"
+            columns={columns}
+            dataSource={keys}
+            loading={loading}
+            pagination={false}
+            rowClassName="cursor-pointer"
+            onRow={(row) => ({ onClick: () => navigate(`/connect/api/${row.id}`) })}
+            locale={{
+              emptyText: <Empty bordered={false} icon="shield-check" title="No API keys yet" description="Create a key to call the HTTP API." className="py-8" />,
+            }}
+          />
+        </Card>
+      </section>
 
       <RenderIf condition={showCreate}>
         <ApiKeyFormDialog datatableProjects={datatableProjects} kvEntries={kvEntries} kvProjectNames={kvProjectNames} onClose={() => setShowCreate(false)} onCreated={handleCreated} onUpdated={handleUpdated} />
@@ -153,9 +147,6 @@ export function ApiKeysPage() {
       <RenderIf condition={!!editKey}>
         <ApiKeyFormDialog edit={editKey} datatableProjects={datatableProjects} kvEntries={kvEntries} kvProjectNames={kvProjectNames} onClose={() => setEditKey(null)} onCreated={handleCreated} onUpdated={handleUpdated} />
       </RenderIf>
-      <RenderIf condition={!!created?.key}>
-        <CreatedKeyDialog created={created!} onClose={() => setCreated(null)} />
-      </RenderIf>
-    </div>
+    </>
   );
 }

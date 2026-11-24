@@ -1,6 +1,5 @@
-export type SettingsTab = "general" | "api-keys";
+export type SettingsTab = "general";
 
-export const SETTINGS_TABS: { key: SettingsTab; label: string; description: string; icon: "monitor" | "shield-check" }[] = [
+export const SETTINGS_TABS: { key: SettingsTab; label: string; description: string; icon: "monitor" }[] = [
   { key: "general", label: "General", description: "Timezone and sandbox for the whole app.", icon: "monitor" },
-  { key: "api-keys", label: "API keys", description: "Keys that read and write datatables and KV over HTTP.", icon: "shield-check" },
 ];

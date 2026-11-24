@@ -1,3 +1,4 @@
+import connectIcon from "src/assets/feature-icons/connect.svg";
 import datatablesIcon from "src/assets/feature-icons/datatables.svg";
 import jobsIcon from "src/assets/feature-icons/jobs.svg";
 import kvStoreIcon from "src/assets/feature-icons/kv-store.svg";
@@ -10,6 +11,7 @@ import toolsIcon from "src/assets/feature-icons/tools.svg";
 import { cn } from "src/common/lib/cn";
 
 const FEATURE_ICONS = {
+  connect: connectIcon,
   tools: toolsIcon,
   jobs: jobsIcon,
   mcp: mcpIcon,

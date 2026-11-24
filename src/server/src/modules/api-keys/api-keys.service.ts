@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { apiKeyDatatableProjects, apiKeyKvEntries, apiKeys, datatableProjects, getDb, kvStore } from "../../common/db/client.js";
+import { apiKeyDatatableProjects, apiKeyKvEntries, apiKeys, datatableProjects, getDb, kvProjects, kvStore } from "../../common/db/client.js";
 import { qall, qone, qrun } from "../../common/db/query.js";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
 
 const KEY_PREFIX_LEN = 12;
 
@@ -17,6 +17,11 @@ export type ApiKeyMeta = {
   createdAt: Date;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
+};
+
+export type ApiKeyDetail = ApiKeyMeta & {
+  datatableProjects: { id: string; name: string }[];
+  kvEntries: { id: string; key: string; projectId: string; projectName: string }[];
 };
 
 export type ApiKeyContext = {
@@ -132,6 +137,24 @@ export async function listApiKeys(): Promise<{ items: ApiKeyMeta[]; total: numbe
     items.push(toMeta(row, await loadScope(row.id)));
   }
   return { items, total: items.length };
+}
+
+export async function getApiKey(id: string): Promise<ApiKeyDetail> {
+  const row = await qone(getDb().select().from(apiKeys).where(eq(apiKeys.id, id)));
+  if (!row) throw new NotFoundException("API key not found");
+  const scope = await loadScope(row.id);
+  const projects = scope.datatableProjectIds.length ? await qall(getDb().select({ id: datatableProjects.id, name: datatableProjects.name }).from(datatableProjects).where(inArray(datatableProjects.id, scope.datatableProjectIds)).orderBy(asc(datatableProjects.name))) : [];
+  const entries = scope.kvEntryIds.length
+    ? await qall(
+        getDb()
+          .select({ id: kvStore.id, key: kvStore.key, projectId: kvStore.projectId, projectName: kvProjects.name })
+          .from(kvStore)
+          .innerJoin(kvProjects, eq(kvProjects.id, kvStore.projectId))
+          .where(inArray(kvStore.id, scope.kvEntryIds))
+          .orderBy(asc(kvProjects.name), asc(kvStore.key)),
+      )
+    : [];
+  return { ...toMeta(row, scope), datatableProjects: projects, kvEntries: entries };
 }
 
 export async function createApiKey(body: ApiKeyWriteBody & { name: string; createdBy: string }): Promise<ApiKeyMeta & { key: string }> {
