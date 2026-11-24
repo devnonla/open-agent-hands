@@ -130,7 +130,7 @@ Things you might ask an agent:
 - *"Add a tool that converts text to a URL slug and put it on the Everyday server."*
 
 <details>
-<summary><b>Everything the Core MCP can do</b> (59 tools)</summary>
+<summary><b>Everything the Core MCP can do</b> (61 tools)</summary>
 
 | Group | Tools |
 | --- | --- |

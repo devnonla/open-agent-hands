@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+**Some Core MCP tools were renamed** (see Changed). Agents pick up the new names from `tools/list`, but prompts or scripts that call the old names need updating. Update the Claude Code plugin too: `claude plugin update agenthands@agenthands`.
+
+### Added
+
+- **`oahctl`, a command line client.** A small client (about 20 KB, Node 18+ or Bun), separate from the server and installed by `install.sh` (`AGENTHANDS_CLI_ONLY=1` installs only the client). `oahctl login`, then every Core MCP tool is a command (`oahctl list_tools`, `oahctl kv set A=1`, `oahctl tools create --code-file ./x.ts`). Any agent that can run shell commands can use it without MCP setup, and new server tools show up without restarting anything. Save several servers and pick one per call (`-s vps`), per folder (`oahctl pin vps`) or by default (`oahctl use`). `oahctl upload` and `oahctl download` move files of any size.
+- **Connect page.** One place to hook up an agent, with CLI, MCP and API tabs. Each has a setup prompt to paste into your agent, plus the server address and the key.
+- **API key pages.** API keys moved from Settings to **Connect → API**. Open a key to see which datatables and KV keys it can reach, with a setup prompt that covers only those. Right after you create a key, its page shows the secret once and a prompt that already includes it.
+- **Edit code by text.** `edit_tool_code` and `edit_site_file` replace exact pieces of text instead of rewriting the whole file. All edits apply together or not at all.
+- **`get_tool_schema`.** Reads the input schema of one or more tools without their code.
+- **Files of any size over links.** `storage_upload_link` and `storage_download_link` return one-time links (valid for 1 hour) that the agent uses with `curl`, so large and binary files never pass through the chat.
+
+### Changed
+
+- **Renamed Core MCP tools:**
+  - `datatable_add_column` → `datatable_add_columns` (adds several columns at once)
+  - `datatable_update_row` → `datatable_update_rows` (updates up to 200 rows at once)
+  - `write_site_file` → `edit_site_file`
+  - `storage_put_file` → `storage_upload_link`
+- **All or nothing writes.** Inserting or updating many datatable rows, or adding many columns, checks every item first. One bad item changes nothing, and the error names it.
+- **Storage knows file types.** The type is detected from the file's bytes, not only its name. Public images (except SVG), PDFs, video and audio now open in the browser.
+- **Tool parameters are checked.** A malformed `@param` line or an unknown type is rejected when the tool is saved, and the error shows the right format.
+
+### Removed
+
+- **Core MCP card under MCP Servers.** The Core MCP key and setup now live on the **Connect** page.
+
 ## [0.5.1] - 2026-11-23
 
 ### Added
