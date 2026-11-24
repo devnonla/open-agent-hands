@@ -10,7 +10,8 @@
   "packageManager": "bun@1.4.3",
   "workspaces": [
     "src/server",
-    "src/web"
+    "src/web",
+    "src/cli"
   ],
   "scripts": {
     "dev:server": "bun --watch src/server/src/index.ts --port 18429 --data-dir $HOME/.open-agent-hands-dev",
@@ -26,9 +27,11 @@
     "typecheck": "cd src/web && bun check",
     "typecheck:server": "cd src/server && bun check",
     "typecheck:web": "cd src/web && bun check",
-    "test": "bun test src/server/src/__tests__/",
-    "test:watch": "bun test --watch src/server/src/__tests__/",
+    "typecheck:cli": "cd src/cli && bun check",
+    "test": "bun test src/server/src/__tests__/ src/cli/test/",
+    "test:watch": "bun test --watch src/server/src/__tests__/ src/cli/test/",
     "build:binary": "bun scripts/build-binary.ts --skip-web",
+    "build:cli": "bun scripts/build-cli.ts",
     "build:binary:all": "bun run build:web && bun scripts/build-binary.ts --skip-web --all",
     "build:desktop": "bun scripts/build-desktop.ts"
   },

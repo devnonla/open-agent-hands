@@ -16,6 +16,7 @@ export type McpToolDescriptor = {
   name: string;
   description: string;
   inputSchema: object;
+  _meta?: Record<string, unknown>;
 };
 
 export type McpToolResult = { content: { type: "text"; text: string }[]; isError: boolean };
@@ -24,7 +25,7 @@ export type McpServerHandler = {
   name: string;
   instructions?: string;
   listTools: () => Promise<McpToolDescriptor[]>;
-  callTool: (name: string, args: Record<string, unknown>) => Promise<McpToolResult>;
+  callTool: (name: string, args: Record<string, unknown>, request?: Request) => Promise<McpToolResult>;
 };
 
 export function textResult(text: string, isError = false): McpToolResult {
@@ -49,7 +50,7 @@ function isNotification(req: JsonRpcRequest): boolean {
   return req.id === undefined || (typeof req.method === "string" && req.method.startsWith("notifications/"));
 }
 
-async function handleMethod(server: McpServerHandler, req: JsonRpcRequest): Promise<unknown> {
+async function handleMethod(server: McpServerHandler, req: JsonRpcRequest, request: Request): Promise<unknown> {
   const params = req.params ?? {};
   switch (req.method) {
     case "initialize":
@@ -67,7 +68,7 @@ async function handleMethod(server: McpServerHandler, req: JsonRpcRequest): Prom
       const name = typeof params.name === "string" ? params.name : "";
       if (!name) return textResult("Tool name is required", true);
       const args = params.arguments && typeof params.arguments === "object" ? (params.arguments as Record<string, unknown>) : {};
-      return await server.callTool(name, args);
+      return await server.callTool(name, args, request);
     }
     case "resources/list":
       return { resources: [] };
@@ -78,12 +79,12 @@ async function handleMethod(server: McpServerHandler, req: JsonRpcRequest): Prom
   }
 }
 
-async function handleOne(server: McpServerHandler, req: JsonRpcRequest): Promise<object | null> {
+async function handleOne(server: McpServerHandler, req: JsonRpcRequest, request: Request): Promise<object | null> {
   if (isNotification(req)) return null;
   const id = req.id ?? null;
   if (req.jsonrpc !== "2.0" || typeof req.method !== "string") return rpcError(id, -32600, "Invalid Request");
   try {
-    const result = await handleMethod(server, req);
+    const result = await handleMethod(server, req, request);
     if (result === undefined) return rpcError(id, -32601, `Method not found: ${req.method}`);
     return rpcResult(id, result);
   } catch (err) {
@@ -101,12 +102,12 @@ export async function handleMcpRequest(request: Request, server: McpServerHandle
   if (Array.isArray(body)) {
     const responses: object[] = [];
     for (const item of body) {
-      const res = await handleOne(server, (item ?? {}) as JsonRpcRequest);
+      const res = await handleOne(server, (item ?? {}) as JsonRpcRequest, request);
       if (res) responses.push(res);
     }
     return responses.length > 0 ? Response.json(responses) : new Response(null, { status: 202 });
   }
-  const res = await handleOne(server, (body ?? {}) as JsonRpcRequest);
+  const res = await handleOne(server, (body ?? {}) as JsonRpcRequest, request);
   return res ? Response.json(res) : new Response(null, { status: 202 });
 }
 

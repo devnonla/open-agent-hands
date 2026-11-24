@@ -1,0 +1,15 @@
+{
+  "name": "@agenthands/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "oahctl: a small command line client for Agent Hands servers. Runs on Node 18+ or Bun.",
+  "bin": { "oahctl": "src/main.ts" },
+  "scripts": {
+    "start": "bun src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "bun-types": "^1.4.0"
+  }
+}

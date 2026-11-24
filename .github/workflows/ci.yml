@@ -36,5 +36,8 @@ jobs:
       - name: Typecheck server
         run: bun run typecheck:server
 
+      - name: Typecheck CLI
+        run: bun run typecheck:cli
+
       - name: Test
         run: bun run test

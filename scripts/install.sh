@@ -5,6 +5,7 @@ REPO="${AGENTHANDS_REPO:-devnonla/open-agent-hands}"
 VERSION="${AGENTHANDS_VERSION:-latest}"
 INSTALL_DIR="${AGENTHANDS_INSTALL_DIR:-$HOME/.local/bin}"
 WANT_APP="${AGENTHANDS_APP:-1}"
+CLI_ONLY="${AGENTHANDS_CLI_ONLY:-0}"
 APP_NAME="Open Agent Hands.app"
 
 case "$(uname -s)" in
@@ -88,11 +89,36 @@ install_cli() {
   echo "Run: agenthands   (then open http://127.0.0.1:8429)"
 }
 
+install_oahctl() {
+  url="${base}/oahctl.js"
+  echo "Downloading ${url}"
+  if ! curl -fL --progress-bar "$url" -o "$workdir/oahctl"; then
+    echo "The oahctl command line is not available for this release."
+    return 0
+  fi
+  chmod +x "$workdir/oahctl"
+  rm -f "$INSTALL_DIR/oahctl"
+  mv "$workdir/oahctl" "$INSTALL_DIR/oahctl"
+  echo "Installed oahctl to $INSTALL_DIR/oahctl"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "oahctl runs on Node 18+. Install Node, or run it with Bun: bun $INSTALL_DIR/oahctl"
+  fi
+  echo "Next: oahctl login   (or oahctl login https://your-server --name vps)"
+}
+
+if [ "$CLI_ONLY" = "1" ]; then
+  install_oahctl
+  print_path_hint
+  exit 0
+fi
+
 if [ "$os" = "darwin" ] && [ "$WANT_APP" != "0" ]; then
   if install_app; then
+    install_oahctl
     exit 0
   fi
   echo "The desktop app is not available for this release. Installing the command line binary instead."
 fi
 
 install_cli
+install_oahctl

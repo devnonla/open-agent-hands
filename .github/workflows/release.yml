@@ -30,6 +30,9 @@ jobs:
       - name: Build binaries
         run: bun run build:binary:all
 
+      - name: Build CLI
+        run: bun run build:cli && node dist/oahctl.js --version
+
       - name: Share macOS binaries with the app job
         uses: actions/upload-artifact@v4
         with:
@@ -59,6 +62,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/agenthands-*
+            dist/oahctl.js
             scripts/install.sh
 
   docker:
